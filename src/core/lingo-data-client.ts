@@ -1,0 +1,592 @@
+import { getBEApiBaseUrl } from "./backend-api.js";
+import {
+  contentRefFromLocalization,
+  isJsonDeepEqual,
+  type Localization,
+  type SourceContent,
+} from "./misc.js";
+import callAnnotate_storedForOwner from "./annotation/api-client.js";
+import { convertAnnotatedEntryToAText } from "./annotation/converters.js";
+import {
+  utilsFetchAnnotation,
+  type AnnotationCacheRef,
+  type FetchAnnotationFetch,
+  type FetchAnnotationFetchResponse,
+  type SupabaseAnnotationClient,
+  type SupabaseAnnotationQuery,
+} from "./annotation/fetch-annotation.js";
+import type { AnnotatedText, AnnotationEntry } from "./annotation/types.js";
+import utilsFetchLocalization, {
+  invalidateFetchLocalizationCache,
+  type TranslationCacheRef,
+} from "./translation/fetch-localization.js";
+import { callTranslateCreateLimitedAnon } from "./translation/api-client.js";
+import type {
+  SupabaseTranslationQuery,
+  SupabaseTranslationUpdateQuery,
+  TranslationRow,
+} from "./translation/types.js";
+import { isTranslationRow } from "./translation/validators.js";
+
+export type { AnnotationCache, AnnotationCacheRef } from "./annotation/fetch-annotation.js";
+export type {
+  TranslationCache,
+  TranslationCacheRef,
+} from "./translation/fetch-localization.js";
+
+export type AnnotationRow = AnnotationEntry & {
+  id?: number;
+  created_at?: string;
+  [key: string]: unknown;
+};
+
+export type APIInputReAnnotate = {
+  [key: string]: unknown;
+};
+
+export type SupabaseAnnotationDeleteResult = {
+  data: unknown[] | null;
+  error: { message?: string } | unknown | null;
+};
+
+export type SupabaseAnnotationDeleteQuery =
+  PromiseLike<SupabaseAnnotationDeleteResult> & {
+    eq(column: string, value: unknown): SupabaseAnnotationDeleteQuery;
+    is(column: string, value: null): SupabaseAnnotationDeleteQuery;
+    select(columns?: string): PromiseLike<SupabaseAnnotationDeleteResult>;
+  };
+
+export type SupabaseLingoDataClient = Omit<SupabaseAnnotationClient, "from"> & {
+  from(table: "annotations"): {
+    select(columns: string): SupabaseAnnotationQuery;
+    delete(): SupabaseAnnotationDeleteQuery;
+  };
+  from(table: "translations"): {
+    select(columns: string): SupabaseTranslationQuery;
+    update(values: Record<string, unknown>): SupabaseTranslationUpdateQuery;
+  };
+  auth?: SupabaseAnnotationClient["auth"] & {
+    getUser?: () => Promise<{
+      data: {
+        user: {
+          id: string;
+        } | null;
+      };
+      error?: unknown;
+    }>;
+  };
+};
+
+export type CreateLingoDataClientOptions = {
+  supabaseClient?: SupabaseLingoDataClient;
+  useStagingBackend?: boolean;
+};
+
+export type FetchLocalizationMethodInput = {
+  l10n_lang: string;
+  sourceContent: SourceContent;
+  isPublic?: boolean;
+};
+
+export type FetchAnnotationMethodInput = {
+  localization: Localization;
+};
+
+export type ReGenOwnerAnnotationInput = {
+  localization: Localization;
+  skipDeletionOfExisting?: boolean;
+};
+
+export type RetranslateInput = {
+  id: number;
+};
+
+export type UpdateTranslationWithHumanEditInput = {
+  id: number;
+  targetText: string;
+};
+
+export type LingoDataClient = {
+  translationsCache: TranslationCacheRef;
+  t9nCacheDatesBySC: Record<string, string>;
+  /** Reads or generates the newest localization for a source/target language pair. */
+  fetchLocalization(
+    input: FetchLocalizationMethodInput,
+  ): Promise<Localization | null>;
+  /** Merges translation rows into the owned cache and keeps newest rows first. */
+  updateTranslationsCaches(sbTranslationRows: TranslationRow[]): void;
+  /** Returns the last cache timestamp recorded for the given source content. */
+  getT9nCacheDateBySC(sourceContent: SourceContent): string | null;
+  /** Updates cache timestamps for one or more source content entries. */
+  _updateT9nCacheDatesBySCs(sourceContents: SourceContent[]): void;
+  /** Re-runs translation generation for an existing translation row id. */
+  retranslate(input: RetranslateInput): Promise<TranslationRow | null>;
+  /**
+   * Persists a human-edited translation, updates its cache entry, and marks the
+   * translator as USER.
+   */
+  updateTranslationWithHumanEdit(
+    input: UpdateTranslationWithHumanEditInput,
+  ): Promise<TranslationRow | null>;
+  annotationsByLangNTextCache: AnnotationCacheRef;
+  /** Reads or generates annotation data for a localization. */
+  fetchAnnotation(input: FetchAnnotationMethodInput): Promise<AnnotatedText | null>;
+  /** Rebuilds owner-scoped annotation data and refreshes the annotation cache. */
+  reGenOwnerAnnotation(
+    input: ReGenOwnerAnnotationInput,
+  ): Promise<AnnotatedText | null>;
+  /** Re-runs backend annotation generation using existing stored annotation data. */
+  reAnnotateWithExistingData(
+    input: APIInputReAnnotate,
+  ): Promise<AnnotationRow[] | null>;
+};
+
+function createAnnotationCacheRef(): AnnotationCacheRef {
+  return { current: {} };
+}
+
+function createTranslationCacheRef(): TranslationCacheRef {
+  return { current: [] };
+}
+
+function hasDbRefId(ref: Localization["sourceContent"]["ref"]): boolean {
+  return "db" in ref && ref.db.id != null;
+}
+
+function errorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+  }
+
+  return JSON.stringify(error);
+}
+
+function getFetch(): FetchAnnotationFetch {
+  if (!globalThis.fetch) {
+    throw new Error("A fetch implementation is required to call Lingo data APIs.");
+  }
+
+  return globalThis.fetch.bind(globalThis) as FetchAnnotationFetch;
+}
+
+async function resolveAccessToken({
+  supabaseClient,
+}: {
+  supabaseClient?: SupabaseLingoDataClient | undefined;
+}): Promise<string | null> {
+  const session = await supabaseClient?.auth?.getSession();
+  return session?.data.session?.access_token ?? null;
+}
+
+async function resolveSupabaseUserID({
+  supabaseClient,
+}: {
+  supabaseClient?: SupabaseLingoDataClient | undefined;
+}): Promise<string | null> {
+  const userResult = await supabaseClient?.auth?.getUser?.();
+  return userResult?.data.user?.id ?? null;
+}
+
+function sourceContentFromTranslationRow(translation: TranslationRow): SourceContent {
+  return {
+    owner_id: translation.owner_id,
+    lang: translation.source_lang,
+    text: translation.source_text,
+    ref: translation.ref,
+  };
+}
+
+function invalidateLocalizationForTranslationRow(translation: TranslationRow): void {
+  invalidateFetchLocalizationCache({
+    l10n_lang: translation.target_lang,
+    sourceContent: sourceContentFromTranslationRow(translation),
+  });
+}
+
+function upsertAnnotationCache({
+  cacheRef,
+  annotation,
+  insertAtFront,
+}: {
+  cacheRef: AnnotationCacheRef;
+  annotation: AnnotatedText;
+  insertAtFront: boolean;
+}): void {
+  const { lang, lang_text: text, ref } = annotation;
+  cacheRef.current[lang] ??= {};
+  cacheRef.current[lang]![text] ??= [];
+
+  const cachedTexts = cacheRef.current[lang]![text]!;
+  const existingIndex = cachedTexts.findIndex((cachedAnnotation) =>
+    isJsonDeepEqual(cachedAnnotation.ref ?? {}, ref ?? {}),
+  );
+
+  if (existingIndex >= 0) {
+    cachedTexts.splice(existingIndex, 1);
+  }
+
+  if (insertAtFront) {
+    cachedTexts.unshift(annotation);
+  } else {
+    cachedTexts.push(annotation);
+  }
+}
+
+async function readFailedResponse(
+  res: FetchAnnotationFetchResponse,
+): Promise<unknown> {
+  try {
+    return await res.json();
+  } catch {
+    try {
+      return await res.text();
+    } catch {
+      return "(could not read response body)";
+    }
+  }
+}
+
+function isTranslationRowArray(data: unknown): data is TranslationRow[] {
+  return Array.isArray(data) && data.every(isTranslationRow);
+}
+
+export function createLingoDataClient({
+  supabaseClient,
+  useStagingBackend,
+}: CreateLingoDataClientOptions = {}): LingoDataClient {
+  const annotationsByLangNTextCache = createAnnotationCacheRef();
+  const translationsCache = createTranslationCacheRef();
+  const t9nCacheDatesBySC: Record<string, string> = {};
+
+  function getSourceContentKey(sourceContent: SourceContent): string {
+    const { owner_id, lang, text, ref } = sourceContent;
+    return [lang, text, JSON.stringify(ref), owner_id]
+      .filter((value) => value != null)
+      .join("|");
+  }
+
+  async function fetchLocalization({
+    l10n_lang,
+    sourceContent,
+    isPublic = false,
+  }: FetchLocalizationMethodInput): Promise<Localization | null> {
+    return utilsFetchLocalization({
+      l10n_lang,
+      sourceContent,
+      isPublic,
+      translationsCache,
+      ...(supabaseClient ? { supabaseClient } : {}),
+      ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
+    });
+  }
+
+  function updateTranslationsCaches(sbTranslationRows: TranslationRow[]): void {
+    const cacheMap = new Map(translationsCache.current.map((row) => [row.id, row]));
+
+    for (const row of sbTranslationRows) {
+      cacheMap.set(row.id, row);
+    }
+
+    translationsCache.current = Array.from(cacheMap.values()).sort((a, b) =>
+      b.created_at.localeCompare(a.created_at),
+    );
+  }
+
+  function getT9nCacheDateBySC(sourceContent: SourceContent): string | null {
+    return t9nCacheDatesBySC[getSourceContentKey(sourceContent)] ?? null;
+  }
+
+  function _updateT9nCacheDatesBySCs(sourceContents: SourceContent[]): void {
+    const now = new Date().toISOString();
+    for (const sourceContent of sourceContents) {
+      t9nCacheDatesBySC[getSourceContentKey(sourceContent)] = now;
+    }
+  }
+
+  async function updateTranslationRow({
+    existingRow,
+    targetText,
+    translator,
+  }: {
+    existingRow: TranslationRow;
+    targetText: string;
+    translator: string;
+  }): Promise<TranslationRow | null> {
+    if (!supabaseClient) {
+      console.error("A Supabase client is required to update translations.");
+      return null;
+    }
+
+    const updatedAt = new Date().toISOString();
+    const optimisticRow: TranslationRow = {
+      ...existingRow,
+      target_text: targetText,
+      created_at: updatedAt,
+      translator,
+    };
+
+    const { data, error } = await supabaseClient
+      .from("translations")
+      .update({
+        target_text: targetText,
+        created_at: updatedAt,
+        translator,
+      })
+      .eq("id", existingRow.id)
+      .select(
+        "id, source_lang, source_text, target_lang, target_text, owner_id, created_at, translator, ref",
+      );
+
+    if (error) {
+      console.error("Supabase update error:", errorMessage(error));
+      return null;
+    }
+
+    const rows = isTranslationRowArray(data) ? data : [];
+    return rows[0] ?? optimisticRow;
+  }
+
+  async function getTranslationRowById(id: number): Promise<TranslationRow | null> {
+    const cached = translationsCache.current.find((row) => row.id === id);
+    if (cached) return cached;
+
+    if (!supabaseClient) {
+      console.error("A Supabase client is required to load uncached translations by id.");
+      return null;
+    }
+
+    const { data, error } = await supabaseClient
+      .from("translations")
+      .select(
+        "id, source_lang, source_text, target_lang, target_text, owner_id, created_at, translator, ref",
+      )
+      .eq("id", id);
+
+    if (error) {
+      console.error("Supabase select error:", errorMessage(error));
+      return null;
+    }
+
+    const rows = isTranslationRowArray(data) ? data : [];
+    const row = rows[0] ?? null;
+    if (row) updateTranslationsCaches([row]);
+    return row;
+  }
+
+  async function retranslate({ id }: RetranslateInput): Promise<TranslationRow | null> {
+    const existingRow = await getTranslationRowById(id);
+    if (!existingRow) {
+      console.error(`Could not find translation row ${id} for retranslation.`);
+      return null;
+    }
+
+    const resolvedAccessToken = await resolveAccessToken({ supabaseClient });
+    if (!resolvedAccessToken) {
+      console.error("retranslate requires an access token.");
+      return null;
+    }
+
+    try {
+      const generated = await callTranslateCreateLimitedAnon({
+        source_lang: existingRow.source_lang,
+        source_text: existingRow.source_text,
+        target_lang: existingRow.target_lang,
+        accessToken: resolvedAccessToken,
+        ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
+      });
+      const row = await updateTranslationRow({
+        existingRow,
+        targetText: generated.targetText,
+        translator: generated.translator,
+      });
+      if (!row) return null;
+
+      updateTranslationsCaches([row]);
+      invalidateLocalizationForTranslationRow(row);
+      _updateT9nCacheDatesBySCs([sourceContentFromTranslationRow(row)]);
+      return row;
+    } catch (error) {
+      console.error("callTranslateCreateLimitedAnon failed", error);
+      return null;
+    }
+  }
+
+  async function updateTranslationWithHumanEdit({
+    id,
+    targetText,
+  }: UpdateTranslationWithHumanEditInput): Promise<TranslationRow | null> {
+    const existingRow = await getTranslationRowById(id);
+    if (!existingRow) {
+      console.error(`Could not find translation row ${id} for human edit.`);
+      return null;
+    }
+
+    try {
+      const row = await updateTranslationRow({
+        existingRow,
+        targetText,
+        translator: "USER",
+      });
+      if (!row) return null;
+
+      updateTranslationsCaches([row]);
+      invalidateLocalizationForTranslationRow(row);
+      _updateT9nCacheDatesBySCs([sourceContentFromTranslationRow(row)]);
+      return row;
+    } catch (error) {
+      console.error("updateTranslationWithHumanEdit failed", error);
+      return null;
+    }
+  }
+
+  async function fetchAnnotation({
+    localization,
+  }: FetchAnnotationMethodInput): Promise<AnnotatedText | null> {
+    return utilsFetchAnnotation({
+      localization,
+      annotationsByLangNTextCache,
+      ...(supabaseClient ? { supabaseClient } : {}),
+      ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
+    });
+  }
+
+  async function reGenOwnerAnnotation({
+    localization,
+    skipDeletionOfExisting = false,
+  }: ReGenOwnerAnnotationInput): Promise<AnnotatedText | null> {
+    const ref = contentRefFromLocalization(localization);
+    if (!ref) {
+      console.error("reGenOwnerAnnotation could not derive a content ref from localization.");
+      return null;
+    }
+
+    if (!skipDeletionOfExisting) {
+      if (!supabaseClient) {
+        console.error("reGenOwnerAnnotation requires a Supabase client to delete existing annotations.");
+        return null;
+      }
+
+      const resolvedSupabaseUserID = await resolveSupabaseUserID({
+        supabaseClient,
+      });
+
+      if (!resolvedSupabaseUserID) {
+        console.error(
+          "reGenOwnerAnnotation requires an authenticated Supabase user to delete owner annotations.",
+        );
+        return null;
+      }
+
+      let query = supabaseClient
+        .from("annotations")
+        .delete()
+        .eq("lang", localization.l10n_lang)
+        .eq("owner_id", resolvedSupabaseUserID)
+        .eq("ref", JSON.stringify(ref));
+
+      if (!hasDbRefId(ref)) {
+        query = query.eq("lang_text", localization.text);
+      }
+
+      const { error } = await query.select();
+      if (error) {
+        console.error("Supabase delete error:", errorMessage(error));
+        return null;
+      }
+    }
+
+    const resolvedAccessToken = await resolveAccessToken({
+      supabaseClient,
+    });
+    if (!resolvedAccessToken) {
+      console.error("reGenOwnerAnnotation requires an access token.");
+      return null;
+    }
+
+    try {
+      const annotation = await callAnnotate_storedForOwner({
+        lang: localization.l10n_lang,
+        text: localization.text,
+        ref,
+        accessToken: resolvedAccessToken,
+        ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
+      });
+
+      upsertAnnotationCache({
+        cacheRef: annotationsByLangNTextCache,
+        annotation,
+        insertAtFront: true,
+      });
+
+      return annotation;
+    } catch (error) {
+      console.error("callAnnotate_storedForOwner failed", error);
+      return null;
+    }
+  }
+
+  async function reAnnotateWithExistingData(
+    input: APIInputReAnnotate,
+  ): Promise<AnnotationRow[] | null> {
+    const resolvedAccessToken = await resolveAccessToken({
+      supabaseClient,
+    });
+    if (!resolvedAccessToken) {
+      console.error("reAnnotateWithExistingData requires an access token.");
+      return null;
+    }
+
+    const requestFetch = getFetch();
+    const apiBaseUrl =
+      useStagingBackend === undefined
+        ? getBEApiBaseUrl()
+        : getBEApiBaseUrl({ useStagingBackend });
+    const res = await requestFetch(`${apiBaseUrl}/api/re-annotate-with-existing-data`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${resolvedAccessToken}`,
+      },
+      body: JSON.stringify(input),
+    });
+
+    if (!res.ok) {
+      console.error(
+        `External API call failed. HTTP ${res.status} - Data: ${JSON.stringify(
+          await readFailedResponse(res),
+        )}`,
+      );
+      return null;
+    }
+
+    const data = (await res.json()) as AnnotationRow[];
+    for (const row of data) {
+      const annotation = convertAnnotatedEntryToAText(row);
+      if (!annotation) continue;
+
+      upsertAnnotationCache({
+        cacheRef: annotationsByLangNTextCache,
+        annotation,
+        insertAtFront: true,
+      });
+    }
+
+    return data;
+  }
+
+  return {
+    translationsCache,
+    t9nCacheDatesBySC,
+    fetchLocalization,
+    updateTranslationsCaches,
+    getT9nCacheDateBySC,
+    _updateT9nCacheDatesBySCs,
+    retranslate,
+    updateTranslationWithHumanEdit,
+    annotationsByLangNTextCache,
+    fetchAnnotation,
+    reGenOwnerAnnotation,
+    reAnnotateWithExistingData,
+  };
+}

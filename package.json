@@ -1,0 +1,54 @@
+{
+  "name": "lingop",
+  "version": "0.1.9",
+  "description": "Shared TypeScript code for Lingo web and native apps.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "default": "./dist/core/index.js"
+    },
+    "./annotation": {
+      "types": "./dist/core/annotation/index.d.ts",
+      "default": "./dist/core/annotation/index.js"
+    },
+    "./language": {
+      "types": "./dist/core/language/index.d.ts",
+      "default": "./dist/core/language/index.js"
+    },
+    "./ui": {
+      "types": "./dist/ui/index.d.ts",
+      "default": "./dist/ui/index.js"
+    },
+    "./ui/next": {
+      "types": "./dist/ui/next/index.d.ts",
+      "default": "./dist/ui/next/index.js"
+    },
+    "./ui/react-native": {
+      "types": "./dist/ui/react-native/index.d.ts",
+      "default": "./dist/ui/react-native/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc -p tsconfig.json",
+    "prepare": "npm run build",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+  "react": ">=18"
+},
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vitest": "^3.2.6",
+    "@types/react": "^18"
+  }
+}
