@@ -12,6 +12,10 @@
       "types": "./dist/core/index.d.ts",
       "default": "./dist/core/index.js"
     },
+    "./binder": {
+      "types": "./dist/core/binder/index.d.ts",
+      "default": "./dist/core/binder/index.js"
+    },
     "./annotation": {
       "types": "./dist/core/annotation/index.d.ts",
       "default": "./dist/core/annotation/index.js"
