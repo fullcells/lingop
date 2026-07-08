@@ -1,4 +1,4 @@
-# lingop
+# lingop (⚠️ Internal Package Only - Not Ready for Unapproved Apps Yet)
 
 Shared TypeScript code for Lingo projects.
 
