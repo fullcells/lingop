@@ -4,6 +4,26 @@ Shared TypeScript code for Lingo projects.
 
 This codebase is intended to be used from both web apps, such as Next.js TypeScript apps, and native apps, such as React Native TypeScript apps.
 
+## Install
+
+Consumers can install Lingop directly from GitHub:
+
+```json
+"dependencies": {
+  "lingop": "github:fullcells/lingop"
+}
+```
+
+To pin a specific release, use the release tag:
+
+```json
+"dependencies": {
+  "lingop": "github:fullcells/lingop#v0.2.0"
+}
+```
+
+Current release tags follow the package version in `package.json`, so `0.2.0` is published as `v0.2.0`.
+
 ## Lingo Data Usage
 
 For localization/translation, and annotation workflows, prefer `createLingoDataClient()` from `src/core/lingo-data-client.ts`.
