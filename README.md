@@ -92,6 +92,22 @@ const annotation = await lingoData.fetchAnnotation({ localization });
 
 <AnnotatedTextView annotatedText={annotatedText} />;`
 
+## Speech/TTS in Next.js
+
+```ts
+import { speechSynthTTS } from "lingop/ui/next";
+
+await speechSynthTTS.initSpeechSynthTTS(); // Optional browser-tab preload.
+await speechSynthTTS.speak({
+  text: "hello",
+  lang: "en",
+  apiVoiceAccessProfile: "ONE_PER_LANG",
+  contentContext: "LIMITED_TEMP_ANON",
+});
+```
+
+For `MEMBER_CONTENT`, pass the app's Supabase client: `speak({ ..., contentContext: "MEMBER_CONTENT", supabaseClient })`.
+
 ## Legacy Code Migration Notes
 
 - Keep this README.md updated
@@ -125,4 +141,5 @@ const annotation = await lingoData.fetchAnnotation({ localization });
 - `src/core/translation/` contains platform-neutral translation types and internal table/localization helpers used by `createLingoDataClient()`.
 - `src/core/word-explicitations.ts` loads and filters Supabase `word_explicitations` rows through a shared module cache.
 - `src/ui/next/cookies.ts` contains browser cookie helpers separated from platform-neutral core utilities.
+- `src/ui/next/speech-synth-tts.ts` contains browser/Next speech synthesis helpers exported from `lingop/ui/next`.
 - `src/ui/react-native/` is reserved for React Native-specific UI helpers.
