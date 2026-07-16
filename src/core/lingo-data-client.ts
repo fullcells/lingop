@@ -34,6 +34,13 @@ import {
   type SupabaseWordExplicitationsQuery,
   type WordExplicitationsRow,
 } from "./word-explicitations.js";
+import {
+  generateEmoji,
+  loadEmojiData,
+  type EmojiRow,
+  type IsNotCoreWord,
+  type SupabaseEmojiQuery,
+} from "./emojify.js";
 
 export type { AnnotationCache, AnnotationCacheRef } from "./annotation/fetch-annotation.js";
 export type {
@@ -78,6 +85,12 @@ export type SupabaseLingoDataClient = Omit<SupabaseAnnotationClient, "from"> & {
       options?: { count?: "exact"; head?: boolean },
     ): SupabaseWordExplicitationsQuery;
   };
+  from(table: "emojis"): {
+    select(
+      columns: string,
+      options?: { count?: "exact"; head?: boolean },
+    ): SupabaseEmojiQuery;
+  };
   auth?: SupabaseAnnotationClient["auth"] & {
     getUser?: () => Promise<{
       data: {
@@ -93,6 +106,7 @@ export type SupabaseLingoDataClient = Omit<SupabaseAnnotationClient, "from"> & {
 export type CreateLingoDataClientOptions = {
   supabaseClient?: SupabaseLingoDataClient;
   useStagingBackend?: boolean;
+  isNotCoreWord?: IsNotCoreWord;
 };
 
 export type FetchLocalizationMethodInput = {
@@ -160,6 +174,14 @@ export type LingoDataClient = {
     source_word: string;
     target_lang: string;
   }): Promise<OneWayWordExplicitations>;
+  /** Loads and caches Supabase emoji rows on this client instance. */
+  loadEmojiData(): Promise<EmojiRow[]>;
+  /** Generates emoji text for an English gloss using the owned emoji row cache. */
+  generateEmoji(
+    en_gloss: string,
+    study_word?: string,
+    study_lang?: string,
+  ): Promise<string | null>;
 };
 
 function createAnnotationCacheRef(): AnnotationCacheRef {
@@ -275,11 +297,13 @@ function isTranslationRowArray(data: unknown): data is TranslationRow[] {
 export function createLingoDataClient({
   supabaseClient,
   useStagingBackend,
+  isNotCoreWord,
 }: CreateLingoDataClientOptions = {}): LingoDataClient {
   const annotationsByLangNTextCache = createAnnotationCacheRef();
   const translationsCache = createTranslationCacheRef();
   const t9nCacheDatesBySC: Record<string, string> = {};
   let wordExplicitationsRowsPromise: Promise<WordExplicitationsRow[]> | undefined;
+  let emojiDataPromise: Promise<EmojiRow[]> | undefined;
 
   function getSourceContentKey(sourceContent: SourceContent): string {
     const { owner_id, lang, text, ref } = sourceContent;
@@ -616,6 +640,26 @@ export function createLingoDataClient({
     );
   }
 
+  async function loadOwnedEmojiData(): Promise<EmojiRow[]> {
+    if (emojiDataPromise) return emojiDataPromise;
+    emojiDataPromise = loadEmojiData({
+      ...(supabaseClient ? { supabaseClient } : {}),
+    });
+    return emojiDataPromise;
+  }
+
+  async function generateOwnedEmoji(
+    en_gloss: string,
+    study_word?: string,
+    study_lang?: string,
+  ): Promise<string | null> {
+    await loadOwnedEmojiData();
+    return generateEmoji(en_gloss, study_word, study_lang, {
+      ...(supabaseClient ? { supabaseClient } : {}),
+      ...(isNotCoreWord ? { isNotCoreWord } : {}),
+    });
+  }
+
   return {
     translationsCache,
     t9nCacheDatesBySC,
@@ -631,5 +675,7 @@ export function createLingoDataClient({
     reAnnotateWithExistingData,
     loadWordExplicitationsRows: loadOwnedWordExplicitationsRows,
     getOneWayWordExplicitations: getOwnedOneWayWordExplicitations,
+    loadEmojiData: loadOwnedEmojiData,
+    generateEmoji: generateOwnedEmoji,
   };
 }

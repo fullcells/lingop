@@ -44,6 +44,7 @@ Low-level annotation API calls, `callAnnotate_storedForOwner()` remains public a
 - `reAnnotateWithExistingData(input)`: re-runs backend annotation generation from existing stored annotation data and updates the annotation cache with the returned rows.
 - `loadWordExplicitationsRows()`: loads and caches Supabase `word_explicitations` rows on the client instance.
 - `getOneWayWordExplicitations({ source_lang, source_word, target_lang })`: filters the cached word-explicitation rows into the legacy one-way shape.
+- `loadEmojiData()` and `generateEmoji(en_gloss, study_word?, study_lang?)`: load cached Supabase emoji rows and generate emoji text for English glosses.
 
 Additional core helpers:
 
@@ -115,6 +116,7 @@ const annotation = await lingoData.fetchAnnotation({ localization });
 - `src/core/annotation/converters.ts` converts between raw annotation entries and frontend-friendly annotated text structures.
 - `src/core/annotation/fetch-annotation.ts` orchestrates annotation lookup across caller-provided in-memory cache, public annotation API, optional caller-provided Supabase client, and backend annotation generation. 
 - `src/core/annotation/types.ts` contains the annotation types extracted from old `globals.d.ts` files.
+- `src/core/emojify.ts` ports the legacy emoji-gloss generator and black/white emoji compatibility helpers. `createLingoDataClient()` owns the runtime emoji row cache.
 - `src/core/language/` contains language metadata, script metadata, localized language names, OpenAI voice metadata, and language lookup helpers. Large metadata tables live under `src/core/language/data/`.
 - `src/core/lingo-data-client.ts` is the platform-neutral successor to old `LingoDataContext`. It owns annotation and translation caches and exposes localization, translation-cache, annotation, re-generation, and re-annotation methods.
 - `src/core/misc.ts` contains platform-neutral utility functions ported from old `utils/misc.ts`. Browser image helpers based on `html2canvas` and element download/image capture were intentionally not ported.
