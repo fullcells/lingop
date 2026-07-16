@@ -42,11 +42,14 @@ Low-level annotation API calls, `callAnnotate_storedForOwner()` remains public a
 - `fetchAnnotation({ localization })`: returns annotation data for a localization, using cache/Supabase/backend lookup as needed.
 - `reGenOwnerAnnotation({ localization, skipDeletionOfExisting? })`: deletes and rebuilds an owner-scoped annotation, then refreshes the annotation cache.
 - `reAnnotateWithExistingData(input)`: re-runs backend annotation generation from existing stored annotation data and updates the annotation cache with the returned rows.
+- `loadWordExplicitationsRows()`: loads and caches Supabase `word_explicitations` rows on the client instance.
+- `getOneWayWordExplicitations({ source_lang, source_word, target_lang })`: filters the cached word-explicitation rows into the legacy one-way shape.
 
 Additional core helpers:
 
 - `getBinderDocsByMinL10nsOrder([{ doc_id, l10ns }], { priorityDocIds? })`: calculates "learning order by minimum new words" for already-loaded binder doc localization caches.
 - `fetchBinderDocsByMinL10nsOrder({ supabaseClient, binder_id, lang, priorityDocIds? })`: loads `cache_binder_doc_l10ns` rows for a binder/language pair and returns the same ordering.
+- Low-level `loadWordExplicitationsRows({ supabaseClient })` and `getOneWayWordExplicitations(input, { supabaseClient })` remain exported for gradual migration, but app code should prefer the existing `LingoDataClient`.
 
 The client also exposes two owned cache references for advanced callers:
 
@@ -116,5 +119,6 @@ const annotation = await lingoData.fetchAnnotation({ localization });
 - `src/core/lingo-data-client.ts` is the platform-neutral successor to old `LingoDataContext`. It owns annotation and translation caches and exposes localization, translation-cache, annotation, re-generation, and re-annotation methods.
 - `src/core/misc.ts` contains platform-neutral utility functions ported from old `utils/misc.ts`. Browser image helpers based on `html2canvas` and element download/image capture were intentionally not ported.
 - `src/core/translation/` contains platform-neutral translation types and internal table/localization helpers used by `createLingoDataClient()`.
+- `src/core/word-explicitations.ts` loads and filters Supabase `word_explicitations` rows while `createLingoDataClient()` owns the runtime cache.
 - `src/ui/next/cookies.ts` contains browser cookie helpers separated from platform-neutral core utilities.
 - `src/ui/react-native/` is reserved for React Native-specific UI helpers.

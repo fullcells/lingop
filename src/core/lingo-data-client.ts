@@ -27,6 +27,13 @@ import type {
   TranslationRow,
 } from "./translation/types.js";
 import { isTranslationRow } from "./translation/validators.js";
+import {
+  getOneWayWordExplicitationsFromRows,
+  loadWordExplicitationsRows,
+  type OneWayWordExplicitations,
+  type SupabaseWordExplicitationsQuery,
+  type WordExplicitationsRow,
+} from "./word-explicitations.js";
 
 export type { AnnotationCache, AnnotationCacheRef } from "./annotation/fetch-annotation.js";
 export type {
@@ -64,6 +71,12 @@ export type SupabaseLingoDataClient = Omit<SupabaseAnnotationClient, "from"> & {
   from(table: "translations"): {
     select(columns: string): SupabaseTranslationQuery;
     update(values: Record<string, unknown>): SupabaseTranslationUpdateQuery;
+  };
+  from(table: "word_explicitations"): {
+    select(
+      columns: string,
+      options?: { count?: "exact"; head?: boolean },
+    ): SupabaseWordExplicitationsQuery;
   };
   auth?: SupabaseAnnotationClient["auth"] & {
     getUser?: () => Promise<{
@@ -139,6 +152,14 @@ export type LingoDataClient = {
   reAnnotateWithExistingData(
     input: APIInputReAnnotate,
   ): Promise<AnnotationRow[] | null>;
+  /** Loads and caches Supabase word_explicitations rows on this client instance. */
+  loadWordExplicitationsRows(): Promise<WordExplicitationsRow[]>;
+  /** Returns source-to-target word explicitations using the owned row cache. */
+  getOneWayWordExplicitations(input: {
+    source_lang: string;
+    source_word: string;
+    target_lang: string;
+  }): Promise<OneWayWordExplicitations>;
 };
 
 function createAnnotationCacheRef(): AnnotationCacheRef {
@@ -258,6 +279,7 @@ export function createLingoDataClient({
   const annotationsByLangNTextCache = createAnnotationCacheRef();
   const translationsCache = createTranslationCacheRef();
   const t9nCacheDatesBySC: Record<string, string> = {};
+  let wordExplicitationsRowsPromise: Promise<WordExplicitationsRow[]> | undefined;
 
   function getSourceContentKey(sourceContent: SourceContent): string {
     const { owner_id, lang, text, ref } = sourceContent;
@@ -575,6 +597,25 @@ export function createLingoDataClient({
     return data;
   }
 
+  async function loadOwnedWordExplicitationsRows(): Promise<WordExplicitationsRow[]> {
+    if (wordExplicitationsRowsPromise) return wordExplicitationsRowsPromise;
+    wordExplicitationsRowsPromise = loadWordExplicitationsRows({
+      ...(supabaseClient ? { supabaseClient } : {}),
+    });
+    return wordExplicitationsRowsPromise;
+  }
+
+  async function getOwnedOneWayWordExplicitations(input: {
+    source_lang: string;
+    source_word: string;
+    target_lang: string;
+  }): Promise<OneWayWordExplicitations> {
+    return getOneWayWordExplicitationsFromRows(
+      input,
+      await loadOwnedWordExplicitationsRows(),
+    );
+  }
+
   return {
     translationsCache,
     t9nCacheDatesBySC,
@@ -588,5 +629,7 @@ export function createLingoDataClient({
     fetchAnnotation,
     reGenOwnerAnnotation,
     reAnnotateWithExistingData,
+    loadWordExplicitationsRows: loadOwnedWordExplicitationsRows,
+    getOneWayWordExplicitations: getOwnedOneWayWordExplicitations,
   };
 }

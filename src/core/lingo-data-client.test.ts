@@ -7,6 +7,11 @@ import {
 import type { Localization } from "./misc.js";
 import type { AnnotatedText } from "./annotation/types.js";
 import type { TranslationRow } from "./translation/types.js";
+import type {
+  SupabaseWordExplicitationsQuery,
+  SupabaseWordExplicitationsQueryResult,
+  WordExplicitationsRow,
+} from "./word-explicitations.js";
 
 function makeLocalization(): Localization {
   return {
@@ -45,6 +50,60 @@ function makeTranslationRow(id: number, overrides: Partial<TranslationRow> = {})
     translator: "test",
     ref: { db: { table: "custom_sources", column: "text", id } },
     ...overrides,
+  };
+}
+
+function makeWordExplicitationsQuery(
+  resultForRange: (from: number | null, to: number | null) => SupabaseWordExplicitationsQueryResult,
+): SupabaseWordExplicitationsQuery {
+  let rangeFrom: number | null = null;
+  let rangeTo: number | null = null;
+
+  const query: SupabaseWordExplicitationsQuery = {
+    order: vi.fn(() => query),
+    range: vi.fn((from: number, to: number) => {
+      rangeFrom = from;
+      rangeTo = to;
+      return query;
+    }),
+    then: (resolve, reject) =>
+      Promise.resolve(resultForRange(rangeFrom, rangeTo)).then(resolve, reject),
+  };
+
+  return query;
+}
+
+function makeWordExplicitationsSupabaseClient(
+  data: WordExplicitationsRow[],
+): { supabaseClient: SupabaseLingoDataClient; select: ReturnType<typeof vi.fn> } {
+  const select = vi.fn(
+    (
+      _columns: string,
+      options?: { count?: "exact"; head?: boolean },
+    ): SupabaseWordExplicitationsQuery => {
+      if (options?.head) {
+        return makeWordExplicitationsQuery(() => ({
+          data: null,
+          error: null,
+          count: data.length,
+        }));
+      }
+
+      return makeWordExplicitationsQuery((from, to) => ({
+        data:
+          from === null || to === null
+            ? data
+            : data.slice(from, Math.min(to + 1, data.length)),
+        error: null,
+      }));
+    },
+  );
+
+  return {
+    supabaseClient: {
+      from: vi.fn(() => ({ select })),
+    },
+    select,
   };
 }
 
@@ -121,6 +180,36 @@ describe("createLingoDataClient", () => {
     await expect(request).resolves.toEqual(makeAnnotatedText("hello"));
     expect(eqCalls).toContainEqual(["owner_id", "user-1"]);
     expect(supabaseClient.auth?.getUser).toHaveBeenCalled();
+  });
+
+  it("loads word explicitations through the owned client cache", async () => {
+    const { supabaseClient, select } = makeWordExplicitationsSupabaseClient([
+      {
+        id: 1,
+        a_lang: "en",
+        b_lang: "yue",
+        a_word_sense: "good",
+        a2b_explicitations: ["好"],
+        b2a_explicitations: ["good"],
+        b_word_sense: "好",
+      },
+    ]);
+    const client = createLingoDataClient({ supabaseClient });
+
+    await expect(client.loadWordExplicitationsRows()).resolves.toHaveLength(1);
+    await expect(
+      client.getOneWayWordExplicitations({
+        source_lang: "en",
+        source_word: "GOOD",
+        target_lang: "yue",
+      }),
+    ).resolves.toEqual({
+      input: { source_lang: "en", source_word: "GOOD", target_lang: "yue" },
+      rows: [{ id: 1, word_sense: "好", explicitations: ["good"] }],
+      targetLangIsA: false,
+    });
+
+    expect(select).toHaveBeenCalledTimes(2);
   });
 
   it("regenerates translated segment annotations with the derived localization ref", async () => {
