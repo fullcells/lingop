@@ -6,11 +6,12 @@ This codebase is intended to be used from both web apps, such as Next.js TypeScr
 
 ## Install
 
-Consumers can install Lingop directly from GitHub:
 
-`npm install lingop@github:fullcells/lingop#v0.2.2`
+- `rm -rf node_modules/lingop` // Remove Existing if Outdated: `npm ls lingop`
 
-Current release tags follow the package version in `package.json`, so `0.2.X` is published as `v0.2.X`.
+- `npm install lingop@github:fullcells/lingop#v0.2.2` // Install Directly from Github
+
+Release tags follow the package version in `package.json`, so `0.2.X` is published as `v0.2.X`.
 
 ## To Tag a New Version
 

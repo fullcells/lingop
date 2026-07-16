@@ -1,5 +1,6 @@
 import type { Lang } from "../types.js";
 
+// 20250816: Decided all lang-codes will be stored as lowercased, rather than mixed script. With separate function to reformat lang-codes back to their official mixed-case (BCP47) format. // ToDo: This lowercase-langcode-consistency still needs to be applied to the 'LANGS' data here.
 export const LANGS = [
  {
 	 "gcode_main": "om",
