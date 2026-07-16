@@ -215,20 +215,21 @@ function hasVoiceNamePart(name: string, parts: readonly string[]): boolean {
 }
 
 function browserVoiceSortScore(v: SpeechSynthesisVoice): number {
-  let score = 5;
+  let scoreBucket = 5;
   const nameUpper = v.name.toUpperCase();
 
-  if (v.default) score = 0;
-  else if (nameUpper.includes("GOOGLE")) score = 1;
-  else if (nameUpper.includes("PREMIUM")) score = 2;
-  else if (nameUpper.includes("MICROSOFT")) score = 3; // untested if this exists on Microsoft - 20260707
-  else if (nameUpper.includes("ENHANCED")) score = 4;
-  else if (!v.localService) score = 4;
+  if (v.default) scoreBucket = 0;
+  else if (nameUpper.includes("GOOGLE")) scoreBucket = 1;
+  else if (nameUpper.includes("PREMIUM")) scoreBucket = 2;
+  else if (nameUpper.includes("MICROSOFT")) scoreBucket = 3; // untested if this exists on Microsoft - 20260707
+  else if (nameUpper.includes("ENHANCED")) scoreBucket = 4;
+  else if (!v.localService) scoreBucket = 4;
 
-  if (hasVoiceNamePart(v.name, getBrowserVoiceLangNameParts(v.lang))) score += 20;
-  if (hasVoiceNamePart(v.name, DEPRIORITIZED_BROWSER_VOICE_NAME_PARTS)) score += 40;
+  let penalty = 0;
+  if (hasVoiceNamePart(v.name, getBrowserVoiceLangNameParts(v.lang))) penalty += 20;
+  if (hasVoiceNamePart(v.name, DEPRIORITIZED_BROWSER_VOICE_NAME_PARTS)) penalty += 40;
 
-  return score;
+  return scoreBucket * 100 + penalty;
 }
 
 function browserVoiceDedupeKey(v: SpeechSynthesisVoice): string {
