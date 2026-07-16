@@ -54,6 +54,7 @@ export function getLangName(
 }
 
 export function getLangScript(gscript: string): LangScript | undefined {
+  if (!gscript) return undefined;
   const normalizedScript = gscript.toLowerCase().trim();
   return LANGSCRIPTS.find(
     (script) => script.g_script.toLowerCase() === normalizedScript,
