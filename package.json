@@ -1,6 +1,6 @@
 {
   "name": "lingop",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Shared TypeScript code for Lingo web and native apps.",
   "type": "module",
   "exports": {
@@ -17,8 +17,8 @@
       "default": "./dist/core/language/index.js"
     },
     "./core/language/data": {
-      "types": "./dist/core/language/data/openai-voices.d.ts",
-      "default": "./dist/core/language/data/openai-voices.js"
+      "types": "./dist/core/language/data/index.d.ts",
+      "default": "./dist/core/language/data/index.js"
     },
     "./binder": {
       "types": "./dist/core/binder/index.d.ts",
