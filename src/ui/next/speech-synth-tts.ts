@@ -937,8 +937,11 @@ async function speakBrowserVoice(
   text = speakableTextFromDisplayText({ lang, text });
 
   // Override Texts
-  if (ilike(lang, "ja") && voice.voice_id == "Google 日本語" && text == "男") {
-    text = "男。"; // This forces it to pronounce it as "おとこ" as opposed to just "お".
+  if (ilike(lang, "ja")) {
+    if (text == "何") text = "なに"; // This forces it to pronounce it as "なに".
+    if (text == "男" && voice.voice_id == "Google 日本語") {
+      text = "男。"; // This forces it to pronounce it as "おとこ" as opposed to just "お".
+    }
   }
 
   // Speak and await completion
