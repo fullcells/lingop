@@ -28,7 +28,7 @@ import type {
 } from "./translation/types.js";
 import { isTranslationRow } from "./translation/validators.js";
 import {
-  getOneWayWordExplicitationsFromRows,
+  getOneWayWordExplicitations,
   loadWordExplicitationsRows,
   type OneWayWordExplicitations,
   type SupabaseWordExplicitationsQuery,
@@ -119,37 +119,15 @@ export type CreateLingoDataClientOptions = {
   useStagingBackend?: boolean;
 };
 
-export type FetchLocalizationMethodInput = {
-  l10n_lang: string;
-  sourceContent: SourceContent;
-  isPublic?: boolean;
-};
-
-export type FetchAnnotationMethodInput = {
-  localization: Localization;
-};
-
-export type ReGenOwnerAnnotationInput = {
-  localization: Localization;
-  skipDeletionOfExisting?: boolean;
-};
-
-export type RetranslateInput = {
-  id: number;
-};
-
-export type UpdateTranslationWithHumanEditInput = {
-  id: number;
-  targetText: string;
-};
-
 export type LingoDataClient = {
   translationsCache: TranslationCacheRef;
   t9nCacheDatesBySC: Record<string, string>;
   /** Reads or generates the newest localization for a source/target language pair. */
-  fetchLocalization(
-    input: FetchLocalizationMethodInput,
-  ): Promise<Localization | null>;
+  fetchLocalization(input: {
+    l10n_lang: string;
+    sourceContent: SourceContent;
+    isPublic?: boolean;
+  }): Promise<Localization | null>;
   /** Merges translation rows into the owned cache and keeps newest rows first. */
   updateTranslationsCaches(sbTranslationRows: TranslationRow[]): void;
   /** Returns the last cache timestamp recorded for the given source content. */
@@ -157,42 +135,42 @@ export type LingoDataClient = {
   /** Updates cache timestamps for one or more source content entries. */
   _updateT9nCacheDatesBySCs(sourceContents: SourceContent[]): void;
   /** Re-runs translation generation for an existing translation row id. */
-  retranslate(input: RetranslateInput): Promise<TranslationRow | null>;
+  retranslate(input: { id: number }): Promise<TranslationRow | null>;
   /**
    * Persists a human-edited translation, updates its cache entry, and marks the
    * translator as USER.
    */
   updateTranslationWithHumanEdit(
-    input: UpdateTranslationWithHumanEditInput,
+    input: { id: number; targetText: string },
   ): Promise<TranslationRow | null>;
   annotationsByLangNTextCache: AnnotationCacheRef;
   /** Reads or generates annotation data for a localization. */
-  fetchAnnotation(input: FetchAnnotationMethodInput): Promise<AnnotatedText | null>;
+  fetchAnnotation(input: { localization: Localization }): Promise<AnnotatedText | null>;
   /** Rebuilds owner-scoped annotation data and refreshes the annotation cache. */
   reGenOwnerAnnotation(
-    input: ReGenOwnerAnnotationInput,
+    input: { localization: Localization; skipDeletionOfExisting?: boolean },
   ): Promise<AnnotatedText | null>;
   /** Re-runs backend annotation generation using existing stored annotation data. */
   reAnnotateWithExistingData(
     input: APIInputReAnnotate,
   ): Promise<AnnotationRow[] | null>;
-  /** Loads and caches Supabase word_explicitations rows on this client instance. */
+  /** Loads and caches Supabase word_explicitations rows. */
   loadWordExplicitationsRows(): Promise<WordExplicitationsRow[]>;
-  /** Returns source-to-target word explicitations using the owned row cache. */
+  /** Returns source-to-target word explicitations using the shared row cache. */
   getOneWayWordExplicitations(input: {
     source_lang: string;
     source_word: string;
     target_lang: string;
   }): Promise<OneWayWordExplicitations>;
-  /** Loads and caches Supabase emoji rows on this client instance. */
+  /** Loads and caches Supabase emoji rows. */
   loadEmojiData(): Promise<EmojiRow[]>;
-  /** Generates emoji text for an English gloss using the owned emoji row cache. */
+  /** Generates emoji text for an English gloss using the shared emoji row cache. */
   generateEmoji(
     en_gloss: string,
     study_word?: string,
     study_lang?: string,
   ): Promise<string | null>;
-  /** Checks whether a word should be treated as non-core using the owned SBWords cache. */
+  /** Checks whether a word should be treated as non-core using the shared SBWords cache. */
   isNotCoreWord(word_lang: string, word: string, gloss?: string): Promise<boolean>;
   /** Loads cached SBWords for a word/gloss language direction. */
   getSBWordsForLangDir(word_lang: string, gloss_lang: string): Promise<SBWordRow2[]>;
@@ -323,8 +301,6 @@ export function createLingoDataClient({
   const annotationsByLangNTextCache = createAnnotationCacheRef();
   const translationsCache = createTranslationCacheRef();
   const t9nCacheDatesBySC: Record<string, string> = {};
-  let wordExplicitationsRowsPromise: Promise<WordExplicitationsRow[]> | undefined;
-  let emojiDataPromise: Promise<EmojiRow[]> | undefined;
 
   function getSourceContentKey(sourceContent: SourceContent): string {
     const { owner_id, lang, text, ref } = sourceContent;
@@ -337,7 +313,11 @@ export function createLingoDataClient({
     l10n_lang,
     sourceContent,
     isPublic = false,
-  }: FetchLocalizationMethodInput): Promise<Localization | null> {
+  }: {
+    l10n_lang: string;
+    sourceContent: SourceContent;
+    isPublic?: boolean;
+  }): Promise<Localization | null> {
     return utilsFetchLocalization({
       l10n_lang,
       sourceContent,
@@ -441,7 +421,7 @@ export function createLingoDataClient({
     return row;
   }
 
-  async function retranslate({ id }: RetranslateInput): Promise<TranslationRow | null> {
+  async function retranslate({ id }: { id: number }): Promise<TranslationRow | null> {
     const existingRow = await getTranslationRowById(id);
     if (!existingRow) {
       console.error(`Could not find translation row ${id} for retranslation.`);
@@ -482,7 +462,10 @@ export function createLingoDataClient({
   async function updateTranslationWithHumanEdit({
     id,
     targetText,
-  }: UpdateTranslationWithHumanEditInput): Promise<TranslationRow | null> {
+  }: {
+    id: number;
+    targetText: string;
+  }): Promise<TranslationRow | null> {
     const existingRow = await getTranslationRowById(id);
     if (!existingRow) {
       console.error(`Could not find translation row ${id} for human edit.`);
@@ -509,7 +492,9 @@ export function createLingoDataClient({
 
   async function fetchAnnotation({
     localization,
-  }: FetchAnnotationMethodInput): Promise<AnnotatedText | null> {
+  }: {
+    localization: Localization;
+  }): Promise<AnnotatedText | null> {
     return utilsFetchAnnotation({
       localization,
       annotationsByLangNTextCache,
@@ -521,7 +506,10 @@ export function createLingoDataClient({
   async function reGenOwnerAnnotation({
     localization,
     skipDeletionOfExisting = false,
-  }: ReGenOwnerAnnotationInput): Promise<AnnotatedText | null> {
+  }: {
+    localization: Localization;
+    skipDeletionOfExisting?: boolean;
+  }): Promise<AnnotatedText | null> {
     const ref = contentRefFromLocalization(localization);
     if (!ref) {
       console.error("reGenOwnerAnnotation could not derive a content ref from localization.");
@@ -642,39 +630,11 @@ export function createLingoDataClient({
     return data;
   }
 
-  async function loadOwnedWordExplicitationsRows(): Promise<WordExplicitationsRow[]> {
-    if (wordExplicitationsRowsPromise) return wordExplicitationsRowsPromise;
-    wordExplicitationsRowsPromise = loadWordExplicitationsRows({
-      ...(supabaseClient ? { supabaseClient } : {}),
-    });
-    return wordExplicitationsRowsPromise;
-  }
-
-  async function getOwnedOneWayWordExplicitations(input: {
-    source_lang: string;
-    source_word: string;
-    target_lang: string;
-  }): Promise<OneWayWordExplicitations> {
-    return getOneWayWordExplicitationsFromRows(
-      input,
-      await loadOwnedWordExplicitationsRows(),
-    );
-  }
-
-  async function loadOwnedEmojiData(): Promise<EmojiRow[]> {
-    if (emojiDataPromise) return emojiDataPromise;
-    emojiDataPromise = loadEmojiData({
-      ...(supabaseClient ? { supabaseClient } : {}),
-    });
-    return emojiDataPromise;
-  }
-
-  async function generateOwnedEmoji(
+  async function generateClientEmoji(
     en_gloss: string,
     study_word?: string,
     study_lang?: string,
   ): Promise<string | null> {
-    await loadOwnedEmojiData();
     return generateEmoji(en_gloss, study_word, study_lang, {
       ...(supabaseClient ? { supabaseClient } : {}),
       isNotCoreWord: (word_lang, word, gloss) =>
@@ -684,15 +644,18 @@ export function createLingoDataClient({
     });
   }
 
-  async function fetchAndGenOwnedGloss(input: {
+  async function fetchAndGenClientGloss(input: {
     source_lang: string;
     source_word: string;
     target_lang: string;
   }): Promise<GlossOutputData | null> {
     return fetchAndGenGloss(input, {
       ...(supabaseClient ? { supabaseClient } : {}),
-      getOneWayWordExplicitations: getOwnedOneWayWordExplicitations,
-      generateEmojiForGloss: generateOwnedEmoji,
+      getOneWayWordExplicitations: (explicitationsInput) =>
+        getOneWayWordExplicitations(explicitationsInput, {
+          ...(supabaseClient ? { supabaseClient } : {}),
+        }),
+      generateEmojiForGloss: generateClientEmoji,
     });
   }
 
@@ -709,10 +672,19 @@ export function createLingoDataClient({
     fetchAnnotation,
     reGenOwnerAnnotation,
     reAnnotateWithExistingData,
-    loadWordExplicitationsRows: loadOwnedWordExplicitationsRows,
-    getOneWayWordExplicitations: getOwnedOneWayWordExplicitations,
-    loadEmojiData: loadOwnedEmojiData,
-    generateEmoji: generateOwnedEmoji,
+    loadWordExplicitationsRows: () =>
+      loadWordExplicitationsRows({
+        ...(supabaseClient ? { supabaseClient } : {}),
+      }),
+    getOneWayWordExplicitations: (input) =>
+      getOneWayWordExplicitations(input, {
+        ...(supabaseClient ? { supabaseClient } : {}),
+      }),
+    loadEmojiData: () =>
+      loadEmojiData({
+        ...(supabaseClient ? { supabaseClient } : {}),
+      }),
+    generateEmoji: generateClientEmoji,
     isNotCoreWord: (word_lang, word, gloss) =>
       isNotCoreWord(word_lang, word, gloss, {
         ...(supabaseClient ? { supabaseClient } : {}),
@@ -725,6 +697,6 @@ export function createLingoDataClient({
       refreshCoreSBWordsCache(word_lang, gloss_lang, {
         ...(supabaseClient ? { supabaseClient } : {}),
       }),
-    fetchAndGenGloss: fetchAndGenOwnedGloss,
+    fetchAndGenGloss: fetchAndGenClientGloss,
   };
 }

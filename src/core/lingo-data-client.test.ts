@@ -12,6 +12,7 @@ import type {
   SupabaseWordExplicitationsQueryResult,
   WordExplicitationsRow,
 } from "./word-explicitations.js";
+import { clearWordExplicitationsCache } from "./word-explicitations.js";
 
 function makeLocalization(): Localization {
   return {
@@ -111,6 +112,7 @@ describe("createLingoDataClient", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    clearWordExplicitationsCache();
   });
 
   it("infers the owner id from the caller-provided Supabase client", async () => {
@@ -182,7 +184,7 @@ describe("createLingoDataClient", () => {
     expect(supabaseClient.auth?.getUser).toHaveBeenCalled();
   });
 
-  it("loads word explicitations through the owned client cache", async () => {
+  it("loads word explicitations through the shared module cache", async () => {
     const { supabaseClient, select } = makeWordExplicitationsSupabaseClient([
       {
         id: 1,

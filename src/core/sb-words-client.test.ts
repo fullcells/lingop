@@ -140,7 +140,7 @@ describe("LingoDataClient SBWords helpers", () => {
     resetSBWordsCache();
   });
 
-  it("uses the owned SBWords cache when generating emoji", async () => {
+  it("uses the shared SBWords cache when generating emoji", async () => {
     const client = createLingoDataClient({
       supabaseClient: makeSupabaseClient({
         emojiRows: [

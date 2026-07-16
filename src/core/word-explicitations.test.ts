@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  clearWordExplicitationsCache,
   getOneWayWordExplicitations,
   loadWordExplicitationsRows,
   type SupabaseWordExplicitationsClient,
@@ -81,7 +82,11 @@ function makeSupabaseClient(data: WordExplicitationsRow[]): {
 }
 
 describe("word explicitations", () => {
-  it("loads rows from Supabase and caches them by injected client", async () => {
+  beforeEach(() => {
+    clearWordExplicitationsCache();
+  });
+
+  it("loads rows from Supabase and caches them", async () => {
     const { supabaseClient, select } = makeSupabaseClient(rows);
 
     await expect(loadWordExplicitationsRows({ supabaseClient })).resolves.toEqual(rows);

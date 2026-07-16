@@ -78,10 +78,11 @@ const no_emoji_words: { [study_lang: string]: string[] /*study_words*/ } = {
 
 const EMOJI_BATCH_SIZE = 1000;
 
-const emojiDataPromiseBySupabaseClient = new WeakMap<
-  SupabaseEmojiClient,
-  Promise<EmojiRow[]>
->();
+let emojiDataPromise: Promise<EmojiRow[]> | undefined;
+
+export function clearEmojiDataCache(): void {
+  emojiDataPromise = undefined;
+}
 
 async function defaultIsNotCoreWord(): Promise<boolean> {
   return false;
@@ -99,14 +100,10 @@ export async function loadEmojiData({
     return [];
   }
 
-  if (!forceRefresh) {
-    const cachedRows = emojiDataPromiseBySupabaseClient.get(supabaseClient);
-    if (cachedRows) return cachedRows;
-  }
+  if (!forceRefresh && emojiDataPromise) return emojiDataPromise;
 
-  const dataPromise = fetchEmojiData(supabaseClient);
-  emojiDataPromiseBySupabaseClient.set(supabaseClient, dataPromise);
-  return dataPromise;
+  emojiDataPromise = fetchEmojiData(supabaseClient);
+  return emojiDataPromise;
 }
 
 async function fetchEmojiData(

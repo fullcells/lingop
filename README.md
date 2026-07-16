@@ -42,10 +42,10 @@ Low-level annotation API calls, `callAnnotate_storedForOwner()` remains public a
 - `fetchAnnotation({ localization })`: returns annotation data for a localization, using cache/Supabase/backend lookup as needed.
 - `reGenOwnerAnnotation({ localization, skipDeletionOfExisting? })`: deletes and rebuilds an owner-scoped annotation, then refreshes the annotation cache.
 - `reAnnotateWithExistingData(input)`: re-runs backend annotation generation from existing stored annotation data and updates the annotation cache with the returned rows.
-- `loadWordExplicitationsRows()`: loads and caches Supabase `word_explicitations` rows on the client instance.
+- `loadWordExplicitationsRows()`: loads and caches Supabase `word_explicitations` rows.
 - `getOneWayWordExplicitations({ source_lang, source_word, target_lang })`: filters the cached word-explicitation rows into the legacy one-way shape.
-- `loadEmojiData()` and `generateEmoji(en_gloss, study_word?, study_lang?)`: load cached Supabase emoji rows and generate emoji text for English glosses.
-- `isNotCoreWord(word_lang, word, gloss?)`, `getSBWordsForLangDir(word_lang, gloss_lang)`, `refreshCoreSBWordsCache(word_lang, gloss_lang)`, and `fetchAndGenGloss({ source_lang, source_word, target_lang })`: use the owned SBWords cache for core-word checks and one-word gloss generation.
+- `loadEmojiData()` and `generateEmoji(en_gloss, study_word?, study_lang?)`: load shared cached Supabase emoji rows and generate emoji text for English glosses.
+- `isNotCoreWord(word_lang, word, gloss?)`, `getSBWordsForLangDir(word_lang, gloss_lang)`, `refreshCoreSBWordsCache(word_lang, gloss_lang)`, and `fetchAndGenGloss({ source_lang, source_word, target_lang })`: use the shared SBWords cache for core-word checks and one-word gloss generation.
 
 Additional core helpers:
 
@@ -117,12 +117,12 @@ const annotation = await lingoData.fetchAnnotation({ localization });
 - `src/core/annotation/converters.ts` converts between raw annotation entries and frontend-friendly annotated text structures.
 - `src/core/annotation/fetch-annotation.ts` orchestrates annotation lookup across caller-provided in-memory cache, public annotation API, optional caller-provided Supabase client, and backend annotation generation. 
 - `src/core/annotation/types.ts` contains the annotation types extracted from old `globals.d.ts` files.
-- `src/core/emojify.ts` ports the legacy emoji-gloss generator and black/white emoji compatibility helpers. `createLingoDataClient()` owns the runtime emoji row cache.
+- `src/core/emojify.ts` ports the legacy emoji-gloss generator and black/white emoji compatibility helpers. Emoji rows use a shared module cache.
 - `src/core/language/` contains language metadata, script metadata, localized language names, OpenAI voice metadata, and language lookup helpers. Large metadata tables live under `src/core/language/data/`.
 - `src/core/lingo-data-client.ts` is the platform-neutral successor to old `LingoDataContext`. It owns annotation and translation caches and exposes localization, translation-cache, annotation, re-generation, and re-annotation methods.
 - `src/core/misc.ts` contains platform-neutral utility functions ported from old `utils/misc.ts`. Browser image helpers based on `html2canvas` and element download/image capture were intentionally not ported.
-- `src/core/sb-words.ts` ports the legacy Supabase `words2` cache, core-word checks, and one-word gloss generation. `createLingoDataClient()` owns the runtime SBWords cache.
+- `src/core/sb-words.ts` ports the legacy Supabase `words2` cache, core-word checks, and one-word gloss generation through a shared module cache.
 - `src/core/translation/` contains platform-neutral translation types and internal table/localization helpers used by `createLingoDataClient()`.
-- `src/core/word-explicitations.ts` loads and filters Supabase `word_explicitations` rows while `createLingoDataClient()` owns the runtime cache.
+- `src/core/word-explicitations.ts` loads and filters Supabase `word_explicitations` rows through a shared module cache.
 - `src/ui/next/cookies.ts` contains browser cookie helpers separated from platform-neutral core utilities.
 - `src/ui/react-native/` is reserved for React Native-specific UI helpers.

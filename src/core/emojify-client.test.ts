@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createLingoDataClient, type SupabaseLingoDataClient } from "./lingo-data-client.js";
+import { clearEmojiDataCache } from "./emojify.js";
 import type {
   EmojiRow,
   SupabaseEmojiQuery,
@@ -58,7 +59,11 @@ function makeSupabaseClient(data: EmojiRow[]): {
 }
 
 describe("LingoDataClient emoji helpers", () => {
-  it("generates emoji through the owned client cache", async () => {
+  beforeEach(() => {
+    clearEmojiDataCache();
+  });
+
+  it("generates emoji through the shared emoji cache", async () => {
     const { supabaseClient, select } = makeSupabaseClient([
       { emoji: "👍", en_gloss: "good" },
     ]);

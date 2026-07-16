@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cleanEmojiForNoto,
+  clearEmojiDataCache,
   convertEmojiTextToBlackWhiteCompatibleEmojiText,
   generateEmoji,
   generateEmojiFromRows,
@@ -74,6 +75,10 @@ function makeSupabaseClient(data: EmojiRow[]): {
 }
 
 describe("emojify", () => {
+  beforeEach(() => {
+    clearEmojiDataCache();
+  });
+
   it("generates exact and lemmatized emoji matches from rows", async () => {
     await expect(generateEmojiFromRows("good", rows)).resolves.toBe("👍");
     await expect(generateEmojiFromRows("dogs", rows)).resolves.toBe("🐕");
@@ -85,7 +90,7 @@ describe("emojify", () => {
     );
   });
 
-  it("loads Supabase emoji data once per injected client", async () => {
+  it("loads Supabase emoji data once", async () => {
     const { supabaseClient, select } = makeSupabaseClient(rows);
 
     await expect(loadEmojiData({ supabaseClient })).resolves.toHaveLength(rows.length);

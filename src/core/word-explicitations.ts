@@ -48,10 +48,11 @@ export type SupabaseWordExplicitationsClient = {
 
 const WORD_EXPLICITATIONS_BATCH_SIZE = 1000;
 
-const cachedRowsBySupabaseClient = new WeakMap<
-  SupabaseWordExplicitationsClient,
-  Promise<WordExplicitationsRow[]>
->();
+let wordExplicitationsRowsPromise: Promise<WordExplicitationsRow[]> | undefined;
+
+export function clearWordExplicitationsCache(): void {
+  wordExplicitationsRowsPromise = undefined;
+}
 
 export async function loadWordExplicitationsRows({
   supabaseClient,
@@ -65,14 +66,10 @@ export async function loadWordExplicitationsRows({
     return [];
   }
 
-  if (!forceRefresh) {
-    const cachedRows = cachedRowsBySupabaseClient.get(supabaseClient);
-    if (cachedRows) return cachedRows;
-  }
+  if (!forceRefresh && wordExplicitationsRowsPromise) return wordExplicitationsRowsPromise;
 
-  const dataPromise = fetchWordExplicitationsRows(supabaseClient);
-  cachedRowsBySupabaseClient.set(supabaseClient, dataPromise);
-  return dataPromise;
+  wordExplicitationsRowsPromise = fetchWordExplicitationsRows(supabaseClient);
+  return wordExplicitationsRowsPromise;
 }
 
 export async function getOneWayWordExplicitations(
