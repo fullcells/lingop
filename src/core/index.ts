@@ -7,5 +7,6 @@ export * from "./language/index.js";
 export * from "./lingo-data-client.js";
 export * from "./misc.js";
 export * from "./morphologize-en-word.js";
+export * from "./sb-words.js";
 export * from "./translation/index.js";
 export * from "./word-explicitations.js";

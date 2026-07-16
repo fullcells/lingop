@@ -45,6 +45,7 @@ Low-level annotation API calls, `callAnnotate_storedForOwner()` remains public a
 - `loadWordExplicitationsRows()`: loads and caches Supabase `word_explicitations` rows on the client instance.
 - `getOneWayWordExplicitations({ source_lang, source_word, target_lang })`: filters the cached word-explicitation rows into the legacy one-way shape.
 - `loadEmojiData()` and `generateEmoji(en_gloss, study_word?, study_lang?)`: load cached Supabase emoji rows and generate emoji text for English glosses.
+- `isNotCoreWord(word_lang, word, gloss?)`, `getSBWordsForLangDir(word_lang, gloss_lang)`, `refreshCoreSBWordsCache(word_lang, gloss_lang)`, and `fetchAndGenGloss({ source_lang, source_word, target_lang })`: use the owned SBWords cache for core-word checks and one-word gloss generation.
 
 Additional core helpers:
 
@@ -120,6 +121,7 @@ const annotation = await lingoData.fetchAnnotation({ localization });
 - `src/core/language/` contains language metadata, script metadata, localized language names, OpenAI voice metadata, and language lookup helpers. Large metadata tables live under `src/core/language/data/`.
 - `src/core/lingo-data-client.ts` is the platform-neutral successor to old `LingoDataContext`. It owns annotation and translation caches and exposes localization, translation-cache, annotation, re-generation, and re-annotation methods.
 - `src/core/misc.ts` contains platform-neutral utility functions ported from old `utils/misc.ts`. Browser image helpers based on `html2canvas` and element download/image capture were intentionally not ported.
+- `src/core/sb-words.ts` ports the legacy Supabase `words2` cache, core-word checks, and one-word gloss generation. `createLingoDataClient()` owns the runtime SBWords cache.
 - `src/core/translation/` contains platform-neutral translation types and internal table/localization helpers used by `createLingoDataClient()`.
 - `src/core/word-explicitations.ts` loads and filters Supabase `word_explicitations` rows while `createLingoDataClient()` owns the runtime cache.
 - `src/ui/next/cookies.ts` contains browser cookie helpers separated from platform-neutral core utilities.

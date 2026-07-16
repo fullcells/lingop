@@ -38,9 +38,17 @@ import {
   generateEmoji,
   loadEmojiData,
   type EmojiRow,
-  type IsNotCoreWord,
   type SupabaseEmojiQuery,
 } from "./emojify.js";
+import {
+  fetchAndGenGloss,
+  getSBWordsForLangDir,
+  isNotCoreWord,
+  refreshCoreSBWordsCache,
+  type GlossOutputData,
+  type SBWordRow2,
+  type SupabaseSBWordsQuery,
+} from "./sb-words.js";
 
 export type { AnnotationCache, AnnotationCacheRef } from "./annotation/fetch-annotation.js";
 export type {
@@ -91,6 +99,9 @@ export type SupabaseLingoDataClient = Omit<SupabaseAnnotationClient, "from"> & {
       options?: { count?: "exact"; head?: boolean },
     ): SupabaseEmojiQuery;
   };
+  from(table: "words2"): {
+    select(columns: string): SupabaseSBWordsQuery;
+  };
   auth?: SupabaseAnnotationClient["auth"] & {
     getUser?: () => Promise<{
       data: {
@@ -106,7 +117,6 @@ export type SupabaseLingoDataClient = Omit<SupabaseAnnotationClient, "from"> & {
 export type CreateLingoDataClientOptions = {
   supabaseClient?: SupabaseLingoDataClient;
   useStagingBackend?: boolean;
-  isNotCoreWord?: IsNotCoreWord;
 };
 
 export type FetchLocalizationMethodInput = {
@@ -182,6 +192,18 @@ export type LingoDataClient = {
     study_word?: string,
     study_lang?: string,
   ): Promise<string | null>;
+  /** Checks whether a word should be treated as non-core using the owned SBWords cache. */
+  isNotCoreWord(word_lang: string, word: string, gloss?: string): Promise<boolean>;
+  /** Loads cached SBWords for a word/gloss language direction. */
+  getSBWordsForLangDir(word_lang: string, gloss_lang: string): Promise<SBWordRow2[]>;
+  /** Clears and reloads cached core SBWords for a word/gloss language direction. */
+  refreshCoreSBWordsCache(word_lang: string, gloss_lang: string): Promise<void>;
+  /** Fetches or generates a one-word translation/gloss using explicitations and SBWords. */
+  fetchAndGenGloss(input: {
+    source_lang: string;
+    source_word: string;
+    target_lang: string;
+  }): Promise<GlossOutputData | null>;
 };
 
 function createAnnotationCacheRef(): AnnotationCacheRef {
@@ -297,7 +319,6 @@ function isTranslationRowArray(data: unknown): data is TranslationRow[] {
 export function createLingoDataClient({
   supabaseClient,
   useStagingBackend,
-  isNotCoreWord,
 }: CreateLingoDataClientOptions = {}): LingoDataClient {
   const annotationsByLangNTextCache = createAnnotationCacheRef();
   const translationsCache = createTranslationCacheRef();
@@ -656,7 +677,22 @@ export function createLingoDataClient({
     await loadOwnedEmojiData();
     return generateEmoji(en_gloss, study_word, study_lang, {
       ...(supabaseClient ? { supabaseClient } : {}),
-      ...(isNotCoreWord ? { isNotCoreWord } : {}),
+      isNotCoreWord: (word_lang, word, gloss) =>
+        isNotCoreWord(word_lang, word, gloss, {
+          ...(supabaseClient ? { supabaseClient } : {}),
+        }),
+    });
+  }
+
+  async function fetchAndGenOwnedGloss(input: {
+    source_lang: string;
+    source_word: string;
+    target_lang: string;
+  }): Promise<GlossOutputData | null> {
+    return fetchAndGenGloss(input, {
+      ...(supabaseClient ? { supabaseClient } : {}),
+      getOneWayWordExplicitations: getOwnedOneWayWordExplicitations,
+      generateEmojiForGloss: generateOwnedEmoji,
     });
   }
 
@@ -677,5 +713,18 @@ export function createLingoDataClient({
     getOneWayWordExplicitations: getOwnedOneWayWordExplicitations,
     loadEmojiData: loadOwnedEmojiData,
     generateEmoji: generateOwnedEmoji,
+    isNotCoreWord: (word_lang, word, gloss) =>
+      isNotCoreWord(word_lang, word, gloss, {
+        ...(supabaseClient ? { supabaseClient } : {}),
+      }),
+    getSBWordsForLangDir: (word_lang, gloss_lang) =>
+      getSBWordsForLangDir(word_lang, gloss_lang, {
+        ...(supabaseClient ? { supabaseClient } : {}),
+      }),
+    refreshCoreSBWordsCache: (word_lang, gloss_lang) =>
+      refreshCoreSBWordsCache(word_lang, gloss_lang, {
+        ...(supabaseClient ? { supabaseClient } : {}),
+      }),
+    fetchAndGenGloss: fetchAndGenOwnedGloss,
   };
 }
