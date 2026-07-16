@@ -1,19 +1,6 @@
 import type { ContentReference, Localization } from "../misc.js";
 import type { BinderDocLocalizationInput, BinderDocRow, BinderRow } from "./types.js";
 
-export type BinderDocRefOptions = {
-  binderId: number;
-  docId: number;
-  lineIdx?: number;
-  segIdx?: number;
-};
-
-export type TranslationTargetTextRefOptions = {
-  translationId: number;
-  lineIdx?: number;
-  segIdx?: number;
-};
-
 export function normalizeBinderLang(lang: string): string {
   return lang.trim().toLowerCase();
 }
@@ -38,7 +25,12 @@ export function buildBinderDocRef({
   docId,
   lineIdx,
   segIdx,
-}: BinderDocRefOptions): ContentReference {
+}: {
+  binderId: number;
+  docId: number;
+  lineIdx?: number;
+  segIdx?: number;
+}): ContentReference {
   return {
     db: {
       id: docId,
@@ -55,7 +47,11 @@ export function buildTranslationTargetTextRef({
   translationId,
   lineIdx,
   segIdx,
-}: TranslationTargetTextRefOptions): ContentReference {
+}: {
+  translationId: number;
+  lineIdx?: number;
+  segIdx?: number;
+}): ContentReference {
   return {
     db: {
       id: translationId,

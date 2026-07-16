@@ -46,18 +46,6 @@ export type SupabaseWordExplicitationsClient = {
   };
 };
 
-export type LoadWordExplicitationsRowsInput = {
-  supabaseClient?: SupabaseWordExplicitationsClient | undefined;
-  forceRefresh?: boolean | undefined;
-};
-
-export type GetOneWayWordExplicitationsOptions = {
-  supabaseClient?: SupabaseWordExplicitationsClient | undefined;
-};
-
-const WORD_EXPLICITATIONS_COLUMNS =
-  "id, a_lang, b_lang, a_word_sense, a2b_explicitations, b2a_explicitations, b_word_sense";
-
 const WORD_EXPLICITATIONS_BATCH_SIZE = 1000;
 
 const cachedRowsBySupabaseClient = new WeakMap<
@@ -68,7 +56,10 @@ const cachedRowsBySupabaseClient = new WeakMap<
 export async function loadWordExplicitationsRows({
   supabaseClient,
   forceRefresh = false,
-}: LoadWordExplicitationsRowsInput = {}): Promise<WordExplicitationsRow[]> {
+}: {
+  supabaseClient?: SupabaseWordExplicitationsClient | undefined;
+  forceRefresh?: boolean | undefined;
+} = {}): Promise<WordExplicitationsRow[]> {
   if (!supabaseClient) {
     console.error("A Supabase client is required to load word explicitations.");
     return [];
@@ -90,7 +81,7 @@ export async function getOneWayWordExplicitations(
     source_word: string;
     target_lang: string;
   },
-  options: GetOneWayWordExplicitationsOptions = {},
+  options: { supabaseClient?: SupabaseWordExplicitationsClient | undefined } = {},
 ): Promise<OneWayWordExplicitations> {
   const rows = await loadWordExplicitationsRows(options);
   return getOneWayWordExplicitationsFromRows(input, rows);
@@ -148,7 +139,9 @@ async function fetchWordExplicitationsRows(
   for (let offset = 0; offset < count; offset += WORD_EXPLICITATIONS_BATCH_SIZE) {
     const { data, error } = await supabaseClient
       .from("word_explicitations")
-      .select(WORD_EXPLICITATIONS_COLUMNS)
+      .select(
+        "id, a_lang, b_lang, a_word_sense, a2b_explicitations, b2a_explicitations, b_word_sense",
+      )
       .order("id", { ascending: true })
       .range(offset, offset + WORD_EXPLICITATIONS_BATCH_SIZE - 1);
 
