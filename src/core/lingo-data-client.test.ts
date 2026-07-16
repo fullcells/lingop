@@ -12,7 +12,7 @@ import type {
   SupabaseWordExplicitationsQueryResult,
   WordExplicitationsRow,
 } from "./word-explicitations.js";
-import { clearWordExplicitationsCache } from "./word-explicitations.js";
+import { loadWordExplicitationsRows } from "./word-explicitations.js";
 
 function makeLocalization(): Localization {
   return {
@@ -112,7 +112,6 @@ describe("createLingoDataClient", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
-    clearWordExplicitationsCache();
   });
 
   it("infers the owner id from the caller-provided Supabase client", async () => {
@@ -198,6 +197,7 @@ describe("createLingoDataClient", () => {
     ]);
     const client = createLingoDataClient({ supabaseClient });
 
+    await loadWordExplicitationsRows({ supabaseClient, forceRefresh: true });
     await expect(client.loadWordExplicitationsRows()).resolves.toHaveLength(1);
     await expect(
       client.getOneWayWordExplicitations({

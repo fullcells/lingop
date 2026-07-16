@@ -80,10 +80,6 @@ const EMOJI_BATCH_SIZE = 1000;
 
 let emojiDataPromise: Promise<EmojiRow[]> | undefined;
 
-export function clearEmojiDataCache(): void {
-  emojiDataPromise = undefined;
-}
-
 async function defaultIsNotCoreWord(): Promise<boolean> {
   return false;
 }

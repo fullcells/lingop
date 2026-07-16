@@ -50,10 +50,6 @@ const WORD_EXPLICITATIONS_BATCH_SIZE = 1000;
 
 let wordExplicitationsRowsPromise: Promise<WordExplicitationsRow[]> | undefined;
 
-export function clearWordExplicitationsCache(): void {
-  wordExplicitationsRowsPromise = undefined;
-}
-
 export async function loadWordExplicitationsRows({
   supabaseClient,
   forceRefresh = false,
