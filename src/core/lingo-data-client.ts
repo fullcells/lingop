@@ -12,8 +12,6 @@ import {
   type AnnotationCacheRef,
   type FetchAnnotationFetch,
   type FetchAnnotationFetchResponse,
-  type SupabaseAnnotationClient,
-  type SupabaseAnnotationQuery,
 } from "./annotation/fetch-annotation.js";
 import type { AnnotatedText, AnnotationEntry } from "./annotation/types.js";
 import utilsFetchLocalization, {
@@ -21,24 +19,18 @@ import utilsFetchLocalization, {
   type TranslationCacheRef,
 } from "./translation/fetch-localization.js";
 import { callTranslateCreateLimitedAnon } from "./translation/api-client.js";
-import type {
-  SupabaseTranslationQuery,
-  SupabaseTranslationUpdateQuery,
-  TranslationRow,
-} from "./translation/types.js";
+import type { SupabaseTranslationUpdateQuery, TranslationRow } from "./translation/types.js";
 import { isTranslationRow } from "./translation/validators.js";
 import {
   getOneWayWordExplicitations,
   loadWordExplicitationsRows,
   type OneWayWordExplicitations,
-  type SupabaseWordExplicitationsQuery,
   type WordExplicitationsRow,
 } from "./word-explicitations.js";
 import {
   generateEmoji,
   loadEmojiData,
   type EmojiRow,
-  type SupabaseEmojiQuery,
 } from "./emojify.js";
 import {
   fetchAndGenGloss,
@@ -47,7 +39,6 @@ import {
   refreshCoreSBWordsCache,
   type GlossOutputData,
   type SBWordRow2,
-  type SupabaseSBWordsQuery,
 } from "./sb-words.js";
 
 export type { AnnotationCache, AnnotationCacheRef } from "./annotation/fetch-annotation.js";
@@ -78,31 +69,21 @@ export type SupabaseAnnotationDeleteQuery =
     select(columns?: string): PromiseLike<SupabaseAnnotationDeleteResult>;
   };
 
-export type SupabaseLingoDataClient = Omit<SupabaseAnnotationClient, "from"> & {
-  from(table: "annotations"): {
-    select(columns: string): SupabaseAnnotationQuery;
-    delete(): SupabaseAnnotationDeleteQuery;
+export type SupabaseLingoDataClient = {
+  from(table: string): {
+    select(columns: string, options?: { count?: "exact"; head?: boolean }): unknown;
+    update?(values: Record<string, unknown>): unknown;
+    delete?(): unknown;
   };
-  from(table: "translations"): {
-    select(columns: string): SupabaseTranslationQuery;
-    update(values: Record<string, unknown>): SupabaseTranslationUpdateQuery;
-  };
-  from(table: "word_explicitations"): {
-    select(
-      columns: string,
-      options?: { count?: "exact"; head?: boolean },
-    ): SupabaseWordExplicitationsQuery;
-  };
-  from(table: "emojis"): {
-    select(
-      columns: string,
-      options?: { count?: "exact"; head?: boolean },
-    ): SupabaseEmojiQuery;
-  };
-  from(table: "words2"): {
-    select(columns: string): SupabaseSBWordsQuery;
-  };
-  auth?: SupabaseAnnotationClient["auth"] & {
+  auth?: {
+    getSession?: () => Promise<{
+      data: {
+        session: {
+          access_token: string;
+        } | null;
+      };
+      error?: unknown;
+    }>;
     getUser?: () => Promise<{
       data: {
         user: {
@@ -218,7 +199,7 @@ async function resolveAccessToken({
 }: {
   supabaseClient?: SupabaseLingoDataClient | undefined;
 }): Promise<string | null> {
-  const session = await supabaseClient?.auth?.getSession();
+  const session = await supabaseClient?.auth?.getSession?.();
   return session?.data.session?.access_token ?? null;
 }
 
@@ -323,7 +304,14 @@ export function createLingoDataClient({
       sourceContent,
       isPublic,
       translationsCache,
-      ...(supabaseClient ? { supabaseClient } : {}),
+      ...(supabaseClient
+        ? {
+            supabaseClient:
+              supabaseClient as NonNullable<
+                Parameters<typeof utilsFetchLocalization>[0]["supabaseClient"]
+              >,
+          }
+        : {}),
       ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
     });
   }
@@ -373,7 +361,11 @@ export function createLingoDataClient({
       translator,
     };
 
-    const { data, error } = await supabaseClient
+    const { data, error } = await (
+      supabaseClient as NonNullable<
+        Parameters<typeof utilsFetchLocalization>[0]["supabaseClient"]
+      >
+    )
       .from("translations")
       .update({
         target_text: targetText,
@@ -403,7 +395,11 @@ export function createLingoDataClient({
       return null;
     }
 
-    const { data, error } = await supabaseClient
+    const { data, error } = await (
+      supabaseClient as NonNullable<
+        Parameters<typeof utilsFetchLocalization>[0]["supabaseClient"]
+      >
+    )
       .from("translations")
       .select(
         "id, source_lang, source_text, target_lang, target_text, owner_id, created_at, translator, ref",
@@ -498,7 +494,14 @@ export function createLingoDataClient({
     return utilsFetchAnnotation({
       localization,
       annotationsByLangNTextCache,
-      ...(supabaseClient ? { supabaseClient } : {}),
+      ...(supabaseClient
+        ? {
+            supabaseClient:
+              supabaseClient as NonNullable<
+                Parameters<typeof utilsFetchAnnotation>[0]["supabaseClient"]
+              >,
+          }
+        : {}),
       ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
     });
   }
@@ -533,8 +536,11 @@ export function createLingoDataClient({
         return null;
       }
 
-      let query = supabaseClient
-        .from("annotations")
+      let query = (
+        supabaseClient.from("annotations") as unknown as {
+          delete(): SupabaseAnnotationDeleteQuery;
+        }
+      )
         .delete()
         .eq("lang", localization.l10n_lang)
         .eq("owner_id", resolvedSupabaseUserID)
@@ -636,10 +642,24 @@ export function createLingoDataClient({
     study_lang?: string,
   ): Promise<string | null> {
     return generateEmoji(en_gloss, study_word, study_lang, {
-      ...(supabaseClient ? { supabaseClient } : {}),
+      ...(supabaseClient
+        ? {
+            supabaseClient:
+              supabaseClient as NonNullable<
+                NonNullable<Parameters<typeof loadEmojiData>[0]>["supabaseClient"]
+              >,
+          }
+        : {}),
       isNotCoreWord: (word_lang, word, gloss) =>
         isNotCoreWord(word_lang, word, gloss, {
-          ...(supabaseClient ? { supabaseClient } : {}),
+          ...(supabaseClient
+            ? {
+                supabaseClient:
+                  supabaseClient as NonNullable<
+                    NonNullable<Parameters<typeof getSBWordsForLangDir>[2]>["supabaseClient"]
+                  >,
+              }
+            : {}),
         }),
     });
   }
@@ -650,10 +670,24 @@ export function createLingoDataClient({
     target_lang: string;
   }): Promise<GlossOutputData | null> {
     return fetchAndGenGloss(input, {
-      ...(supabaseClient ? { supabaseClient } : {}),
+      ...(supabaseClient
+        ? {
+            supabaseClient:
+              supabaseClient as NonNullable<
+                NonNullable<Parameters<typeof getSBWordsForLangDir>[2]>["supabaseClient"]
+              >,
+          }
+        : {}),
       getOneWayWordExplicitations: (explicitationsInput) =>
         getOneWayWordExplicitations(explicitationsInput, {
-          ...(supabaseClient ? { supabaseClient } : {}),
+          ...(supabaseClient
+            ? {
+                supabaseClient:
+                  supabaseClient as NonNullable<
+                    NonNullable<Parameters<typeof loadWordExplicitationsRows>[0]>["supabaseClient"]
+                  >,
+              }
+            : {}),
         }),
       generateEmojiForGloss: generateClientEmoji,
     });
@@ -674,28 +708,70 @@ export function createLingoDataClient({
     reAnnotateWithExistingData,
     loadWordExplicitationsRows: () =>
       loadWordExplicitationsRows({
-        ...(supabaseClient ? { supabaseClient } : {}),
+        ...(supabaseClient
+          ? {
+              supabaseClient:
+                supabaseClient as NonNullable<
+                  NonNullable<Parameters<typeof loadWordExplicitationsRows>[0]>["supabaseClient"]
+                >,
+            }
+          : {}),
       }),
     getOneWayWordExplicitations: (input) =>
       getOneWayWordExplicitations(input, {
-        ...(supabaseClient ? { supabaseClient } : {}),
+        ...(supabaseClient
+          ? {
+              supabaseClient:
+                supabaseClient as NonNullable<
+                  NonNullable<Parameters<typeof loadWordExplicitationsRows>[0]>["supabaseClient"]
+                >,
+            }
+          : {}),
       }),
     loadEmojiData: () =>
       loadEmojiData({
-        ...(supabaseClient ? { supabaseClient } : {}),
+        ...(supabaseClient
+          ? {
+              supabaseClient:
+                supabaseClient as NonNullable<
+                  NonNullable<Parameters<typeof loadEmojiData>[0]>["supabaseClient"]
+                >,
+            }
+          : {}),
       }),
     generateEmoji: generateClientEmoji,
     isNotCoreWord: (word_lang, word, gloss) =>
       isNotCoreWord(word_lang, word, gloss, {
-        ...(supabaseClient ? { supabaseClient } : {}),
+        ...(supabaseClient
+          ? {
+              supabaseClient:
+                supabaseClient as NonNullable<
+                  NonNullable<Parameters<typeof getSBWordsForLangDir>[2]>["supabaseClient"]
+                >,
+            }
+          : {}),
       }),
     getSBWordsForLangDir: (word_lang, gloss_lang) =>
       getSBWordsForLangDir(word_lang, gloss_lang, {
-        ...(supabaseClient ? { supabaseClient } : {}),
+        ...(supabaseClient
+          ? {
+              supabaseClient:
+                supabaseClient as NonNullable<
+                  NonNullable<Parameters<typeof getSBWordsForLangDir>[2]>["supabaseClient"]
+                >,
+            }
+          : {}),
       }),
     refreshCoreSBWordsCache: (word_lang, gloss_lang) =>
       refreshCoreSBWordsCache(word_lang, gloss_lang, {
-        ...(supabaseClient ? { supabaseClient } : {}),
+        ...(supabaseClient
+          ? {
+              supabaseClient:
+                supabaseClient as NonNullable<
+                  NonNullable<Parameters<typeof getSBWordsForLangDir>[2]>["supabaseClient"]
+                >,
+            }
+          : {}),
       }),
     fetchAndGenGloss: fetchAndGenClientGloss,
   };
