@@ -1,6 +1,7 @@
 // 20260109: Note: .speak with ContentContext as MEMBER_CONTENT is untested atm.
 
 import { getBEApiBaseUrl } from "../../core/backend-api.js";
+import { LANGS } from "../../core/language/data/langs.js";
 import { deepEqual, ilike, type ContentReference } from "../../core/misc.js";
 
 export const LOCALSTORE_PREF_VOICE_SPEED = "UI_PREF_VOICE_SPEED";
@@ -126,6 +127,140 @@ function getLocalStorageItem(key: string): string | null {
 
 // BROWSER VOICES - ORDERED with DEFAULT FIRST (DEV-DESIRE)
 let inFlightRawBrowserVoices: Promise<SpeechSynthesisVoice[]> | null = null;
+
+const DEPRIORITIZED_BROWSER_VOICE_NAME_PARTS = [
+  "Albert",
+  "Bad News",
+  "Bahh",
+  "Bells",
+  "Boing",
+  "Bubbles",
+  "Cellos",
+  "Deranged",
+  "Eddy",
+  "Flo",
+  "Good News",
+  "Grandma",
+  "Hysterical",
+  "Junior",
+  "Pipe Organ",
+  "Princess",
+  "Reed",
+  "Rocko",
+  "Sandy",
+  "Shelley",
+  "Superstar",
+  "Trinoids",
+  "Whisper",
+  "Zarvox",
+] as const;
+
+function getIntlDisplayName(
+  locale: string,
+  type: "language" | "region",
+  code: string,
+): string | undefined {
+  if (!("DisplayNames" in Intl)) return undefined;
+  try {
+    return new Intl.DisplayNames([locale], { type }).of(code);
+  } catch {
+    return undefined;
+  }
+}
+
+function getBrowserVoiceLangNameParts(langCode: string): string[] {
+  const [languageCode, regionCode] = langCode.split(/[-_]/);
+  const parts = new Set<string>();
+
+  const lang = languageCode
+    ? LANGS.find((l) => l.gcode_main.toLowerCase() === languageCode.toLowerCase())
+    : undefined;
+  if (lang?.name_english) parts.add(lang.name_english);
+  if (lang?.name_natural) parts.add(lang.name_natural);
+
+  if (languageCode) {
+    const englishLanguageName = getIntlDisplayName("en", "language", languageCode);
+    const nativeLanguageName = getIntlDisplayName(languageCode, "language", languageCode);
+    if (englishLanguageName) parts.add(englishLanguageName);
+    if (nativeLanguageName) parts.add(nativeLanguageName);
+  }
+
+  if (regionCode) {
+    const englishRegionName = getIntlDisplayName("en", "region", regionCode);
+    const nativeRegionName = getIntlDisplayName(
+      languageCode || "en",
+      "region",
+      regionCode,
+    );
+    if (englishRegionName) parts.add(englishRegionName);
+    if (nativeRegionName) parts.add(nativeRegionName);
+  }
+
+  return [...parts].filter((part) => part.length > 1);
+}
+
+function hasVoiceNamePart(name: string, parts: readonly string[]): boolean {
+  const nameUpper = name.toUpperCase();
+  return parts.some((part) => {
+    const partUpper = part.toUpperCase();
+    if (!partUpper) return false;
+    if (/^[A-Z0-9 ]+$/.test(partUpper)) {
+      const escapedPart = partUpper.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(`(^|[^A-Z0-9])${escapedPart}([^A-Z0-9]|$)`).test(
+        nameUpper,
+      );
+    }
+    return nameUpper.includes(partUpper);
+  });
+}
+
+function browserVoiceSortScore(v: SpeechSynthesisVoice): number {
+  let score = 5;
+  const nameUpper = v.name.toUpperCase();
+
+  if (v.default) score = 0;
+  else if (nameUpper.includes("GOOGLE")) score = 1;
+  else if (nameUpper.includes("PREMIUM")) score = 2;
+  else if (nameUpper.includes("MICROSOFT")) score = 3; // untested if this exists on Microsoft - 20260707
+  else if (nameUpper.includes("ENHANCED")) score = 4;
+  else if (!v.localService) score = 4;
+
+  if (hasVoiceNamePart(v.name, getBrowserVoiceLangNameParts(v.lang))) score += 20;
+  if (hasVoiceNamePart(v.name, DEPRIORITIZED_BROWSER_VOICE_NAME_PARTS)) score += 40;
+
+  return score;
+}
+
+function browserVoiceDedupeKey(v: SpeechSynthesisVoice): string {
+  return [
+    v.voiceURI,
+    v.lang,
+    v.name,
+    String(v.default),
+    String(v.localService),
+  ].join("\u0000");
+}
+
+function sortBrowserVoices(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice[] {
+  return [...voices].sort((a, b) => {
+    return browserVoiceSortScore(a) - browserVoiceSortScore(b);
+  });
+}
+
+function dedupeBrowserVoices(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice[] {
+  const seen = new Set<string>();
+  return voices.filter((voice) => {
+    const key = browserVoiceDedupeKey(voice);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function sortAndDedupeBrowserVoices(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice[] {
+  return dedupeBrowserVoices(sortBrowserVoices(voices));
+}
+
 async function getRawBrowserVoices(timeoutMs = 2000): Promise<SpeechSynthesisVoice[]> {
   if (typeof window === "undefined" || typeof window.speechSynthesis === "undefined") {
     return Promise.resolve([]);
@@ -135,25 +270,6 @@ async function getRawBrowserVoices(timeoutMs = 2000): Promise<SpeechSynthesisVoi
   if (inFlightRawBrowserVoices) return inFlightRawBrowserVoices;
 
   inFlightRawBrowserVoices = new Promise<SpeechSynthesisVoice[]>((resolve) => {
-    // Sort Voices by Dev-Desire Function
-    // - Future: Can add some manual Browser TTS Default Selections
-    const sortVoices = (voices: SpeechSynthesisVoice[]) => {
-      return voices.sort((a, b) => {
-        const getScore = (v: SpeechSynthesisVoice) => {
-          // Prioritize Browser Voices that are 1. .default, 2. Google > Premium > Enhanced, 3. Not LocalService (i.e. online voice)
-          if (v.default) return 0;
-          const nameUpper = v.name.toUpperCase();
-          if (nameUpper.includes("GOOGLE")) return 1;
-          if (nameUpper.includes("PREMIUM")) return 2;
-          if (nameUpper.includes("MICROSOFT")) return 3; // untested if this exists on Microsoft - 20260707
-          if (nameUpper.includes("ENHANCED")) return 4;
-          // Todo: Deprioritize voices with the country name or language name in its name
-          if (!v.localService) return 4;
-          return 5;
-        };
-        return getScore(a) - getScore(b);
-      });
-    };
     // Load Function
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const tryLoad = () => {
@@ -161,7 +277,7 @@ async function getRawBrowserVoices(timeoutMs = 2000): Promise<SpeechSynthesisVoi
       if (voices.length) {
         if (timeoutId) clearTimeout(timeoutId);
         if ("onvoiceschanged" in synth) synth.onvoiceschanged = null;
-        voices = sortVoices(voices);
+        voices = sortAndDedupeBrowserVoices(voices);
         resolve(voices);
       }
     };
