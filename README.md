@@ -15,7 +15,7 @@ Current release tags follow the package version in `package.json`, so `0.2.X` is
 ## To Tag a New Version
 
 - Commit and push everything first
-- `git tag -a v0.2.0 -m "Release v0.2.X"`
+- `git tag -a v0.2.X -m "Release v0.2.X"`
 - `git push origin v0.2.X`
 
 ## Lingo Data Usage
