@@ -21,6 +21,7 @@ export interface LangScript {
   font_ttf: string;
   is_word_spaced: boolean;
   writing_system: "ABJAD" | "ABUGIDA" | "ALPHABETIC" | "LOGOGRAPHIC";
+  case_sensitive: boolean;
 }
 
 export interface OpenAIVoice {

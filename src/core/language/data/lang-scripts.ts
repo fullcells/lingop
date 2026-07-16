@@ -8,7 +8,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans Arabic",
 	 "font_ttf": "NotoSansArabic-VariableFont_wdth,wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ABJAD"
+	 "writing_system": "ABJAD",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Armenian",
@@ -17,7 +18,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans Armenian",
 	 "font_ttf": "NotoSansArmenian-VariableFont_wdth,wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ALPHABETIC"
+	 "writing_system": "ALPHABETIC",
+	 "case_sensitive": true
  },
  {
 	 "g_script": "Bengali",
@@ -26,7 +28,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans Bengali",
 	 "font_ttf": "NotoSansBengali-VariableFont_wdth,wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ABUGIDA"
+	 "writing_system": "ABUGIDA",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Burmese",
@@ -35,7 +38,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans Myanmar",
 	 "font_ttf": "NotoSansMyanmar-Regular.ttf",
 	 "is_word_spaced": false,
-	 "writing_system": "ABUGIDA"
+	 "writing_system": "ABUGIDA",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Cyrillic",
@@ -44,7 +48,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans",
 	 "font_ttf": "NotoSans-VariableFont_wdth,wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ALPHABETIC"
+	 "writing_system": "ALPHABETIC",
+	 "case_sensitive": true
  },
  {
 	 "g_script": "Devanagari",
@@ -53,7 +58,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans",
 	 "font_ttf": "NotoSans-VariableFont_wdth,wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ABUGIDA"
+	 "writing_system": "ABUGIDA",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Ethiopic",
@@ -62,7 +68,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans Ethiopic",
 	 "font_ttf": "NotoSansEthiopic-VariableFont_wdth,wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ABUGIDA"
+	 "writing_system": "ABUGIDA",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Georgian",
@@ -71,7 +78,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans Georgian",
 	 "font_ttf": "NotoSansGeorgian-VariableFont_wdth,wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ALPHABETIC"
+	 "writing_system": "ALPHABETIC",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Greek",
@@ -80,7 +88,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans",
 	 "font_ttf": "NotoSans-VariableFont_wdth,wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ALPHABETIC"
+	 "writing_system": "ALPHABETIC",
+	 "case_sensitive": true
  },
  {
 	 "g_script": "Gujarati",
@@ -89,7 +98,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans Gujarati",
 	 "font_ttf": "NotoSansGujarati-VariableFont_wdth,wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ABUGIDA"
+	 "writing_system": "ABUGIDA",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Gurmukhi",
@@ -98,7 +108,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans Gurmukhi",
 	 "font_ttf": "NotoSansGurmukhi-VariableFont_wdth,wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ABUGIDA"
+	 "writing_system": "ABUGIDA",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Hebrew",
@@ -107,7 +118,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans Hebrew",
 	 "font_ttf": "NotoSansHebrew-VariableFont_wdth,wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ABJAD"
+	 "writing_system": "ABJAD",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Inuktitut syllabics",
@@ -116,7 +128,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans Canadian Aboriginal",
 	 "font_ttf": "NotoSansCanadianAboriginal-VariableFont_wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ABUGIDA"
+	 "writing_system": "ABUGIDA",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Japanese",
@@ -125,7 +138,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans JP",
 	 "font_ttf": "NotoSansJP-VariableFont_wght.ttf",
 	 "is_word_spaced": false,
-	 "writing_system": "LOGOGRAPHIC"
+	 "writing_system": "LOGOGRAPHIC",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Kannada",
@@ -134,7 +148,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans Kannada",
 	 "font_ttf": "NotoSansKannada-VariableFont_wdth,wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ABUGIDA"
+	 "writing_system": "ABUGIDA",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Khmer",
@@ -143,7 +158,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans Khmer",
 	 "font_ttf": "NotoSansKhmer-VariableFont_wdth,wght.ttf",
 	 "is_word_spaced": false,
-	 "writing_system": "ABUGIDA"
+	 "writing_system": "ABUGIDA",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Korean",
@@ -152,7 +168,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans KR",
 	 "font_ttf": "NotoSansKR-VariableFont_wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ALPHABETIC"
+	 "writing_system": "ALPHABETIC",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Lao",
@@ -161,7 +178,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans Lao Looped",
 	 "font_ttf": "NotoSansLaoLooped-VariableFont_wdth,wght.ttf",
 	 "is_word_spaced": false,
-	 "writing_system": "ABUGIDA"
+	 "writing_system": "ABUGIDA",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Latin",
@@ -170,7 +188,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans",
 	 "font_ttf": "NotoSans-VariableFont_wdth,wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ALPHABETIC"
+	 "writing_system": "ALPHABETIC",
+	 "case_sensitive": true
  },
  {
 	 "g_script": "Malayalam",
@@ -179,7 +198,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans Malayalam",
 	 "font_ttf": "NotoSansMalayalam-VariableFont_wdth,wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ABUGIDA"
+	 "writing_system": "ABUGIDA",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Meitei",
@@ -188,7 +208,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans Meetei Mayek",
 	 "font_ttf": "NotoSansMeeteiMayek-VariableFont_wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ABUGIDA"
+	 "writing_system": "ABUGIDA",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Odia",
@@ -197,7 +218,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans Oriya",
 	 "font_ttf": "NotoSansOriya-VariableFont_wdth,wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ABUGIDA"
+	 "writing_system": "ABUGIDA",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Simplified Chinese",
@@ -206,7 +228,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans SC",
 	 "font_ttf": "NotoSansSC-VariableFont_wght.ttf",
 	 "is_word_spaced": false,
-	 "writing_system": "LOGOGRAPHIC"
+	 "writing_system": "LOGOGRAPHIC",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Sinhala",
@@ -215,7 +238,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans Sinhala",
 	 "font_ttf": "NotoSansSinhala-VariableFont_wdth,wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ABUGIDA"
+	 "writing_system": "ABUGIDA",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Tamil",
@@ -224,7 +248,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans Tamil",
 	 "font_ttf": "NotoSansTamil-VariableFont_wdth,wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ABUGIDA"
+	 "writing_system": "ABUGIDA",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Telugu",
@@ -233,7 +258,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans Telugu",
 	 "font_ttf": "NotoSansTelugu-VariableFont_wdth,wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ABUGIDA"
+	 "writing_system": "ABUGIDA",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Thaana",
@@ -242,7 +268,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans Thaana",
 	 "font_ttf": "NotoSansThaana-VariableFont_wght.ttf",
 	 "is_word_spaced": true,
-	 "writing_system": "ALPHABETIC"
+	 "writing_system": "ALPHABETIC",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Thai",
@@ -251,7 +278,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans Thai Looped",
 	 "font_ttf": "NotoSansThaiLooped-VariableFont_wdth,wght.ttf",
 	 "is_word_spaced": false,
-	 "writing_system": "ABUGIDA"
+	 "writing_system": "ABUGIDA",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Tibetan",
@@ -260,7 +288,8 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Serif Tibetan",
 	 "font_ttf": "NotoSerifTibetan-VariableFont_wght.ttf",
 	 "is_word_spaced": false,
-	 "writing_system": "ABUGIDA"
+	 "writing_system": "ABUGIDA",
+	 "case_sensitive": false
  },
  {
 	 "g_script": "Traditional Chinese",
@@ -269,6 +298,7 @@ export const LANGSCRIPTS = [
 	 "font_family": "Noto Sans TC",
 	 "font_ttf": "NotoSansTC-VariableFont_wght.ttf",
 	 "is_word_spaced": false,
-	 "writing_system": "LOGOGRAPHIC"
+	 "writing_system": "LOGOGRAPHIC",
+	 "case_sensitive": false
  }
 ] satisfies LangScript[];

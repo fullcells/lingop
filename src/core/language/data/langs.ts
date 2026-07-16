@@ -2378,7 +2378,7 @@ export const LANGS = [
 	 "oai_train_audiohrs_total": ""
  },
  {
-	 "gcode_main": "ar-EG",
+	 "gcode_main": "arz",
 	 "gcode_options": "ar-EG",
 	 "name_natural": "العربية المصرية",
 	 "name_english": "Egyptian Arabic",
@@ -2390,7 +2390,7 @@ export const LANGS = [
 	 "oai_train_audiohrs_total": ""
  },
  {
-	 "gcode_main": "ar-MA",
+	 "gcode_main": "ary",
 	 "gcode_options": "ar-MA",
 	 "name_natural": "العربية المغربية",
 	 "name_english": "Moroccan Arabic",
