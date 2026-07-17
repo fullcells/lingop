@@ -49,7 +49,7 @@ Low-level annotation API calls, `callAnnotate_storedForOwner()` remains public a
 
 Additional core helpers:
 
-- `getBinderDocsByMinL10nsOrder([{ doc_id, l10ns }], { priorityDocIds? })`: calculates "learning order by minimum new words" for already-loaded binder doc localization caches.
+- `getBinderDocsByMinL10nsOrder([{ doc_id, l10ns }], priorityDocIds?)`: calculates "learning order by minimum new words" for already-loaded binder doc localization caches.
 - `fetchBinderDocsByMinL10nsOrder({ supabaseClient, binder_id, lang, priorityDocIds? })`: loads `cache_binder_doc_l10ns` rows for a binder/language pair and returns the same ordering.
 - Low-level `loadWordExplicitationsRows({ supabaseClient })` and `getOneWayWordExplicitations(input, { supabaseClient })` remain exported for gradual migration, but app code should prefer the existing `LingoDataClient`.
 

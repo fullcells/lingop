@@ -9,10 +9,6 @@ export type BinderDocMinL10nsOrderItem = {
   l10ns: string[];
 };
 
-export type BinderDocsByMinL10nsOrderOptions = {
-  priorityDocIds?: readonly (string | number)[];
-};
-
 export type SupabaseBinderDocsOrderQueryResult = {
   data: unknown[] | null;
   error: unknown | null;
@@ -29,12 +25,12 @@ export type SupabaseBinderDocsOrderClient = {
   };
 };
 
-export type FetchBinderDocsByMinL10nsOrderInput =
-  BinderDocsByMinL10nsOrderOptions & {
-    supabaseClient: SupabaseBinderDocsOrderClient;
-    binder_id: number;
-    lang: string;
-  };
+export type FetchBinderDocsByMinL10nsOrderInput = {
+  supabaseClient: SupabaseBinderDocsOrderClient;
+  binder_id: number;
+  lang: string;
+  priorityDocIds?: readonly (string | number)[];
+};
 
 function docIdKey(docId: string | number): string {
   return String(docId);
@@ -62,13 +58,13 @@ function errorMessage(error: unknown): string {
 
 export function getBinderDocsByMinL10nsOrder(
   docs: readonly BinderDocL10nsInput[],
-  options: BinderDocsByMinL10nsOrderOptions = {},
+  priorityDocIds: readonly (string | number)[] = [],
 ): BinderDocMinL10nsOrderItem[] {
   const remainingDocs = docs.map((doc) => ({
     doc_id: doc.doc_id,
     l10ns: [...doc.l10ns],
   }));
-  const priorityDocIds = new Set((options.priorityDocIds ?? []).map(docIdKey));
+  const priorityDocIdKeys = new Set(priorityDocIds.map(docIdKey));
   const orderedResult: BinderDocMinL10nsOrderItem[] = [];
   const seenL10ns = new Set<string>();
 
@@ -92,7 +88,7 @@ export function getBinderDocsByMinL10nsOrder(
         (sum, l10n) => sum + (l10nByNumDocs[l10n] ?? 1),
         0,
       );
-      const isPriorityDoc = priorityDocIds.has(docIdKey(doc.doc_id));
+      const isPriorityDoc = priorityDocIdKeys.has(docIdKey(doc.doc_id));
 
       const isBetter =
         bestDoc === null ||
@@ -149,8 +145,5 @@ export async function fetchBinderDocsByMinL10nsOrder({
     console.warn("Some cache_binder_doc_l10ns rows had invalid doc_id/l10ns shape.");
   }
 
-  return getBinderDocsByMinL10nsOrder(docs, {
-    ...(priorityDocIds === undefined ? {} : { priorityDocIds }),
-  });
+  return getBinderDocsByMinL10nsOrder(docs, priorityDocIds);
 }
-

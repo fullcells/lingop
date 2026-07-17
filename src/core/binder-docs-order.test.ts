@@ -49,7 +49,7 @@ describe("BinderDocsByMinL10nsOrder", () => {
         { doc_id: 139, l10ns: ["x", "y", "z"] },
         { doc_id: 2, l10ns: ["a", "b"] },
       ],
-      { priorityDocIds: [139] },
+      [139],
     );
 
     expect(result[0]).toEqual({
