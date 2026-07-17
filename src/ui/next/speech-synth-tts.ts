@@ -214,14 +214,43 @@ function hasVoiceNamePart(name: string, parts: readonly string[]): boolean {
   });
 }
 
+let browserVoiceDefaultPriorityMap: Map<string, number> | null = null;
+
+function browserVoiceDefaultsKey(voiceId: string, voiceLang: string): string {
+  return `${voiceId}\u0000${voiceLang.toUpperCase()}`;
+}
+
+function getBrowserVoiceDefaultPriorityMap(): Map<string, number> {
+  if (browserVoiceDefaultPriorityMap) return browserVoiceDefaultPriorityMap;
+  const map = new Map<string, number>();
+  for (const defaults of Object.values(BROWSER_VOICES_DEFAULTS)) {
+    defaults.forEach((voice, index) => {
+      const key = browserVoiceDefaultsKey(voice.voice_id, voice.voice_lang);
+      if (!map.has(key)) map.set(key, index); // first occurrence wins if duplicated across langs
+    });
+  }
+  browserVoiceDefaultPriorityMap = map;
+  return map;
+}
+
+function getBrowserVoiceDefaultPriority(v: SpeechSynthesisVoice): number | null {
+  const map = getBrowserVoiceDefaultPriorityMap();
+  const key = browserVoiceDefaultsKey(v.voiceURI, v.lang);
+  return map.has(key) ? map.get(key)! : null;
+}
+
 function browserVoiceSortScore(v: SpeechSynthesisVoice): number {
+  // BROWSER_VOICES_DEFAULTS match => always sorts first, ordered by its listed position.
+  const defaultPriority = getBrowserVoiceDefaultPriority(v);
+  if (defaultPriority !== null) return -1_000_000 + defaultPriority;
+
   let scoreBucket = 5;
   const nameUpper = v.name.toUpperCase();
 
   if (v.default) scoreBucket = 0;
   else if (nameUpper.includes("GOOGLE")) scoreBucket = 1;
   else if (nameUpper.includes("PREMIUM")) scoreBucket = 2;
-  else if (nameUpper.includes("MICROSOFT")) scoreBucket = 3; // untested if this exists on Microsoft - 20260707
+  else if (nameUpper.includes("MICROSOFT")) scoreBucket = 3; // untested if exists on Windows
   else if (nameUpper.includes("ENHANCED")) scoreBucket = 4;
   else if (!v.localService) scoreBucket = 4;
 
@@ -468,7 +497,7 @@ export function updateUserPreferredVoice(lang: string, voice: SpeechSynthTTSVoic
 }
 
 // ----------------------------------------------------
-export const BROWSER_VOICES_DEFAULTS: Record<string, SpeechSynthTTSVoice[]> = { // From CAMPLINGO-V1 // Future: To use when picking Voices' BrowserVoices' Default - assuming the browser-voice is available in the browser (not always available) // Future: To use for determining preferred default browser voice (which should, if lang isn't explicitly specified, stil lwork on reducing bad-voice options)
+export const BROWSER_VOICES_DEFAULTS: Record<string, SpeechSynthTTSVoice[]> = { // From CAMPLINGO-V1 // [+] Future: To use when picking Voices' BrowserVoices' Default (or prioritizing certain voices when they're sorted) - assuming the browser-voice is available in the browser (not always available) // Future: To use for determining preferred default browser voice (which should, if lang isn't explicitly specified, still work on reducing bad-voice options)
   yue: [
     { service: "BROWSER", voice_id: "Google 粤語（香港）", voice_lang: "zh-HK" },
     { service: "BROWSER", voice_id: "Sinji", voice_lang: "zh-HK" },
@@ -481,6 +510,7 @@ export const BROWSER_VOICES_DEFAULTS: Record<string, SpeechSynthTTSVoice[]> = { 
     { service: "BROWSER", voice_id: "Alex", voice_lang: "en-US" },
   ],
   ja: [
+    { service: "BROWSER", voice_id: "Google 日本語", voice_lang: "ja-JP" },
     { service: "BROWSER", voice_id: "Otoya", voice_lang: "ja-JP" },
   ],
   es: [
