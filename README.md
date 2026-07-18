@@ -21,7 +21,7 @@ Release tags follow the package version in `package.json`, so `0.3.X` is publish
 
 ## Lingo Data Usage
 
-For localization/translation, and annotation workflows, prefer `createLingoDataClient()` from `src/core/lingo-data-client.ts`.
+For localization, translation, annotation, word-explicitation, emoji, and SBWords workflows, prefer `createLingoDataClient()` from `lingop/core`.
 
 The client owns its in-memory annotation and translation caches. Runtime-specific dependencies, such as Supabase setup and token access, are dependency-injected by the app.
 
@@ -58,7 +58,7 @@ The client also exposes two owned cache references for advanced callers:
 - `translationsCache.current`: in-memory `TranslationRow[]` cache owned by the client instance.
 - `annotationsByLangNTextCache.current`: in-memory annotation cache owned by the client instance.
 
-## Example Usage
+## Lingo Data Example
 
 ```ts
 import { createLingoDataClient } from "lingop/core";
@@ -74,6 +74,46 @@ const localization = await lingoData.fetchLocalization({
 });
 
 const annotation = await lingoData.fetchAnnotation({ localization });
+```
+
+## User Word Streaks in Next.js
+
+User word streaks are exposed through the Next UI provider and hook, not through `lingop/core`. Consumers read and write one unified `userWordStreaks` value regardless of whether the backing store is currently localStorage or Supabase.
+
+Wrap the app with the provider and pass the same app Supabase client you use elsewhere:
+
+```tsx
+import { UserWordStreaksDataProvider } from "lingop/ui/next";
+
+<UserWordStreaksDataProvider
+  focusLang={focusLang}
+  supabaseClient={supabaseClient}
+>
+  <Component {...pageProps} />
+</UserWordStreaksDataProvider>;
+```
+
+The provider derives signed-in state internally with `supabaseClient.auth.getUser()`. While that check is pending, it waits to hydrate streak data. Signed-out users hydrate from `localStorage` and write changes back there. Signed-in users hydrate from Supabase, migrate existing localStorage data for a language when Supabase has no row, and queue Supabase syncs after changes.
+
+Downstream components use the hook:
+
+```tsx
+import { useUserWordStreaksData } from "lingop/ui/next";
+
+const {
+  userWordStreaks,
+  setUserWordStreaksToValue,
+  setUserWordStreaksByDelta,
+  setUserWordStreaksToMin1,
+  deleteUserWordStreaks,
+} = useUserWordStreaksData();
+
+const spanishStreaks = userWordStreaks.es ?? {};
+
+await setUserWordStreaksToValue("es", ["hola"], 1);
+await setUserWordStreaksByDelta("es", [{ word: "hola", streakDelta: 1 }]);
+await setUserWordStreaksToMin1("es", ["adios"]);
+await deleteUserWordStreaks("es", ["hola"]);
 ```
 
 ## Localization Docs & Segments
@@ -139,7 +179,9 @@ For `MEMBER_CONTENT`, pass the app's Supabase client: `speak({ ..., contentConte
 - `src/core/misc.ts` contains platform-neutral utility functions ported from old `utils/misc.ts`. Browser image helpers based on `html2canvas` and element download/image capture were intentionally not ported.
 - `src/core/sb-words.ts` ports the legacy Supabase `words2` cache, core-word checks, and one-word gloss generation through a shared module cache.
 - `src/core/translation/` contains platform-neutral translation types and internal table/localization helpers used by `createLingoDataClient()`.
+- `src/core/user-word-streaks.ts` contains internal helpers used by the Next user-word-streaks provider. It is intentionally not exported from `lingop/core`; app code should use `lingop/ui/next`.
 - `src/core/word-explicitations.ts` loads and filters Supabase `word_explicitations` rows through a shared module cache.
 - `src/ui/next/cookies.ts` contains browser cookie helpers separated from platform-neutral core utilities.
 - `src/ui/next/speech-synth-tts.ts` contains browser/Next speech synthesis helpers exported from `lingop/ui/next`.
+- `src/ui/next/user-word-streaks.tsx` contains the Next user-word-streaks provider and hook exported from `lingop/ui/next`.
 - `src/ui/react-native/` is reserved for React Native-specific UI helpers.
