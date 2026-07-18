@@ -98,6 +98,10 @@ function removeLocalStoreUserWordStreaks(lang: string): void {
   localStorage.removeItem(langStoreKey);
 }
 
+function isEmptyWordStreaks(wordStreaks: Record<string, number> | undefined): boolean {
+  return !wordStreaks || Object.keys(wordStreaks).length === 0;
+}
+
 export function UserWordStreaksDataProvider({
   children,
   focusLang,
@@ -177,24 +181,9 @@ export function UserWordStreaksDataProvider({
 
       // 2A. If Not SignedIn; Set userWordStreaks as is. (On initial formation - doesn't need to be reset on each lang change)
       if (signedInStatus === false) {
-        setUserWordStreaks((prv) => {
-          if (Object.keys(prv).length === 0) {
-            // If userWordStreaks has never been set, then set it - making sure it includes the current language.
-            return {
-              ...localStoreUserWordStreaks,
-              [lang]: localStoreUserWordStreaks[lang] ?? {},
-            };
-          }
-
-          // If userWordStreaks does exist, just not for the current language, then initialize for the current language (as empty).
-          if (!prv[lang]) {
-            return {
-              ...prv,
-              [lang]: localStoreUserWordStreaks[lang] ?? {},
-            };
-          }
-
-          return prv;
+        setUserWordStreaks({
+          ...localStoreUserWordStreaks,
+          [lang]: localStoreUserWordStreaks[lang] ?? {},
         });
         return;
       }
@@ -204,7 +193,7 @@ export function UserWordStreaksDataProvider({
         // i. Fetch SB for Lang
         const curSBUserWordStreaksRow = await _getSBUserWordStreaksForLang(lang);
         // ii.a. If SB for Lang Exists
-        if (curSBUserWordStreaksRow) {
+        if (curSBUserWordStreaksRow && !isEmptyWordStreaks(curSBUserWordStreaksRow.word_streaks)) {
           setUserWordStreaks((prv) => ({
             ...prv,
             [lang]: curSBUserWordStreaksRow.word_streaks,
@@ -217,7 +206,7 @@ export function UserWordStreaksDataProvider({
           setUserWordStreaks((prv) => ({ ...prv, [lang]: {} }));
           return;
         }
-        // - .2 If LocalStore DOES Exist
+        // - .2 If LocalStore DOES Exist and SB is empty, this is a migration from anonymous state.
         if (localStoreUserWordStreaks[lang]) {
           if (!streaksSupabaseClient) return;
 
@@ -231,7 +220,7 @@ export function UserWordStreaksDataProvider({
 
           // -- update RAM version of SB-UserWordStreaks
           _SBUserWordStreaksByLangRef.current[lang] = newSBUserWordStreaksRow;
-          // - ..2. clear localStorage for lang
+          // - ..2. clear anonymous localStorage after migrating it to SB
           removeLocalStoreUserWordStreaks(lang);
           // - ..3. set it
           setUserWordStreaks((prv) => ({
