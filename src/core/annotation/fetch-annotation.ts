@@ -9,6 +9,7 @@ import callAnnotate_storedForOwner, { type AnnotateFetch } from "./api-client.js
 import { convertAnnotatedEntryToAText } from "./converters.js";
 import type { AnnotatedText, AnnotationEntry } from "./types.js";
 import { INTERNAL_API_BASE_URL } from "../backend-api.js";
+import { asSupabaseRuntimeClient, type SupabaseClientLike } from "../supabase.js";
 
 const MAX_ANNOTATION_BATCH_SIZE = 10;
 const ANNOTATION_BATCH_WINDOW_MS = 20;
@@ -20,30 +21,7 @@ export type AnnotationCacheRef = {
   current: AnnotationCache;
 };
 
-export type SupabaseAnnotationQueryResult = {
-  data: unknown[] | null;
-  error: unknown | null;
-};
-
-export type SupabaseAnnotationQuery = PromiseLike<SupabaseAnnotationQueryResult> & {
-  eq(column: string, value: unknown): SupabaseAnnotationQuery;
-};
-
-export type SupabaseAnnotationClient = {
-  from(table: "annotations"): {
-    select(columns: string): SupabaseAnnotationQuery;
-  };
-  auth?: {
-    getSession(): Promise<{
-      data: {
-        session: {
-          access_token: string;
-        } | null;
-      };
-      error?: unknown;
-    }>;
-  };
-};
+export type SupabaseAnnotationClient = SupabaseClientLike;
 
 export type FetchAnnotationFetchResponse = {
   ok: boolean;
@@ -222,13 +200,14 @@ async function processAnnotationBatch(
 async function fetchAnnotationDataForState(
   state: AnnotationFetchState,
 ): Promise<AnnotationEntry[]> {
-  if (!state.supabaseClient) return [];
+  const runtimeSupabaseClient = asSupabaseRuntimeClient(state.supabaseClient);
+  if (!runtimeSupabaseClient) return [];
 
   let data: unknown[] | null | undefined;
   let finalError: unknown;
 
   for (let attempt = 1; attempt <= 3; attempt++) {
-    let query = state.supabaseClient
+    let query = runtimeSupabaseClient
       .from("annotations")
       .select(
         "id, lang, lang_text, lang_tokens, lang_gloss, lang_phonetics_2, created_at, owner_id, ref",
@@ -264,7 +243,7 @@ async function getAccessTokenForState(
   if (state.accessToken) return state.accessToken;
   if (state.getAccessToken) return (await state.getAccessToken()) ?? null;
 
-  const session = await state.supabaseClient?.auth?.getSession();
+  const session = await asSupabaseRuntimeClient(state.supabaseClient)?.auth?.getSession?.();
   return session?.data.session?.access_token ?? null;
 }
 

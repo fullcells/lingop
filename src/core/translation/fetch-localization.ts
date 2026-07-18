@@ -12,6 +12,7 @@ import type {
 } from "./types.js";
 import { isTranslationRow } from "./validators.js";
 import { INTERNAL_API_BASE_URL } from "../backend-api.js";
+import { asSupabaseRuntimeClient, type SupabaseRuntimeClient } from "../supabase.js";
 
 const TRANSLATION_COLUMNS =
   "id, source_lang, source_text, target_lang, target_text, owner_id, created_at, translator, ref";
@@ -189,7 +190,7 @@ async function fetchFileRefTranslations({
   sourceContent,
   target_lang,
 }: {
-  supabaseClient: SupabaseTranslationClient;
+  supabaseClient: SupabaseRuntimeClient;
   sourceContent: SourceContent;
   target_lang: string;
 }): Promise<TranslationRow[] | null> {
@@ -216,7 +217,7 @@ async function getAccessToken({
 }: {
   supabaseClient?: SupabaseTranslationClient | undefined;
 }): Promise<string | null> {
-  const session = await supabaseClient?.auth?.getSession();
+  const session = await asSupabaseRuntimeClient(supabaseClient)?.auth?.getSession?.();
   return session?.data.session?.access_token ?? null;
 }
 
@@ -229,6 +230,7 @@ async function _fetchLocalization2({
   fetchImpl,
   useStagingBackend,
 }: FetchLocalizationInput): Promise<Localization | null> {
+  const runtimeSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
   const { lang: source_lang, text: source_text, ref, owner_id } = sourceContent;
   const target_lang = l10n_lang;
   const sourceContentIsPublic = isPublic || isSourceContentDefinitelyPublic(sourceContent);
@@ -270,7 +272,7 @@ async function _fetchLocalization2({
 
   // C. Check Supabase. This currently covers RefDbId and RefFile lookups.
   if (translations.length === 0) {
-    if (!supabaseClient) {
+    if (!runtimeSupabaseClient) {
       console.error("utilsFetchLocalization requires a Supabase client for translation lookup.");
       return null;
     }
@@ -279,7 +281,7 @@ async function _fetchLocalization2({
     if (isRefDbId) {
       const { db } = ref;
       const { data, error } = await callSBSelectTranslationsByRef({
-        supabaseClient,
+        supabaseClient: runtimeSupabaseClient,
         owner_id,
         source_lang,
         target_lang,
@@ -298,7 +300,7 @@ async function _fetchLocalization2({
 
     if (isRefFile) {
       const fileRefTranslations = await fetchFileRefTranslations({
-        supabaseClient,
+        supabaseClient: runtimeSupabaseClient,
         sourceContent,
         target_lang,
       });

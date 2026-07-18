@@ -3,10 +3,12 @@ import {
   getOneWayWordExplicitations,
   loadWordExplicitationsRows,
   type SupabaseWordExplicitationsClient,
-  type SupabaseWordExplicitationsQuery,
-  type SupabaseWordExplicitationsQueryResult,
   type WordExplicitationsRow,
 } from "./word-explicitations.js";
+import type { SupabaseQueryLike, SupabaseQueryResult } from "./supabase.js";
+
+type SupabaseWordExplicitationsQuery = SupabaseQueryLike;
+type SupabaseWordExplicitationsQueryResult = SupabaseQueryResult;
 
 const rows: WordExplicitationsRow[] = [
   {

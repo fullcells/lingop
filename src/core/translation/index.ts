@@ -12,8 +12,6 @@ export type {
 export type {
   APIEditTranslationInput,
   SupabaseTranslationClient,
-  SupabaseTranslationQuery,
-  SupabaseTranslationQueryResult,
   TranslationData,
   TranslationDbRef,
   TranslationInput,

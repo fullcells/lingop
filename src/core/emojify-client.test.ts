@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { createLingoDataClient, type SupabaseLingoDataClient } from "./lingo-data-client.js";
 import { loadEmojiData } from "./emojify.js";
-import type {
-  EmojiRow,
-  SupabaseEmojiQuery,
-  SupabaseEmojiQueryResult,
-} from "./emojify.js";
+import type { EmojiRow } from "./emojify.js";
+import type { SupabaseQueryLike, SupabaseQueryResult } from "./supabase.js";
+
+type SupabaseEmojiQuery = SupabaseQueryLike;
+type SupabaseEmojiQueryResult = SupabaseQueryResult;
 
 function makeQuery(
   resultForRange: (from: number | null, to: number | null) => SupabaseEmojiQueryResult,

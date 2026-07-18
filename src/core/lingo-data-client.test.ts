@@ -7,12 +7,12 @@ import {
 import type { Localization } from "./misc.js";
 import type { AnnotatedText } from "./annotation/types.js";
 import type { TranslationRow } from "./translation/types.js";
-import type {
-  SupabaseWordExplicitationsQuery,
-  SupabaseWordExplicitationsQueryResult,
-  WordExplicitationsRow,
-} from "./word-explicitations.js";
+import type { WordExplicitationsRow } from "./word-explicitations.js";
 import { loadWordExplicitationsRows } from "./word-explicitations.js";
+import type { SupabaseQueryLike, SupabaseQueryResult } from "./supabase.js";
+
+type SupabaseWordExplicitationsQuery = SupabaseQueryLike;
+type SupabaseWordExplicitationsQueryResult = SupabaseQueryResult;
 
 function makeLocalization(): Localization {
   return {

@@ -19,7 +19,7 @@ import utilsFetchLocalization, {
   type TranslationCacheRef,
 } from "./translation/fetch-localization.js";
 import { callTranslateCreateLimitedAnon } from "./translation/api-client.js";
-import type { SupabaseTranslationUpdateQuery, TranslationRow } from "./translation/types.js";
+import type { TranslationRow } from "./translation/types.js";
 import { isTranslationRow } from "./translation/validators.js";
 import {
   getOneWayWordExplicitations,
@@ -40,6 +40,11 @@ import {
   type GlossOutputData,
   type SBWordRow2,
 } from "./sb-words.js";
+import {
+  asSupabaseRuntimeClient,
+  type SupabaseClientLike,
+  type SupabaseQueryLike,
+} from "./supabase.js";
 
 export type { AnnotationCache, AnnotationCacheRef } from "./annotation/fetch-annotation.js";
 export type {
@@ -57,43 +62,7 @@ export type APIInputReAnnotate = {
   [key: string]: unknown;
 };
 
-export type SupabaseAnnotationDeleteResult = {
-  data: unknown[] | null;
-  error: { message?: string } | unknown | null;
-};
-
-export type SupabaseAnnotationDeleteQuery =
-  PromiseLike<SupabaseAnnotationDeleteResult> & {
-    eq(column: string, value: unknown): SupabaseAnnotationDeleteQuery;
-    is(column: string, value: null): SupabaseAnnotationDeleteQuery;
-    select(columns?: string): PromiseLike<SupabaseAnnotationDeleteResult>;
-  };
-
-export type SupabaseLingoDataClient = {
-  from(table: string): {
-    select(columns: string, options?: { count?: "exact"; head?: boolean }): unknown;
-    update?(values: Record<string, unknown>): unknown;
-    delete?(): unknown;
-  };
-  auth?: {
-    getSession?: () => Promise<{
-      data: {
-        session: {
-          access_token: string;
-        } | null;
-      };
-      error?: unknown;
-    }>;
-    getUser?: () => Promise<{
-      data: {
-        user: {
-          id: string;
-        } | null;
-      };
-      error?: unknown;
-    }>;
-  };
-};
+export type SupabaseLingoDataClient = SupabaseClientLike;
 
 export type CreateLingoDataClientOptions = {
   supabaseClient?: SupabaseLingoDataClient;
@@ -199,7 +168,7 @@ async function resolveAccessToken({
 }: {
   supabaseClient?: SupabaseLingoDataClient | undefined;
 }): Promise<string | null> {
-  const session = await supabaseClient?.auth?.getSession?.();
+  const session = await asSupabaseRuntimeClient(supabaseClient)?.auth?.getSession?.();
   return session?.data.session?.access_token ?? null;
 }
 
@@ -208,7 +177,7 @@ async function resolveSupabaseUserID({
 }: {
   supabaseClient?: SupabaseLingoDataClient | undefined;
 }): Promise<string | null> {
-  const userResult = await supabaseClient?.auth?.getUser?.();
+  const userResult = await asSupabaseRuntimeClient(supabaseClient)?.auth?.getUser?.();
   return userResult?.data.user?.id ?? null;
 }
 
@@ -279,6 +248,7 @@ export function createLingoDataClient({
   supabaseClient,
   useStagingBackend,
 }: CreateLingoDataClientOptions = {}): LingoDataClient {
+  const runtimeSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
   const annotationsByLangNTextCache = createAnnotationCacheRef();
   const translationsCache = createTranslationCacheRef();
   const t9nCacheDatesBySC: Record<string, string> = {};
@@ -304,10 +274,10 @@ export function createLingoDataClient({
       sourceContent,
       isPublic,
       translationsCache,
-      ...(supabaseClient
+      ...(runtimeSupabaseClient
         ? {
             supabaseClient:
-              supabaseClient as NonNullable<
+              runtimeSupabaseClient as NonNullable<
                 Parameters<typeof utilsFetchLocalization>[0]["supabaseClient"]
               >,
           }
@@ -348,7 +318,7 @@ export function createLingoDataClient({
     targetText: string;
     translator: string;
   }): Promise<TranslationRow | null> {
-    if (!supabaseClient) {
+    if (!runtimeSupabaseClient) {
       console.error("A Supabase client is required to update translations.");
       return null;
     }
@@ -361,11 +331,7 @@ export function createLingoDataClient({
       translator,
     };
 
-    const { data, error } = await (
-      supabaseClient as NonNullable<
-        Parameters<typeof utilsFetchLocalization>[0]["supabaseClient"]
-      >
-    )
+    const { data, error } = await runtimeSupabaseClient
       .from("translations")
       .update({
         target_text: targetText,
@@ -390,16 +356,12 @@ export function createLingoDataClient({
     const cached = translationsCache.current.find((row) => row.id === id);
     if (cached) return cached;
 
-    if (!supabaseClient) {
+    if (!runtimeSupabaseClient) {
       console.error("A Supabase client is required to load uncached translations by id.");
       return null;
     }
 
-    const { data, error } = await (
-      supabaseClient as NonNullable<
-        Parameters<typeof utilsFetchLocalization>[0]["supabaseClient"]
-      >
-    )
+    const { data, error } = await runtimeSupabaseClient
       .from("translations")
       .select(
         "id, source_lang, source_text, target_lang, target_text, owner_id, created_at, translator, ref",
@@ -424,7 +386,9 @@ export function createLingoDataClient({
       return null;
     }
 
-    const resolvedAccessToken = await resolveAccessToken({ supabaseClient });
+    const resolvedAccessToken = await resolveAccessToken({
+      supabaseClient: runtimeSupabaseClient,
+    });
     if (!resolvedAccessToken) {
       console.error("retranslate requires an access token.");
       return null;
@@ -494,12 +458,9 @@ export function createLingoDataClient({
     return utilsFetchAnnotation({
       localization,
       annotationsByLangNTextCache,
-      ...(supabaseClient
+      ...(runtimeSupabaseClient
         ? {
-            supabaseClient:
-              supabaseClient as NonNullable<
-                Parameters<typeof utilsFetchAnnotation>[0]["supabaseClient"]
-              >,
+            supabaseClient: runtimeSupabaseClient,
           }
         : {}),
       ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
@@ -520,13 +481,13 @@ export function createLingoDataClient({
     }
 
     if (!skipDeletionOfExisting) {
-      if (!supabaseClient) {
+      if (!runtimeSupabaseClient) {
         console.error("reGenOwnerAnnotation requires a Supabase client to delete existing annotations.");
         return null;
       }
 
       const resolvedSupabaseUserID = await resolveSupabaseUserID({
-        supabaseClient,
+        supabaseClient: runtimeSupabaseClient,
       });
 
       if (!resolvedSupabaseUserID) {
@@ -537,8 +498,8 @@ export function createLingoDataClient({
       }
 
       let query = (
-        supabaseClient.from("annotations") as unknown as {
-          delete(): SupabaseAnnotationDeleteQuery;
+        runtimeSupabaseClient.from("annotations") as unknown as {
+          delete(): SupabaseQueryLike<unknown[]>;
         }
       )
         .delete()
@@ -558,7 +519,7 @@ export function createLingoDataClient({
     }
 
     const resolvedAccessToken = await resolveAccessToken({
-      supabaseClient,
+      supabaseClient: runtimeSupabaseClient,
     });
     if (!resolvedAccessToken) {
       console.error("reGenOwnerAnnotation requires an access token.");
@@ -591,7 +552,7 @@ export function createLingoDataClient({
     input: APIInputReAnnotate,
   ): Promise<AnnotationRow[] | null> {
     const resolvedAccessToken = await resolveAccessToken({
-      supabaseClient,
+      supabaseClient: runtimeSupabaseClient,
     });
     if (!resolvedAccessToken) {
       console.error("reAnnotateWithExistingData requires an access token.");
@@ -642,22 +603,16 @@ export function createLingoDataClient({
     study_lang?: string,
   ): Promise<string | null> {
     return generateEmoji(en_gloss, study_word, study_lang, {
-      ...(supabaseClient
+      ...(runtimeSupabaseClient
         ? {
-            supabaseClient:
-              supabaseClient as NonNullable<
-                NonNullable<Parameters<typeof loadEmojiData>[0]>["supabaseClient"]
-              >,
+            supabaseClient: runtimeSupabaseClient,
           }
         : {}),
       isNotCoreWord: (word_lang, word, gloss) =>
         isNotCoreWord(word_lang, word, gloss, {
-          ...(supabaseClient
+          ...(runtimeSupabaseClient
             ? {
-                supabaseClient:
-                  supabaseClient as NonNullable<
-                    NonNullable<Parameters<typeof getSBWordsForLangDir>[2]>["supabaseClient"]
-                  >,
+                supabaseClient: runtimeSupabaseClient,
               }
             : {}),
         }),
@@ -670,22 +625,16 @@ export function createLingoDataClient({
     target_lang: string;
   }): Promise<GlossOutputData | null> {
     return fetchAndGenGloss(input, {
-      ...(supabaseClient
+      ...(runtimeSupabaseClient
         ? {
-            supabaseClient:
-              supabaseClient as NonNullable<
-                NonNullable<Parameters<typeof getSBWordsForLangDir>[2]>["supabaseClient"]
-              >,
+            supabaseClient: runtimeSupabaseClient,
           }
         : {}),
       getOneWayWordExplicitations: (explicitationsInput) =>
         getOneWayWordExplicitations(explicitationsInput, {
-          ...(supabaseClient
+          ...(runtimeSupabaseClient
             ? {
-                supabaseClient:
-                  supabaseClient as NonNullable<
-                    NonNullable<Parameters<typeof loadWordExplicitationsRows>[0]>["supabaseClient"]
-                  >,
+                supabaseClient: runtimeSupabaseClient,
               }
             : {}),
         }),
@@ -708,68 +657,50 @@ export function createLingoDataClient({
     reAnnotateWithExistingData,
     loadWordExplicitationsRows: () =>
       loadWordExplicitationsRows({
-        ...(supabaseClient
+        ...(runtimeSupabaseClient
           ? {
-              supabaseClient:
-                supabaseClient as NonNullable<
-                  NonNullable<Parameters<typeof loadWordExplicitationsRows>[0]>["supabaseClient"]
-                >,
+              supabaseClient: runtimeSupabaseClient,
             }
           : {}),
       }),
     getOneWayWordExplicitations: (input) =>
       getOneWayWordExplicitations(input, {
-        ...(supabaseClient
+        ...(runtimeSupabaseClient
           ? {
-              supabaseClient:
-                supabaseClient as NonNullable<
-                  NonNullable<Parameters<typeof loadWordExplicitationsRows>[0]>["supabaseClient"]
-                >,
+              supabaseClient: runtimeSupabaseClient,
             }
           : {}),
       }),
     loadEmojiData: () =>
       loadEmojiData({
-        ...(supabaseClient
+        ...(runtimeSupabaseClient
           ? {
-              supabaseClient:
-                supabaseClient as NonNullable<
-                  NonNullable<Parameters<typeof loadEmojiData>[0]>["supabaseClient"]
-                >,
+              supabaseClient: runtimeSupabaseClient,
             }
           : {}),
       }),
     generateEmoji: generateClientEmoji,
     isNotCoreWord: (word_lang, word, gloss) =>
       isNotCoreWord(word_lang, word, gloss, {
-        ...(supabaseClient
+        ...(runtimeSupabaseClient
           ? {
-              supabaseClient:
-                supabaseClient as NonNullable<
-                  NonNullable<Parameters<typeof getSBWordsForLangDir>[2]>["supabaseClient"]
-                >,
+              supabaseClient: runtimeSupabaseClient,
             }
           : {}),
       }),
     getSBWordsForLangDir: (word_lang, gloss_lang) =>
       getSBWordsForLangDir(word_lang, gloss_lang, {
-        ...(supabaseClient
+        ...(runtimeSupabaseClient
           ? {
-              supabaseClient:
-                supabaseClient as NonNullable<
-                  NonNullable<Parameters<typeof getSBWordsForLangDir>[2]>["supabaseClient"]
-                >,
+              supabaseClient: runtimeSupabaseClient,
             }
           : {}),
       }),
     refreshCoreSBWordsCache: (word_lang, gloss_lang) =>
       refreshCoreSBWordsCache(word_lang, gloss_lang, {
-        ...(supabaseClient
+        ...(runtimeSupabaseClient
           ? {
-              supabaseClient:
-                supabaseClient as NonNullable<
-                  NonNullable<Parameters<typeof getSBWordsForLangDir>[2]>["supabaseClient"]
-                >,
+              supabaseClient: runtimeSupabaseClient,
             }
           : {}),
       }),

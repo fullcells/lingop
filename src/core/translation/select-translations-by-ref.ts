@@ -2,6 +2,7 @@ import type {
   SupabaseTranslationClient,
   TranslationRow,
 } from "./types.js";
+import { asSupabaseRuntimeClient } from "../supabase.js";
 import { isTranslationRow } from "./validators.js";
 
 const BATCH_WAIT_MS = 50;
@@ -68,7 +69,12 @@ export async function __sbSelectTranslationsByRef({
   db_column,
   dbIds,
 }: SelectTranslationsByRefInput): Promise<SelectTranslationsByRefResult> {
-  const { data, error } = await supabaseClient
+  const runtimeSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
+  if (!runtimeSupabaseClient) {
+    return { data: null, error: "A Supabase client is required." };
+  }
+
+  const { data, error } = await runtimeSupabaseClient
     .from("translations")
     .select(TRANSLATION_COLUMNS)
     .eq("owner_id", owner_id)

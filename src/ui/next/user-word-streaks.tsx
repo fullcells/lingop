@@ -17,12 +17,12 @@ import {
   setWordStreaksToMin1 as setWordStreaksForLangToMin1,
   setWordStreaksToValue,
   type SBUserWordStreaks,
-  type SupabaseUserWordStreaksClient,
   type UserWordStreaksByLang,
   upsertSBUserWordStreaksForLang,
 } from "../../core/user-word-streaks.js";
+import { asSupabaseRuntimeClient, type SupabaseClientLike } from "../../core/supabase.js";
 
-export type UserWordStreaksSupabaseClient = SupabaseUserWordStreaksClient;
+export type UserWordStreaksSupabaseClient = SupabaseClientLike;
 
 export type UserWordStreaksDataContextType = {
   // USER WORD STREAKS (Supabase+LocalStorage versions together)
@@ -103,6 +103,7 @@ export function UserWordStreaksDataProvider({
   supabaseClient,
   syncDelayMs = 30_000,
 }: UserWordStreaksDataProviderProps) {
+  const streaksSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
   const [signedInStatus, setSignedInStatus] = useState<boolean | null>(null);
   const _SBUserWordStreaksByLangRef = useRef<Record<string, SBUserWordStreaks | null>>(
     {},
@@ -135,13 +136,13 @@ export function UserWordStreaksDataProvider({
     setSignedInStatus(null);
 
     async function loadSignedInStatus() {
-      if (!supabaseClient) {
+      if (!streaksSupabaseClient) {
         if (isCurrent) setSignedInStatus(false);
         return;
       }
 
       try {
-        const result = await supabaseClient.auth?.getUser?.();
+        const result = await streaksSupabaseClient.auth?.getUser?.();
         const data = result?.data ?? { user: null };
         if (isCurrent) setSignedInStatus(!!data.user);
       } catch (error) {
@@ -155,24 +156,27 @@ export function UserWordStreaksDataProvider({
     return () => {
       isCurrent = false;
     };
-  }, [supabaseClient]);
+  }, [streaksSupabaseClient]);
 
   useEffect(() => {
     _SBUserWordStreaksByLangRef.current = {};
     __initialSBUserWordStreaksPromisesByLangRef.current = {};
-  }, [supabaseClient]);
+  }, [streaksSupabaseClient]);
 
   const __loadInitialSBUserWordStreaksForLang = useCallback(
     async (lang: string): Promise<SBUserWordStreaks | null> => {
       const promises = __initialSBUserWordStreaksPromisesByLangRef.current;
       if (promises[lang]) return promises[lang];
 
-      if (!supabaseClient) return null;
+      if (!streaksSupabaseClient) return null;
 
-      promises[lang] = getSBUserWordStreaksForLang({ supabaseClient, lang });
+      promises[lang] = getSBUserWordStreaksForLang({
+        supabaseClient: streaksSupabaseClient,
+        lang,
+      });
       return promises[lang];
     },
-    [supabaseClient],
+    [streaksSupabaseClient],
   );
 
   const _getSBUserWordStreaksForLang = useCallback(
@@ -240,11 +244,11 @@ export function UserWordStreaksDataProvider({
         }
         // - .2 If LocalStore DOES Exist
         if (localStoreUserWordStreaks[lang]) {
-          if (!supabaseClient) return;
+          if (!streaksSupabaseClient) return;
 
           // - ..1. insert localizations to SB
           const newSBUserWordStreaksRow = await upsertSBUserWordStreaksForLang({
-            supabaseClient,
+            supabaseClient: streaksSupabaseClient,
             lang,
             wordStreaks: localStoreUserWordStreaks[lang],
           });
@@ -262,7 +266,7 @@ export function UserWordStreaksDataProvider({
         }
       }
     },
-    [supabaseClient, signedInStatus, _getSBUserWordStreaksForLang],
+    [streaksSupabaseClient, signedInStatus, _getSBUserWordStreaksForLang],
   );
 
   const syncUserWordStreaks = useCallback(
@@ -270,7 +274,7 @@ export function UserWordStreaksDataProvider({
       // UNTESTED - 20260401 // Uses `_userWordStreaksRef.current` instead of `userWordStreaks:State` to ensure most recent data is used (i.e. avoid stale closure data from when timeout was created)
       if (!lang) return;
       if (!signedInStatus) return;
-      if (!supabaseClient) return;
+      if (!streaksSupabaseClient) return;
 
       // Clear any existing Request for syncUserWordStreaks (notably if this func is immediately-triggered externally)
       cancelPendingSyncUserWordStreaks(lang);
@@ -289,7 +293,7 @@ export function UserWordStreaksDataProvider({
 
       // 2. Upsert
       const updatedSBUserWordStreaksRow = await upsertSBUserWordStreaksForLang({
-        supabaseClient,
+        supabaseClient: streaksSupabaseClient,
         lang,
         wordStreaks: curUserWordStreaksForLang,
       });
@@ -298,7 +302,7 @@ export function UserWordStreaksDataProvider({
       // - Update SB Ref
       _SBUserWordStreaksByLangRef.current[lang] = updatedSBUserWordStreaksRow;
     },
-    [cancelPendingSyncUserWordStreaks, signedInStatus, supabaseClient],
+    [cancelPendingSyncUserWordStreaks, signedInStatus, streaksSupabaseClient],
   );
 
   // - Syncs on Close

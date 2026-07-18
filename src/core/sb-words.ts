@@ -1,5 +1,6 @@
 import { generateEmoji, type SupabaseEmojiClient } from "./emojify.js";
 import { ilike } from "./misc.js";
+import { asSupabaseRuntimeClient, type SupabaseClientLike } from "./supabase.js";
 import type { OneWayWordExplicitations } from "./word-explicitations.js";
 
 export type SBWordRow2 = {
@@ -18,24 +19,7 @@ export type GlossOutputData = {
   is_human_verified: boolean;
 };
 
-export type SupabaseSBWordsQueryResult = {
-  data: unknown[] | null;
-  error: unknown | null;
-};
-
-export type SupabaseSBWordsQuery =
-  PromiseLike<SupabaseSBWordsQueryResult> & {
-    eq(column: string, value: unknown): SupabaseSBWordsQuery;
-    is(column: string, value: unknown): SupabaseSBWordsQuery;
-    order(column: string, options?: { ascending?: boolean }): SupabaseSBWordsQuery;
-    range(from: number, to: number): SupabaseSBWordsQuery;
-  };
-
-export type SupabaseSBWordsClient = {
-  from(table: "words2"): {
-    select(columns: string): SupabaseSBWordsQuery;
-  };
-};
+export type SupabaseSBWordsClient = SupabaseClientLike;
 
 const SB_WORDS_COLUMNS =
   "id, word_lang, word, gloss, gloss_lang, is_core, created_at, is_human_verified";
@@ -68,10 +52,11 @@ export async function loadNonCoreWords({
 }: {
   supabaseClient?: SupabaseSBWordsClient | undefined;
 } = {}): Promise<SBWordRow2[]> {
+  const runtimeSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
   if (nonCoreWordsPromise) return nonCoreWordsPromise;
 
   nonCoreWordsPromise = (async () => {
-    if (!supabaseClient) {
+    if (!runtimeSupabaseClient) {
       console.error("A Supabase client is required to load SBWords.");
       return [];
     }
@@ -80,7 +65,7 @@ export async function loadNonCoreWords({
     const entries: SBWordRow2[] = [];
     let i = 0;
     while (true) {
-      const { data, error } = await supabaseClient
+      const { data, error } = await runtimeSupabaseClient
         .from("words2")
         .select(SB_WORDS_COLUMNS)
         .is("is_core", false)
@@ -111,9 +96,9 @@ export async function isNotCoreWord(
   gloss?: string,
   {
     supabaseClient,
-  }: {
-    supabaseClient?: SupabaseSBWordsClient | undefined;
-  } = {},
+}: {
+  supabaseClient?: SupabaseSBWordsClient | undefined;
+} = {},
 ): Promise<boolean> {
   // 1. NonCore Word denoted by affix marker "‿" (KO)
   if (word.startsWith("‿")) return true;
@@ -147,10 +132,11 @@ export async function getSBWordsForLangDir(
   gloss_lang: string,
   {
     supabaseClient,
-  }: {
-    supabaseClient?: SupabaseSBWordsClient | undefined;
-  } = {},
+}: {
+  supabaseClient?: SupabaseSBWordsClient | undefined;
+} = {},
 ): Promise<SBWordRow2[]> {
+  const runtimeSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
   const langDir: string = langDirKey(word_lang, gloss_lang);
   // 0. Ensure NonCore Words are loaded
   await loadNonCoreWords({ supabaseClient });
@@ -163,7 +149,7 @@ export async function getSBWordsForLangDir(
   // B1.
   if (!inflightFetchesForSbWordsByLangDir[langDir]) {
     async function fetchAndCache() {
-      if (!supabaseClient) {
+      if (!runtimeSupabaseClient) {
         console.error("A Supabase client is required to load SBWords.");
         return sbWordsCache.filter(
           (r) => r.word_lang == word_lang && r.gloss_lang == gloss_lang,
@@ -174,7 +160,7 @@ export async function getSBWordsForLangDir(
       const entries: SBWordRow2[] = [];
       let i = 0;
       while (true) {
-        const { data, error } = await supabaseClient
+        const { data, error } = await runtimeSupabaseClient
           .from("words2")
           .select(SB_WORDS_COLUMNS)
           .eq("word_lang", word_lang)

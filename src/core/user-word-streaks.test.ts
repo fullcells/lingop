@@ -9,8 +9,10 @@ import {
   upsertSBUserWordStreaksForLang,
   type SBUserWordStreaks,
   type SupabaseUserWordStreaksClient,
-  type SupabaseUserWordStreaksQuery,
 } from "./user-word-streaks.js";
+import type { SupabaseQueryLike } from "./supabase.js";
+
+type SupabaseUserWordStreaksQuery = SupabaseQueryLike;
 
 type QueryResult = {
   data: unknown[] | null;

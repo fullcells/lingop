@@ -1,3 +1,5 @@
+import type { SupabaseClientLike } from "../supabase.js";
+
 export type TranslationInput = {
   source_lang: string;
   source_text: string;
@@ -43,36 +45,4 @@ export type TranslationDbRef = {
   [key: string]: unknown;
 };
 
-export type SupabaseTranslationQueryResult = {
-  data: unknown[] | null;
-  error: unknown | null;
-};
-
-export type SupabaseTranslationQuery =
-  PromiseLike<SupabaseTranslationQueryResult> & {
-    eq(column: string, value: unknown): SupabaseTranslationQuery;
-    in(column: string, values: unknown[]): SupabaseTranslationQuery;
-  };
-
-export type SupabaseTranslationUpdateQuery =
-  PromiseLike<SupabaseTranslationQueryResult> & {
-    eq(column: string, value: unknown): SupabaseTranslationUpdateQuery;
-    select(columns?: string): PromiseLike<SupabaseTranslationQueryResult>;
-  };
-
-export type SupabaseTranslationClient = {
-  from(table: "translations"): {
-    select(columns: string): SupabaseTranslationQuery;
-    update(values: Record<string, unknown>): SupabaseTranslationUpdateQuery;
-  };
-  auth?: {
-    getSession(): Promise<{
-      data: {
-        session: {
-          access_token: string;
-        } | null;
-      };
-      error?: unknown;
-    }>;
-  };
-};
+export type SupabaseTranslationClient = SupabaseClientLike;

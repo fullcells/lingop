@@ -8,6 +8,7 @@ import {
   type MorphemeStringsByPos,
 } from "./morphologize-en-word.js";
 import { ilike } from "./misc.js";
+import { asSupabaseRuntimeClient, type SupabaseClientLike } from "./supabase.js";
 
 export type EmojiRow = {
   // id: number;
@@ -16,25 +17,7 @@ export type EmojiRow = {
   // created_at: string;
 };
 
-export type SupabaseEmojiQueryResult = {
-  data: unknown[] | null;
-  error: unknown | null;
-  count?: number | null;
-};
-
-export type SupabaseEmojiQuery = PromiseLike<SupabaseEmojiQueryResult> & {
-  order(column: string, options?: { ascending?: boolean }): SupabaseEmojiQuery;
-  range(from: number, to: number): SupabaseEmojiQuery;
-};
-
-export type SupabaseEmojiClient = {
-  from(table: "emojis"): {
-    select(
-      columns: string,
-      options?: { count?: "exact"; head?: boolean },
-    ): SupabaseEmojiQuery;
-  };
-};
+export type SupabaseEmojiClient = SupabaseClientLike;
 
 export type IsNotCoreWord = (
   word_lang: string,
@@ -91,19 +74,20 @@ export async function loadEmojiData({
   supabaseClient?: SupabaseEmojiClient | undefined;
   forceRefresh?: boolean | undefined;
 } = {}): Promise<EmojiRow[]> {
-  if (!supabaseClient) {
+  const runtimeSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
+  if (!runtimeSupabaseClient) {
     console.error("A Supabase client is required to load emojis.");
     return [];
   }
 
   if (!forceRefresh && emojiDataPromise) return emojiDataPromise;
 
-  emojiDataPromise = fetchEmojiData(supabaseClient);
+  emojiDataPromise = fetchEmojiData(runtimeSupabaseClient);
   return emojiDataPromise;
 }
 
 async function fetchEmojiData(
-  supabaseClient: SupabaseEmojiClient,
+  supabaseClient: NonNullable<ReturnType<typeof asSupabaseRuntimeClient>>,
 ): Promise<EmojiRow[]> {
   // Get Total Count
   const { count, error: count_error } = await supabaseClient

@@ -161,6 +161,7 @@ For `MEMBER_CONTENT`, pass the app's Supabase client: `speak({ ..., contentConte
 ## Design Decisions
 
 - Supabase is dependency-injected because runtime setup differs across browser, SSR, and React Native. This package does not instantiate Supabase.
+- Public APIs accept Supabase clients loosely and cast internally to a small runtime shape. This avoids pushing Supabase's deep generated query types into app code while keeping row validation at module boundaries.
 - `createLingoDataClient()` owns annotation and translation caches per client instance, matching the old context behavior without React state. Apps should reuse the same instance across normal user navigation to preserve cache continuity.
 - Supabase user id and access token are derived from the injected Supabase client via `auth.getUser()` and `auth.getSession()` when owner-specific operations need them.
 - External backend environment is selected with `useStagingBackend`; public `/api/lingoprocessor/*` helpers call a fixed base URL atm (to be merged with backend enviro in far future)

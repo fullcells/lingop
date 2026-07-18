@@ -1,4 +1,5 @@
 import { ilike } from "./misc.js";
+import { asSupabaseRuntimeClient, type SupabaseClientLike } from "./supabase.js";
 
 export type WordExplicitationsRow = {
   id: number;
@@ -22,29 +23,7 @@ export type OneWayWordExplicitations_row = {
   explicitations: string[] | null;
 };
 
-export type SupabaseWordExplicitationsQueryResult = {
-  data: unknown[] | null;
-  error: unknown | null;
-  count?: number | null;
-};
-
-export type SupabaseWordExplicitationsQuery =
-  PromiseLike<SupabaseWordExplicitationsQueryResult> & {
-    order(
-      column: string,
-      options?: { ascending?: boolean },
-    ): SupabaseWordExplicitationsQuery;
-    range(from: number, to: number): SupabaseWordExplicitationsQuery;
-  };
-
-export type SupabaseWordExplicitationsClient = {
-  from(table: "word_explicitations"): {
-    select(
-      columns: string,
-      options?: { count?: "exact"; head?: boolean },
-    ): SupabaseWordExplicitationsQuery;
-  };
-};
+export type SupabaseWordExplicitationsClient = SupabaseClientLike;
 
 const WORD_EXPLICITATIONS_BATCH_SIZE = 1000;
 
@@ -57,14 +36,15 @@ export async function loadWordExplicitationsRows({
   supabaseClient?: SupabaseWordExplicitationsClient | undefined;
   forceRefresh?: boolean | undefined;
 } = {}): Promise<WordExplicitationsRow[]> {
-  if (!supabaseClient) {
+  const runtimeSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
+  if (!runtimeSupabaseClient) {
     console.error("A Supabase client is required to load word explicitations.");
     return [];
   }
 
   if (!forceRefresh && wordExplicitationsRowsPromise) return wordExplicitationsRowsPromise;
 
-  wordExplicitationsRowsPromise = fetchWordExplicitationsRows(supabaseClient);
+  wordExplicitationsRowsPromise = fetchWordExplicitationsRows(runtimeSupabaseClient);
   return wordExplicitationsRowsPromise;
 }
 
@@ -112,7 +92,7 @@ export function getOneWayWordExplicitationsFromRows(
 }
 
 async function fetchWordExplicitationsRows(
-  supabaseClient?: SupabaseWordExplicitationsClient | undefined,
+  supabaseClient?: NonNullable<ReturnType<typeof asSupabaseRuntimeClient>> | undefined,
 ): Promise<WordExplicitationsRow[]> {
   if (!supabaseClient) {
     console.error("A Supabase client is required to load word explicitations.");

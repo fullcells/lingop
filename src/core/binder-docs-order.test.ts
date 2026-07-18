@@ -3,15 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 import {
   getBinderDocsByMinL10nsOrder,
   fetchBinderDocsByMinL10nsOrder,
-  type SupabaseBinderDocsOrderClient,
-  type SupabaseBinderDocsOrderQuery,
 } from "./binder-docs-order.js";
+import type { SupabaseQueryLike } from "./supabase.js";
 
 function makeSupabaseClient(data: unknown[], eqCalls: Array<[string, unknown]>) {
   return {
     from: vi.fn(() => ({
       select: vi.fn(() => {
-        const query: SupabaseBinderDocsOrderQuery = {
+        const query: SupabaseQueryLike = {
           eq: vi.fn((column: string, value: unknown) => {
             eqCalls.push([column, value]);
             return query;
@@ -22,7 +21,7 @@ function makeSupabaseClient(data: unknown[], eqCalls: Array<[string, unknown]>) 
         return query;
       }),
     })),
-  } satisfies SupabaseBinderDocsOrderClient;
+  };
 }
 
 describe("BinderDocsByMinL10nsOrder", () => {

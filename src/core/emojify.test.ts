@@ -9,9 +9,11 @@ import {
   shouldFlipEmoji,
   type EmojiRow,
   type SupabaseEmojiClient,
-  type SupabaseEmojiQuery,
-  type SupabaseEmojiQueryResult,
 } from "./emojify.js";
+import type { SupabaseQueryLike, SupabaseQueryResult } from "./supabase.js";
+
+type SupabaseEmojiQuery = SupabaseQueryLike;
+type SupabaseEmojiQueryResult = SupabaseQueryResult;
 
 const rows: EmojiRow[] = [
   { emoji: "👍", en_gloss: "GOOD" },

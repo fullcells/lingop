@@ -3,6 +3,11 @@
 import { getBEApiBaseUrl } from "../../core/backend-api.js";
 import { LANGS } from "../../core/language/data/langs.js";
 import { deepEqual, ilike, type ContentReference } from "../../core/misc.js";
+import {
+  asSupabaseRuntimeClient,
+  type SupabaseClientLike,
+  type SupabaseRuntimeClient,
+} from "../../core/supabase.js";
 
 export const LOCALSTORE_PREF_VOICE_SPEED = "UI_PREF_VOICE_SPEED";
 const LOCALSTORE_PREF_VOICES = "UI_PREF_VOICES";
@@ -72,31 +77,7 @@ type SpeechFetch = (
   },
 ) => Promise<SpeechFetchResponse>;
 
-type SpeechSupabaseSelectResult = {
-  data: unknown[] | null;
-  error: unknown | null;
-};
-
-type SpeechSupabaseQuery = PromiseLike<SpeechSupabaseSelectResult> & {
-  eq(column: string, value: unknown): SpeechSupabaseQuery;
-  ilike(column: string, value: string): SpeechSupabaseQuery;
-};
-
-export type SpeechSynthSupabaseClient = {
-  from(table: "audio_meta"): {
-    select(columns: string): SpeechSupabaseQuery;
-  };
-  auth?: {
-    getUser?: () => Promise<{
-      data: { user: { id: string } | null };
-      error?: unknown;
-    }>;
-    getSession?: () => Promise<{
-      data: { session: { access_token: string } | null };
-      error?: unknown;
-    }>;
-  };
-};
+export type SpeechSynthSupabaseClient = SupabaseClientLike;
 
 export type SpeechSynthTTSOptions = {
   fetchImpl?: SpeechFetch;
@@ -836,13 +817,14 @@ async function getAudioMetaRow({
     const match = audioMetaCache.find((row) => text && ilike(row.text, text) && row.voice_id === voice.voice_id);
     if (match) return match;
 
-    if (!options.supabaseClient) {
+    const runtimeSupabaseClient = asSupabaseRuntimeClient(options.supabaseClient);
+    if (!runtimeSupabaseClient) {
       console.error("A Supabase client is required for MEMBER_CONTENT speech.");
       return null;
     }
 
     // 1. Fetch Speech (for Member)
-    const supabaseUserID = (await options.supabaseClient.auth?.getUser?.())?.data.user?.id ?? null;
+    const supabaseUserID = (await runtimeSupabaseClient.auth?.getUser?.())?.data.user?.id ?? null;
     if (!supabaseUserID) {
       console.error("Supabase User ID couldn't be retrieved.");
       return null;
@@ -853,13 +835,13 @@ async function getAudioMetaRow({
       text,
       voice_id: voice.voice_id,
       match_on: ["text", "voice_id"],
-      supabase: options.supabaseClient,
+      supabase: runtimeSupabaseClient,
       owner_id: supabaseUserID,
     });
     if (fetchedSpeech) return fetchedSpeech;
 
     // 2. Create Speech (direct BE Call)
-    const session = await options.supabaseClient.auth?.getSession?.();
+    const session = await runtimeSupabaseClient.auth?.getSession?.();
     const accessToken = session?.data.session?.access_token;
     const fetchUrl = `${getBEApiBaseUrl(options)}/api/create-speech`;
     const response = await getFetch(options.fetchImpl)(fetchUrl, {
@@ -1022,7 +1004,7 @@ export async function fetchSpeech({
   text?: string;
   voice_id?: string;
   match_on: ("text" | "ref" | "voice_id")[];
-  supabase: SpeechSynthSupabaseClient;
+  supabase: SupabaseRuntimeClient;
   owner_id: string;
 }): Promise<AudioMetaRow | null> {
   // FUTURE: Update this to be 'fetchSpeech[es]': INPUT: lang, match_on, items{text,ref,voice_id}. OUTPUT: items: (AudioMetaRow|null)[]

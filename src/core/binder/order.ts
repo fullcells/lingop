@@ -1,3 +1,5 @@
+import { asSupabaseRuntimeClient, type SupabaseClientLike } from "../supabase.js";
+
 export type BinderDocL10nsInput = {
   doc_id: string | number;
   l10ns: readonly string[];
@@ -9,21 +11,7 @@ export type BinderDocMinL10nsOrderItem = {
   l10ns: string[];
 };
 
-export type SupabaseBinderDocsOrderQueryResult = {
-  data: unknown[] | null;
-  error: unknown | null;
-};
-
-export type SupabaseBinderDocsOrderQuery =
-  PromiseLike<SupabaseBinderDocsOrderQueryResult> & {
-    eq(column: string, value: unknown): SupabaseBinderDocsOrderQuery;
-  };
-
-export type SupabaseBinderDocsOrderClient = {
-  from(table: "cache_binder_doc_l10ns"): {
-    select(columns: string): SupabaseBinderDocsOrderQuery;
-  };
-};
+export type SupabaseBinderDocsOrderClient = SupabaseClientLike;
 
 export type FetchBinderDocsByMinL10nsOrderInput = {
   supabaseClient: SupabaseBinderDocsOrderClient;
@@ -129,7 +117,13 @@ export async function fetchBinderDocsByMinL10nsOrder({
   lang,
   priorityDocIds,
 }: FetchBinderDocsByMinL10nsOrderInput): Promise<BinderDocMinL10nsOrderItem[] | null> {
-  const { data, error } = await supabaseClient
+  const runtimeSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
+  if (!runtimeSupabaseClient) {
+    console.error("A Supabase client is required to fetch binder doc l10n caches.");
+    return null;
+  }
+
+  const { data, error } = await runtimeSupabaseClient
     .from("cache_binder_doc_l10ns")
     .select("doc_id, l10ns, user_binder_docs!inner(binder_id)")
     .eq("lang", lang)

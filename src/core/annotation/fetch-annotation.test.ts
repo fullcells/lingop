@@ -4,11 +4,13 @@ import {
   fetchAnnotationsBatch,
   type FetchAnnotationFetch,
   type SupabaseAnnotationClient,
-  type SupabaseAnnotationQuery,
-  type SupabaseAnnotationQueryResult,
 } from "./fetch-annotation.js";
+import type { SupabaseQueryLike, SupabaseQueryResult } from "../supabase.js";
 import type { AnnotatedText, AnnotationEntry } from "./types.js";
 import type { Localization } from "../misc.js";
+
+type SupabaseAnnotationQuery = SupabaseQueryLike;
+type SupabaseAnnotationQueryResult = SupabaseQueryResult;
 
 function makeLocalization(overrides: Partial<Localization> = {}): Localization {
   return {

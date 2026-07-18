@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createLingoDataClient, type SupabaseLingoDataClient } from "./lingo-data-client.js";
-import type { EmojiRow, SupabaseEmojiQuery, SupabaseEmojiQueryResult } from "./emojify.js";
-import type {
-  SBWordRow2,
-  SupabaseSBWordsQuery,
-  SupabaseSBWordsQueryResult,
-} from "./sb-words.js";
+import type { EmojiRow } from "./emojify.js";
+import type { SBWordRow2 } from "./sb-words.js";
 import { clearSBWordsCache as resetSBWordsCache } from "./sb-words.js";
+import type { SupabaseQueryLike, SupabaseQueryResult } from "./supabase.js";
+
+type SupabaseEmojiQuery = SupabaseQueryLike;
+type SupabaseEmojiQueryResult = SupabaseQueryResult;
+type SupabaseSBWordsQuery = SupabaseQueryLike;
+type SupabaseSBWordsQueryResult = SupabaseQueryResult;
 
 function makeSBWordRow(id: number, overrides: Partial<SBWordRow2> = {}): SBWordRow2 {
   return {

@@ -1,3 +1,9 @@
+import {
+  asSupabaseRuntimeClient,
+  type SupabaseClientLike,
+  type SupabaseRuntimeClient,
+} from "./supabase.js";
+
 export type WordStreaksForLang = Record<string, number>;
 
 export type UserWordStreaksByLang = Record<string, WordStreaksForLang>;
@@ -11,33 +17,7 @@ export type SBUserWordStreaks = {
 
 type SupabaseError = { message?: string } | unknown | null;
 
-type UserWordStreaksQueryResult = {
-  data: unknown[] | null;
-  error: SupabaseError;
-};
-
-export type SupabaseUserWordStreaksQuery =
-  PromiseLike<UserWordStreaksQueryResult> & {
-    eq(column: string, value: unknown): SupabaseUserWordStreaksQuery;
-    select(columns?: string): PromiseLike<UserWordStreaksQueryResult>;
-  };
-
-export type SupabaseUserWordStreaksClient = {
-  from(table: "user_word_streaks"): {
-    select(columns: string): SupabaseUserWordStreaksQuery;
-    upsert(values: Record<string, unknown>): SupabaseUserWordStreaksQuery;
-  };
-  auth?: {
-    getUser?: () => Promise<{
-      data: {
-        user: {
-          id: string;
-        } | null;
-      };
-      error?: unknown;
-    }>;
-  };
-};
+export type SupabaseUserWordStreaksClient = SupabaseClientLike;
 
 export const userWordStreaksColumns =
   "user_id, lang, word_streaks, updated_at";
@@ -55,7 +35,7 @@ async function resolveSupabaseUserID({
   supabaseClient,
   supabaseUserID,
 }: {
-  supabaseClient: SupabaseUserWordStreaksClient;
+  supabaseClient: SupabaseRuntimeClient;
   supabaseUserID?: string | undefined;
 }): Promise<string | null> {
   if (supabaseUserID) return supabaseUserID;
@@ -153,13 +133,22 @@ export async function getSBUserWordStreaksForLang({
   supabaseUserID?: string | undefined;
   lang: string;
 }): Promise<SBUserWordStreaks | null> {
-  const userID = await resolveSupabaseUserID({ supabaseClient, supabaseUserID });
+  const runtimeSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
+  if (!runtimeSupabaseClient) {
+    console.error("A Supabase client is required to load user word streaks.");
+    return null;
+  }
+
+  const userID = await resolveSupabaseUserID({
+    supabaseClient: runtimeSupabaseClient,
+    supabaseUserID,
+  });
   if (!userID) {
     console.error("Supabase User Id not found.");
     return null;
   }
 
-  const { data, error } = await supabaseClient
+  const { data, error } = await runtimeSupabaseClient
     .from("user_word_streaks")
     .select(userWordStreaksColumns)
     .eq("lang", lang)
@@ -185,7 +174,16 @@ export async function upsertSBUserWordStreaksForLang({
   lang: string;
   wordStreaks: WordStreaksForLang;
 }): Promise<SBUserWordStreaks | null> {
-  const userID = await resolveSupabaseUserID({ supabaseClient, supabaseUserID });
+  const runtimeSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
+  if (!runtimeSupabaseClient) {
+    console.error("A Supabase client is required to upsert user word streaks.");
+    return null;
+  }
+
+  const userID = await resolveSupabaseUserID({
+    supabaseClient: runtimeSupabaseClient,
+    supabaseUserID,
+  });
   if (!userID) {
     console.error("Supabase User Id not found.");
     return null;
@@ -198,7 +196,7 @@ export async function upsertSBUserWordStreaksForLang({
     updated_at: new Date().toISOString(),
   };
 
-  const { data, error } = await supabaseClient
+  const { data, error } = await runtimeSupabaseClient
     .from("user_word_streaks")
     .upsert(row)
     .select(userWordStreaksColumns);

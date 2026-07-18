@@ -6,10 +6,12 @@ import {
   isNotCoreWord,
   type SBWordRow2,
   type SupabaseSBWordsClient,
-  type SupabaseSBWordsQuery,
-  type SupabaseSBWordsQueryResult,
 } from "./sb-words.js";
+import type { SupabaseQueryLike, SupabaseQueryResult } from "./supabase.js";
 import type { OneWayWordExplicitations } from "./word-explicitations.js";
+
+type SupabaseSBWordsQuery = SupabaseQueryLike;
+type SupabaseSBWordsQueryResult = SupabaseQueryResult;
 
 const nonCoreRows: SBWordRow2[] = [
   makeRow(1, {
