@@ -80,7 +80,7 @@ const annotation = await lingoData.fetchAnnotation({ localization });
 
 User word streaks are exposed through the Next UI provider and hook, not through `lingop/core`. Consumers read and write one unified `userWordStreaks` value regardless of whether the backing store is currently localStorage or Supabase.
 
-Wrap the app with the provider and pass the same app Supabase client you use elsewhere:
+Wrap the app with the provider and pass the same app Supabase client you use elsewhere. `focusLang` may be `null`; the provider waits to hydrate or sync until a language exists.
 
 ```tsx
 import { UserWordStreaksDataProvider } from "lingop/ui/next";

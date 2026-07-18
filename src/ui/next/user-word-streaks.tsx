@@ -46,7 +46,7 @@ export type UserWordStreaksDataContextType = {
 
 export type UserWordStreaksDataProviderProps = {
   children: ReactNode;
-  focusLang: string;
+  focusLang: string | null;
   supabaseClient?: UserWordStreaksSupabaseClient | null;
   syncDelayMs?: number;
 };
@@ -314,6 +314,7 @@ export function UserWordStreaksDataProvider({
     - (Optional) Desktop: Unsaved Changes Alert, with Followup Central Toast that it's been Saved
     */
     const onPageHide = () => {
+      if (!focusLang) return;
       void syncUserWordStreaks(focusLang);
     };
     const onVisibilityChange = () => {
@@ -341,6 +342,7 @@ export function UserWordStreaksDataProvider({
 
   // - On [userWordStreaks] changes: Queue SYNC-UserWordStreaks // UNTESTED - 20260401
   useEffect(() => {
+    if (!focusLang) return;
     if (!userWordStreaks[focusLang]) return;
     if (signedInStatus === null) return;
     if (
