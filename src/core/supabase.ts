@@ -35,6 +35,25 @@ export type SupabaseTableLike<T = unknown[]> = {
 export type SupabaseRuntimeClient = {
   from(table: string): SupabaseTableLike;
   auth?: {
+    onAuthStateChange?: (
+      callback: (
+        event: string,
+        session: {
+          user: {
+            id: string;
+          } | null;
+        } | null,
+      ) => void,
+    ) => {
+      data?: {
+        subscription?: {
+          unsubscribe?: () => void;
+        };
+      };
+      subscription?: {
+        unsubscribe?: () => void;
+      };
+    };
     getSession?: () => Promise<{
       data: {
         session: {

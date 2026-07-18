@@ -21,6 +21,7 @@ import {
   upsertSBUserWordStreaksForLang,
 } from "../../core/user-word-streaks.js";
 import { asSupabaseRuntimeClient, type SupabaseClientLike } from "../../core/supabase.js";
+import { useSupabaseSignedInStatus } from "./supabase-auth.js";
 
 export type UserWordStreaksSupabaseClient = SupabaseClientLike;
 
@@ -104,7 +105,8 @@ export function UserWordStreaksDataProvider({
   syncDelayMs = 30_000,
 }: UserWordStreaksDataProviderProps) {
   const streaksSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
-  const [signedInStatus, setSignedInStatus] = useState<boolean | null>(null);
+  const { signedInStatus, authChangeCount } =
+    useSupabaseSignedInStatus(supabaseClient);
   const _SBUserWordStreaksByLangRef = useRef<Record<string, SBUserWordStreaks | null>>(
     {},
   ); // a null value indicates the lang was fetched, but there's no data
@@ -132,36 +134,9 @@ export function UserWordStreaksDataProvider({
   }, [userWordStreaks]);
 
   useEffect(() => {
-    let isCurrent = true;
-    setSignedInStatus(null);
-
-    async function loadSignedInStatus() {
-      if (!streaksSupabaseClient) {
-        if (isCurrent) setSignedInStatus(false);
-        return;
-      }
-
-      try {
-        const result = await streaksSupabaseClient.auth?.getUser?.();
-        const data = result?.data ?? { user: null };
-        if (isCurrent) setSignedInStatus(!!data.user);
-      } catch (error) {
-        console.error("Error getting Supabase user:", error);
-        if (isCurrent) setSignedInStatus(false);
-      }
-    }
-
-    void loadSignedInStatus();
-
-    return () => {
-      isCurrent = false;
-    };
-  }, [streaksSupabaseClient]);
-
-  useEffect(() => {
     _SBUserWordStreaksByLangRef.current = {};
     __initialSBUserWordStreaksPromisesByLangRef.current = {};
-  }, [streaksSupabaseClient]);
+  }, [streaksSupabaseClient, authChangeCount]);
 
   const __loadInitialSBUserWordStreaksForLang = useCallback(
     async (lang: string): Promise<SBUserWordStreaks | null> => {

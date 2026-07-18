@@ -93,7 +93,7 @@ import { UserWordStreaksDataProvider } from "lingop/ui/next";
 </UserWordStreaksDataProvider>;
 ```
 
-The provider derives signed-in state internally with `supabaseClient.auth.getUser()`. While that check is pending, it waits to hydrate streak data. Signed-out users hydrate from `localStorage` and write changes back there. Signed-in users hydrate from Supabase, migrate existing localStorage data for a language when Supabase has no row, and queue Supabase syncs after changes.
+The provider uses `useSupabaseSignedInStatus()` internally, which checks `supabaseClient.auth.getUser()` and follows later sign-in/sign-out events through `supabaseClient.auth.onAuthStateChange()`. While auth status is pending, it waits to hydrate streak data. Signed-out users hydrate from `localStorage` and write changes back there. Signed-in users hydrate from Supabase, migrate existing localStorage data for a language when Supabase has no row, and queue Supabase syncs after changes.
 
 Downstream components use the hook:
 
