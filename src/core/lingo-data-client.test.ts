@@ -183,6 +183,126 @@ describe("createLingoDataClient", () => {
     expect(supabaseClient.auth?.getUser).toHaveBeenCalled();
   });
 
+  it("loads Supabase auth and enabled subscription state into the client", async () => {
+    const eqCalls: Array<[string, unknown]> = [];
+    const supabaseClient: SupabaseLingoDataClient = {
+      from: vi.fn((table: string) => {
+        expect(table).toBe("users_info");
+        return {
+          select: vi.fn(() => {
+            const query = {
+              eq: vi.fn((column: string, value: unknown) => {
+                eqCalls.push([column, value]);
+                return query;
+              }),
+              then: (
+                resolve: (value: {
+                  data: Array<{ enabled_sub_prod: string }>;
+                  error: null;
+                }) => unknown,
+              ) =>
+                Promise.resolve(
+                  resolve({
+                    data: [{ enabled_sub_prod: "lingop-pro" }],
+                    error: null,
+                  }),
+                ),
+            };
+            return query;
+          }),
+        };
+      }),
+      auth: {
+        getUser: vi.fn(async () => ({
+          data: { user: { id: "user-1", email: "user@example.com" } },
+        })),
+      },
+    };
+
+    const client = createLingoDataClient({ supabaseClient });
+    expect(client.signedInStatus).toBeNull();
+    expect(client.enabledSubProd).toBeUndefined();
+
+    await vi.waitFor(() => {
+      expect(client.signedInStatus).toBe(true);
+      expect(client.supabaseUserID).toBe("user-1");
+      expect(client.userEmail).toBe("user@example.com");
+      expect(client.enabledSubProd).toBe("lingop-pro");
+    });
+    expect(eqCalls).toContainEqual(["user_id", "user-1"]);
+  });
+
+  it("updates auth details from Supabase auth state changes", async () => {
+    let authStateChange:
+      | ((
+          event: string,
+          session: { user: { id: string; email?: string | null } | null } | null,
+        ) => void)
+      | null = null;
+    const supabaseClient: SupabaseLingoDataClient = {
+      from: vi.fn(() => ({
+        select: vi.fn(() => {
+          const query = {
+            eq: vi.fn(() => query),
+            then: (
+              resolve: (value: {
+                data: Array<{ enabled_sub_prod: string | null }>;
+                error: null;
+              }) => unknown,
+            ) =>
+              Promise.resolve(
+                resolve({
+                  data: [{ enabled_sub_prod: "team-plan" }],
+                  error: null,
+                }),
+              ),
+          };
+          return query;
+        }),
+      })),
+      auth: {
+        getUser: vi.fn(async () => ({
+          data: { user: null },
+        })),
+        onAuthStateChange: vi.fn((callback) => {
+          authStateChange = callback;
+          return {
+            data: {
+              subscription: {
+                unsubscribe: vi.fn(),
+              },
+            },
+          };
+        }),
+      },
+    };
+
+    const client = createLingoDataClient({ supabaseClient });
+
+    await vi.waitFor(() => {
+      expect(client.signedInStatus).toBe(false);
+      expect(client.enabledSubProd).toBeNull();
+    });
+
+    authStateChange?.("SIGNED_IN", {
+      user: { id: "user-2", email: "second@example.com" },
+    });
+
+    await vi.waitFor(() => {
+      expect(client.signedInStatus).toBe(true);
+      expect(client.supabaseUserID).toBe("user-2");
+      expect(client.userEmail).toBe("second@example.com");
+      expect(client.enabledSubProd).toBe("team-plan");
+    });
+
+    authStateChange?.("SIGNED_OUT", null);
+
+    expect(client.signedInStatus).toBe(false);
+    expect(client.supabaseUserID).toBeNull();
+    expect(client.userEmail).toBeNull();
+    expect(client.enabledSubProd).toBeNull();
+  });
+
   it("loads word explicitations through the shared module cache", async () => {
     const { supabaseClient, select } = makeWordExplicitationsSupabaseClient([
       {

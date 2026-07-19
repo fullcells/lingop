@@ -41,6 +41,7 @@ export type SupabaseRuntimeClient = {
         session: {
           user: {
             id: string;
+            email?: string | null;
           } | null;
         } | null,
       ) => void,
@@ -66,6 +67,7 @@ export type SupabaseRuntimeClient = {
       data: {
         user: {
           id: string;
+          email?: string | null;
         } | null;
       };
       error?: unknown;

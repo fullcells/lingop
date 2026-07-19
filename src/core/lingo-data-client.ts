@@ -69,7 +69,24 @@ export type CreateLingoDataClientOptions = {
   useStagingBackend?: boolean;
 };
 
+export type LingoDataClientAuthState = {
+  supabaseUserID: string | null;
+  userEmail: string | null;
+  signedInStatus: boolean | null;
+  enabledSubProd: string | null | undefined;
+};
+
 export type LingoDataClient = {
+  /** Current authenticated Supabase user id, or null while loading/signed out. */
+  readonly supabaseUserID: string | null;
+  /** Current authenticated Supabase user email, or null while loading/signed out. */
+  readonly userEmail: string | null;
+  /** True when signed in, false when signed out, null while auth is loading. */
+  readonly signedInStatus: boolean | null;
+  /** Current users_info.enabled_sub_prod value; undefined until first lookup completes. */
+  readonly enabledSubProd: string | null | undefined;
+  /** Reloads users_info.enabled_sub_prod for the current Supabase user. */
+  refreshEnabledSubProd(): Promise<string | null>;
   translationsCache: TranslationCacheRef;
   t9nCacheDatesBySC: Record<string, string>;
   /** Reads or generates the newest localization for a source/target language pair. */
@@ -140,6 +157,15 @@ function createAnnotationCacheRef(): AnnotationCacheRef {
 
 function createTranslationCacheRef(): TranslationCacheRef {
   return { current: [] };
+}
+
+function createAuthState(): LingoDataClientAuthState {
+  return {
+    supabaseUserID: null,
+    userEmail: null,
+    signedInStatus: null,
+    enabledSubProd: undefined,
+  };
 }
 
 function hasDbRefId(ref: Localization["sourceContent"]["ref"]): boolean {
@@ -252,6 +278,71 @@ export function createLingoDataClient({
   const annotationsByLangNTextCache = createAnnotationCacheRef();
   const translationsCache = createTranslationCacheRef();
   const t9nCacheDatesBySC: Record<string, string> = {};
+  const authState = createAuthState();
+
+  function setAuthUser(
+    user: { id: string; email?: string | null } | null | undefined,
+  ): void {
+    authState.supabaseUserID = user?.id ?? null;
+    authState.userEmail = user?.email ?? null;
+    authState.signedInStatus = !!user;
+    if (!user) authState.enabledSubProd = null;
+  }
+
+  async function refreshEnabledSubProd(): Promise<string | null> {
+    if (!runtimeSupabaseClient || !authState.supabaseUserID) {
+      authState.enabledSubProd = null;
+      return null;
+    }
+
+    const { data, error } = await runtimeSupabaseClient
+      .from("users_info")
+      .select("user_id, stripe_id, enabled_sub_prod")
+      .eq("user_id", authState.supabaseUserID);
+
+    if (error) {
+      console.error("Supabase users_info select error:", errorMessage(error));
+      return authState.enabledSubProd ?? null;
+    }
+
+    const rows = Array.isArray(data) ? data : [];
+    const row = rows[0];
+    const enabledSubProd =
+      row &&
+      typeof row === "object" &&
+      "enabled_sub_prod" in row &&
+      (typeof row.enabled_sub_prod === "string" || row.enabled_sub_prod === null)
+        ? row.enabled_sub_prod
+        : null;
+
+    authState.enabledSubProd = enabledSubProd;
+    return enabledSubProd;
+  }
+
+  async function loadAuthState(): Promise<void> {
+    if (!runtimeSupabaseClient) {
+      setAuthUser(null);
+      return;
+    }
+
+    try {
+      const result = await runtimeSupabaseClient.auth?.getUser?.();
+      setAuthUser(result?.data.user ?? null);
+      if (authState.signedInStatus) await refreshEnabledSubProd();
+    } catch (error) {
+      console.error("Error getting Supabase user:", error);
+      setAuthUser(null);
+    }
+  }
+
+  void loadAuthState();
+
+  runtimeSupabaseClient?.auth?.onAuthStateChange?.((_event, session) => {
+    setAuthUser(session?.user ?? null);
+    if (authState.signedInStatus) {
+      void refreshEnabledSubProd();
+    }
+  });
 
   function getSourceContentKey(sourceContent: SourceContent): string {
     const { owner_id, lang, text, ref } = sourceContent;
@@ -643,6 +734,19 @@ export function createLingoDataClient({
   }
 
   return {
+    get supabaseUserID() {
+      return authState.supabaseUserID;
+    },
+    get userEmail() {
+      return authState.userEmail;
+    },
+    get signedInStatus() {
+      return authState.signedInStatus;
+    },
+    get enabledSubProd() {
+      return authState.enabledSubProd;
+    },
+    refreshEnabledSubProd,
     translationsCache,
     t9nCacheDatesBySC,
     fetchLocalization,

@@ -33,6 +33,8 @@ Low-level annotation API calls, `callAnnotate_storedForOwner()` remains public a
 
 `createLingoDataClient()` returns a long-lived client instance with these callable methods:
 
+- `supabaseUserID`, `userEmail`, `signedInStatus`, and `enabledSubProd`: current Supabase auth/subscription state derived from the injected Supabase client. `signedInStatus` starts as `null` while auth is loading; `enabledSubProd` starts as `undefined` until the first `users_info.enabled_sub_prod` lookup completes.
+- `refreshEnabledSubProd()`: reloads `users_info.enabled_sub_prod` for the current Supabase user and updates `enabledSubProd`.
 - `fetchLocalization({ l10n_lang, sourceContent, isPublic? })`: returns the newest localization for a source-content record, using the client cache first and generating/fetching as needed.
 - `updateTranslationsCaches(rows)`: merges translation rows into the owned translation cache and keeps the newest entries first.
 - `getT9nCacheDateBySC(sourceContent)`: reads the last cache timestamp tracked for a source-content record.
