@@ -232,6 +232,68 @@ describe("createLingoDataClient", () => {
     expect(eqCalls).toContainEqual(["user_id", "user-1"]);
   });
 
+  it("dedupes simultaneous enabled subscription lookups for the same Supabase user", async () => {
+    const eqCalls: Array<[string, unknown]> = [];
+    let resolveLookup:
+      | ((value: {
+          data: Array<{ enabled_sub_prod: string }>;
+          error: null;
+        }) => void)
+      | null = null;
+    const lookupPromise = new Promise<{
+      data: Array<{ enabled_sub_prod: string }>;
+      error: null;
+    }>((resolve) => {
+      resolveLookup = resolve;
+    });
+    const supabaseClient: SupabaseLingoDataClient = {
+      supabaseUrl: "https://example.supabase.co",
+      from: vi.fn((table: string) => {
+        expect(table).toBe("users_info");
+        return {
+          select: vi.fn(() => {
+            const query = {
+              eq: vi.fn((column: string, value: unknown) => {
+                eqCalls.push([column, value]);
+                return query;
+              }),
+              then: (
+                resolve: (value: {
+                  data: Array<{ enabled_sub_prod: string }>;
+                  error: null;
+                }) => unknown,
+              ) => lookupPromise.then(resolve),
+            };
+            return query;
+          }),
+        };
+      }),
+      auth: {
+        getUser: vi.fn(async () => ({
+          data: { user: { id: "user-dedupe", email: "user@example.com" } },
+        })),
+      },
+    };
+
+    const clientA = createLingoDataClient({ supabaseClient });
+    const clientB = createLingoDataClient({ supabaseClient });
+
+    await vi.waitFor(() => {
+      expect(eqCalls).toEqual([["user_id", "user-dedupe"]]);
+    });
+
+    resolveLookup?.({
+      data: [{ enabled_sub_prod: "lingop-pro" }],
+      error: null,
+    });
+
+    await vi.waitFor(() => {
+      expect(clientA.enabledSubProd).toBe("lingop-pro");
+      expect(clientB.enabledSubProd).toBe("lingop-pro");
+    });
+    expect(supabaseClient.from).toHaveBeenCalledTimes(1);
+  });
+
   it("updates auth details from Supabase auth state changes", async () => {
     let authStateChange:
       | ((

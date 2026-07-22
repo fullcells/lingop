@@ -168,6 +168,18 @@ function createAuthState(): LingoDataClientAuthState {
   };
 }
 
+type EnabledSubProdLookupResult = {
+  enabledSubProd: string | null;
+  error?: unknown;
+};
+
+const enabledSubProdLookupInflight = new Map<string, Promise<EnabledSubProdLookupResult>>();
+const enabledSubProdLookupRecent = new Map<
+  string,
+  { expiresAt: number; result: EnabledSubProdLookupResult }
+>();
+const enabledSubProdLookupRecentMs = 5_000;
+
 function hasDbRefId(ref: Localization["sourceContent"]["ref"]): boolean {
   return "db" in ref && ref.db.id != null;
 }
@@ -179,6 +191,77 @@ function errorMessage(error: unknown): string {
   }
 
   return JSON.stringify(error);
+}
+
+function getSupabaseClientCacheKey(
+  supabaseClient: NonNullable<ReturnType<typeof asSupabaseRuntimeClient>>,
+): string | null {
+  const candidate = supabaseClient as {
+    supabaseUrl?: unknown;
+    rest?: { url?: unknown };
+  };
+  const url = candidate.supabaseUrl ?? candidate.rest?.url;
+  return typeof url === "string" ? url : null;
+}
+
+async function loadEnabledSubProdForUser({
+  supabaseClient,
+  supabaseUserID,
+  allowRecentCache,
+}: {
+  supabaseClient: NonNullable<ReturnType<typeof asSupabaseRuntimeClient>>;
+  supabaseUserID: string;
+  allowRecentCache: boolean;
+}): Promise<EnabledSubProdLookupResult> {
+  const clientCacheKey = getSupabaseClientCacheKey(supabaseClient);
+  const cacheKey = clientCacheKey ? `${clientCacheKey}|${supabaseUserID}` : null;
+  const now = Date.now();
+  const recent = cacheKey ? enabledSubProdLookupRecent.get(cacheKey) : undefined;
+  if (allowRecentCache && recent && recent.expiresAt > now) {
+    return recent.result;
+  }
+
+  const inflight = cacheKey ? enabledSubProdLookupInflight.get(cacheKey) : undefined;
+  if (inflight) return inflight;
+
+  const lookup = (async (): Promise<EnabledSubProdLookupResult> => {
+    const { data, error } = await supabaseClient
+      .from("users_info")
+      .select("user_id, stripe_id, enabled_sub_prod")
+      .eq("user_id", supabaseUserID);
+
+    if (error) {
+      console.error("Supabase users_info select error:", errorMessage(error));
+      return { enabledSubProd: null, error };
+    }
+
+    const rows = Array.isArray(data) ? data : [];
+    const row = rows[0];
+    const enabledSubProd =
+      row &&
+      typeof row === "object" &&
+      "enabled_sub_prod" in row &&
+      (typeof row.enabled_sub_prod === "string" || row.enabled_sub_prod === null)
+        ? row.enabled_sub_prod
+        : null;
+
+    return { enabledSubProd };
+  })();
+
+  if (cacheKey) enabledSubProdLookupInflight.set(cacheKey, lookup);
+
+  try {
+    const result = await lookup;
+    if (cacheKey && !result.error) {
+      enabledSubProdLookupRecent.set(cacheKey, {
+        expiresAt: Date.now() + enabledSubProdLookupRecentMs,
+        result,
+      });
+    }
+    return result;
+  } finally {
+    if (cacheKey) enabledSubProdLookupInflight.delete(cacheKey);
+  }
 }
 
 function getFetch(): FetchAnnotationFetch {
@@ -289,31 +372,26 @@ export function createLingoDataClient({
     if (!user) authState.enabledSubProd = null;
   }
 
-  async function refreshEnabledSubProd(): Promise<string | null> {
+  async function refreshEnabledSubProd({
+    allowRecentCache = false,
+  }: { allowRecentCache?: boolean } = {}): Promise<string | null> {
     if (!runtimeSupabaseClient || !authState.supabaseUserID) {
       authState.enabledSubProd = null;
       return null;
     }
 
-    const { data, error } = await runtimeSupabaseClient
-      .from("users_info")
-      .select("user_id, stripe_id, enabled_sub_prod")
-      .eq("user_id", authState.supabaseUserID);
+    const supabaseUserID = authState.supabaseUserID;
+    const { enabledSubProd, error } = await loadEnabledSubProdForUser({
+      supabaseClient: runtimeSupabaseClient,
+      supabaseUserID,
+      allowRecentCache,
+    });
 
-    if (error) {
-      console.error("Supabase users_info select error:", errorMessage(error));
+    if (authState.supabaseUserID !== supabaseUserID) {
       return authState.enabledSubProd ?? null;
     }
 
-    const rows = Array.isArray(data) ? data : [];
-    const row = rows[0];
-    const enabledSubProd =
-      row &&
-      typeof row === "object" &&
-      "enabled_sub_prod" in row &&
-      (typeof row.enabled_sub_prod === "string" || row.enabled_sub_prod === null)
-        ? row.enabled_sub_prod
-        : null;
+    if (error) return authState.enabledSubProd ?? null;
 
     authState.enabledSubProd = enabledSubProd;
     return enabledSubProd;
@@ -328,7 +406,7 @@ export function createLingoDataClient({
     try {
       const result = await runtimeSupabaseClient.auth?.getUser?.();
       setAuthUser(result?.data.user ?? null);
-      if (authState.signedInStatus) await refreshEnabledSubProd();
+      if (authState.signedInStatus) await refreshEnabledSubProd({ allowRecentCache: true });
     } catch (error) {
       console.error("Error getting Supabase user:", error);
       setAuthUser(null);
@@ -340,7 +418,7 @@ export function createLingoDataClient({
   runtimeSupabaseClient?.auth?.onAuthStateChange?.((_event, session) => {
     setAuthUser(session?.user ?? null);
     if (authState.signedInStatus) {
-      void refreshEnabledSubProd();
+      void refreshEnabledSubProd({ allowRecentCache: true });
     }
   });
 
