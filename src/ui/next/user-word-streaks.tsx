@@ -109,8 +109,14 @@ export function UserWordStreaksDataProvider({
   syncDelayMs = 30_000,
 }: UserWordStreaksDataProviderProps) {
   const streaksSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
-  const { signedInStatus, authChangeCount } =
+  const { signedInStatus, supabaseUserID, authChangeCount } =
     useSupabaseSignedInStatus(supabaseClient);
+  const authStateKey =
+    signedInStatus === true
+      ? `signed-in:${supabaseUserID ?? "unknown"}`
+      : signedInStatus === false
+        ? "signed-out"
+        : "loading";
   const _SBUserWordStreaksByLangRef = useRef<Record<string, SBUserWordStreaks | null>>(
     {},
   ); // a null value indicates the lang was fetched, but there's no data
@@ -140,7 +146,7 @@ export function UserWordStreaksDataProvider({
   useEffect(() => {
     _SBUserWordStreaksByLangRef.current = {};
     __initialSBUserWordStreaksPromisesByLangRef.current = {};
-  }, [streaksSupabaseClient, authChangeCount]);
+  }, [streaksSupabaseClient, authStateKey, authChangeCount]);
 
   const __loadInitialSBUserWordStreaksForLang = useCallback(
     async (lang: string): Promise<SBUserWordStreaks | null> => {
@@ -151,11 +157,12 @@ export function UserWordStreaksDataProvider({
 
       promises[lang] = getSBUserWordStreaksForLang({
         supabaseClient: streaksSupabaseClient,
+        ...(supabaseUserID ? { supabaseUserID } : {}),
         lang,
       });
       return promises[lang];
     },
-    [streaksSupabaseClient],
+    [streaksSupabaseClient, supabaseUserID],
   );
 
   const _getSBUserWordStreaksForLang = useCallback(
@@ -213,6 +220,7 @@ export function UserWordStreaksDataProvider({
           // - ..1. insert localizations to SB
           const newSBUserWordStreaksRow = await upsertSBUserWordStreaksForLang({
             supabaseClient: streaksSupabaseClient,
+            ...(supabaseUserID ? { supabaseUserID } : {}),
             lang,
             wordStreaks: localStoreUserWordStreaks[lang],
           });
@@ -230,7 +238,7 @@ export function UserWordStreaksDataProvider({
         }
       }
     },
-    [streaksSupabaseClient, signedInStatus, _getSBUserWordStreaksForLang],
+    [streaksSupabaseClient, signedInStatus, supabaseUserID, _getSBUserWordStreaksForLang],
   );
 
   const syncUserWordStreaks = useCallback(
@@ -258,6 +266,7 @@ export function UserWordStreaksDataProvider({
       // 2. Upsert
       const updatedSBUserWordStreaksRow = await upsertSBUserWordStreaksForLang({
         supabaseClient: streaksSupabaseClient,
+        ...(supabaseUserID ? { supabaseUserID } : {}),
         lang,
         wordStreaks: curUserWordStreaksForLang,
       });
@@ -266,7 +275,7 @@ export function UserWordStreaksDataProvider({
       // - Update SB Ref
       _SBUserWordStreaksByLangRef.current[lang] = updatedSBUserWordStreaksRow;
     },
-    [cancelPendingSyncUserWordStreaks, signedInStatus, streaksSupabaseClient],
+    [cancelPendingSyncUserWordStreaks, signedInStatus, streaksSupabaseClient, supabaseUserID],
   );
 
   // - Syncs on Close
@@ -306,7 +315,7 @@ export function UserWordStreaksDataProvider({
   useEffect(() => {
     if (signedInStatus === null || !focusLang) return; // Notably is still retriggered upon new signout or new signin
     void ensureUserWordStreaksForLang(focusLang);
-  }, [focusLang, signedInStatus, ensureUserWordStreaksForLang]);
+  }, [focusLang, signedInStatus, authStateKey, ensureUserWordStreaksForLang]);
 
   // - On [userWordStreaks] changes: Queue SYNC-UserWordStreaks // UNTESTED - 20260401
   useEffect(() => {
