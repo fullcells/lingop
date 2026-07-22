@@ -6,7 +6,6 @@ import { deepEqual, ilike, type ContentReference } from "../../core/misc.js";
 import {
   asSupabaseRuntimeClient,
   type SupabaseClientLike,
-  type SupabaseRuntimeClient,
 } from "../../core/supabase.js";
 
 export const LOCALSTORE_PREF_VOICE_SPEED = "UI_PREF_VOICE_SPEED";
@@ -1004,10 +1003,15 @@ export async function fetchSpeech({
   text?: string;
   voice_id?: string;
   match_on: ("text" | "ref" | "voice_id")[];
-  supabase: SupabaseRuntimeClient;
+  supabase: SupabaseClientLike;
   owner_id: string;
 }): Promise<AudioMetaRow | null> {
   // FUTURE: Update this to be 'fetchSpeech[es]': INPUT: lang, match_on, items{text,ref,voice_id}. OUTPUT: items: (AudioMetaRow|null)[]
+  const runtimeSupabaseClient = asSupabaseRuntimeClient(supabase);
+  if (!runtimeSupabaseClient) {
+    console.error("A Supabase client is required to fetch speech.");
+    return null;
+  }
 
   // CHECKS
   if (!match_on.length) {
@@ -1025,7 +1029,7 @@ export async function fetchSpeech({
 
   // -----------------------------------------
   // 1. Select based on match_on values
-  let query = supabase
+  let query = runtimeSupabaseClient
     .from("audio_meta")
     .select("id, lang, text, filename, owner_id, character_label, service, voice_id, ref, created_at")
     .eq("lang", lang)
