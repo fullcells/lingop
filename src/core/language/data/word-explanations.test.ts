@@ -8,7 +8,7 @@ import {
 describe("word explanations", () => {
   it("returns explanations for exact words", () => {
     expect(getWordExplanationsForWord("ja", "食べ")).toEqual([
-      "'eat'. 食べ is the universal stem of the verb 食べる.",
+      "Stem of 食べる. Means “eat” and appears in compound words and polite forms.",
     ]);
   });
 
@@ -20,7 +20,7 @@ describe("word explanations", () => {
 
   it("normalizes lookup casing and whitespace", () => {
     expect(getWordExplanationsForWord("ja", " またね ")).toEqual([
-      "“goodbye” (casual) - Alt: さようなら (“farewell”) (rarely used for “goodbye”)",
+      "Casual “see you” or “bye.” さようなら is more like “farewell” and is not used as casually.",
     ]);
   });
 
