@@ -42,6 +42,7 @@ describe("BinderDocsByMinL10nsOrder", () => {
   });
 
   it("can force priority docs earlier", () => {
+    const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => {});
     const result = getBinderDocsByMinL10nsOrder(
       [
         { doc_id: 1, l10ns: ["a"] },
@@ -56,6 +57,59 @@ describe("BinderDocsByMinL10nsOrder", () => {
       l10ns: ["x", "y", "z"],
       newL10ns: ["x", "y", "z"],
     });
+    expect(consoleInfo).toHaveBeenCalledWith(
+      "Using consumer-specified binder priority doc IDs:",
+      [139],
+    );
+    consoleInfo.mockRestore();
+  });
+
+  it("uses and logs default priority doc 179 when present", () => {
+    const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => {});
+    const result = getBinderDocsByMinL10nsOrder([
+      { doc_id: 1, l10ns: ["a"] },
+      { doc_id: 179, l10ns: ["x", "y"] },
+    ]);
+
+    expect(result[0]?.doc_id).toBe(179);
+    expect(consoleInfo).toHaveBeenCalledWith("Using default binder priority doc ID:", 179);
+    consoleInfo.mockRestore();
+  });
+
+  it("replaces a one-off singleton with exactly two recurring l10ns above 1,000", () => {
+    const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => {});
+    const fillerL10ns = Array.from({ length: 999 }, (_, index) => `filler-${index}`);
+    const result = getBinderDocsByMinL10nsOrder(
+      [
+        { doc_id: 1, l10ns: ["rare"] },
+        { doc_id: 2, l10ns: ["common-a", "common-b"] },
+        { doc_id: 3, l10ns: ["common-a", "common-b", ...fillerL10ns] },
+      ],
+      [],
+    );
+
+    expect(result[0]).toEqual({
+      doc_id: 2,
+      l10ns: ["common-a", "common-b"],
+      newL10ns: ["common-a", "common-b"],
+    });
+    consoleInfo.mockRestore();
+  });
+
+  it("does not apply the recurring-pair exception at 1,000 unique l10ns", () => {
+    const consoleInfo = vi.spyOn(console, "info").mockImplementation(() => {});
+    const fillerL10ns = Array.from({ length: 997 }, (_, index) => `filler-${index}`);
+    const result = getBinderDocsByMinL10nsOrder(
+      [
+        { doc_id: 1, l10ns: ["rare"] },
+        { doc_id: 2, l10ns: ["common-a", "common-b"] },
+        { doc_id: 3, l10ns: ["common-a", "common-b", ...fillerL10ns] },
+      ],
+      [],
+    );
+
+    expect(result[0]?.doc_id).toBe(1);
+    consoleInfo.mockRestore();
   });
 
   it("fetches binder doc l10n caches and delegates to the ordering helper", async () => {
