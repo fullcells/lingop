@@ -720,13 +720,13 @@ async function getSpeechFileURL({
   voice: SpeechSynthTTSVoice;
 } & SpeechSynthTTSOptions): Promise<string | undefined> {
   if (!contentContext) {
-    console.warn("active voice is a non-browser voice, but no contentContext was provided");
+    console.warn("active voice is a non-browser voice, but no contentContext was provided", text, lang, ref, voice);
     return;
   }
   // GET AUDIO-META-ROW
   const audioMetaRow = await getAudioMetaRow({ text, lang, contentContext, ref, voice, ...options });
   if (!audioMetaRow) {
-    console.error("No AudioMetaRow found nor generated.");
+    console.error("No AudioMetaRow found nor generated.", text, lang, contentContext, ref, voice);
     return;
   }
   // PLAY AudioMetaRow
