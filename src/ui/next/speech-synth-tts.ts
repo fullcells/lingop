@@ -652,23 +652,38 @@ export async function preloadSpeech({
 }
 
 const audioPreloadCache = new Map<string, HTMLAudioElement>(); // Note: May need to Restrict the Max Size of this (clearing older ones as we go)
+const audioPreloadInFlight = new Map<string, Promise<HTMLAudioElement>>();
 async function preloadSpeechFile(fileURL: string): Promise<HTMLAudioElement> {
   // Reuse if already preloaded
   const cached = audioPreloadCache.get(fileURL);
   if (cached) return cached;
 
-  const audio = new Audio();
-  audio.preload = "auto";
-  audio.src = fileURL;
-  audio.load(); // triggers fetch/buffering
+  const inFlight = audioPreloadInFlight.get(fileURL);
+  if (inFlight) return inFlight;
 
-  await new Promise<void>((resolve, reject) => {
-    audio.oncanplaythrough = () => resolve(); // enough buffered to play through
-    audio.onerror = () => reject(new Error(`Failed to preload audio: ${fileURL}`));
-  });
+  const preloadPromise = (async () => {
+    const audio = new Audio();
+    audio.preload = "auto";
+    audio.src = fileURL;
 
-  audioPreloadCache.set(fileURL, audio);
-  return audio;
+    await new Promise<void>((resolve, reject) => {
+      audio.oncanplaythrough = () => resolve(); // enough buffered to play through
+      audio.onerror = () => reject(new Error(`Failed to preload audio: ${fileURL}`));
+      audio.load(); // triggers fetch/buffering
+    });
+
+    audioPreloadCache.set(fileURL, audio);
+    return audio;
+  })();
+
+  audioPreloadInFlight.set(fileURL, preloadPromise);
+  try {
+    return await preloadPromise;
+  } finally {
+    if (audioPreloadInFlight.get(fileURL) === preloadPromise) {
+      audioPreloadInFlight.delete(fileURL);
+    }
+  }
 }
 
 async function playSpeechFile(fileURL: string): Promise<void> {
@@ -720,15 +735,17 @@ async function getSpeechFileURL({
   voice: SpeechSynthTTSVoice;
 } & SpeechSynthTTSOptions): Promise<string | undefined> {
   if (!contentContext) {
-    console.warn("active voice is a non-browser voice, but no contentContext was provided", text, lang, ref, voice);
+    console.warn("API speech metadata cannot be resolved without a contentContext.", {
+      text,
+      lang,
+      ref,
+      voice,
+    });
     return;
   }
   // GET AUDIO-META-ROW
   const audioMetaRow = await getAudioMetaRow({ text, lang, contentContext, ref, voice, ...options });
-  if (!audioMetaRow) {
-    console.error("No AudioMetaRow found nor generated.", text, lang, contentContext, ref, voice);
-    return;
-  }
+  if (!audioMetaRow) return;
   // PLAY AudioMetaRow
   const filename = audioMetaRow.filename;
   const fileURL = `https://omnilingual-access.s3.us-east-1.amazonaws.com/audio/${filename}`;
@@ -737,6 +754,7 @@ async function getSpeechFileURL({
 }
 
 let audioMetaCache: AudioMetaRow[] = []; // API-Voice Only
+const audioMetaInFlight = new Map<string, Promise<AudioMetaRow | null>>();
 async function speakAPIVoice({
   text,
   lang,
@@ -776,6 +794,43 @@ async function getAudioMetaRow({
   contentContext?: ContentContext | undefined;
   ref?: ContentReference | undefined;
 } & SpeechSynthTTSOptions): Promise<AudioMetaRow | null> {
+  const request = { text, lang, voice, contentContext, ref };
+  const requestKey = getAudioMetaRequestKey(request, options);
+  const inFlight = audioMetaInFlight.get(requestKey);
+  if (inFlight) return inFlight;
+
+  const resolutionPromise = resolveAudioMetaRow({ ...request, ...options }).catch((error: unknown) => {
+    console.error("Audio metadata resolution threw an unexpected error.", {
+      request,
+      error,
+    });
+    return null;
+  });
+
+  audioMetaInFlight.set(requestKey, resolutionPromise);
+  try {
+    return await resolutionPromise;
+  } finally {
+    if (audioMetaInFlight.get(requestKey) === resolutionPromise) {
+      audioMetaInFlight.delete(requestKey);
+    }
+  }
+}
+
+async function resolveAudioMetaRow({
+  text,
+  lang,
+  voice,
+  contentContext,
+  ref,
+  ...options
+}: {
+  text: string;
+  lang: string;
+  voice: SpeechSynthTTSVoice;
+  contentContext?: ContentContext | undefined;
+  ref?: ContentReference | undefined;
+} & SpeechSynthTTSOptions): Promise<AudioMetaRow | null> {
   // INPUT - For Creating Speech - Only used if Creation required.
   const createSpeechInput: APICreateSpeechInput = {
     lang,
@@ -800,11 +855,19 @@ async function getAudioMetaRow({
       body: JSON.stringify(createSpeechInput),
     });
     if (!res2.ok) {
-      console.error(`Failed. Status: ${res2.status} - Data: ${await res2.text()}`);
+      await logAudioMetaResponseFailure({
+        endpoint: "/api/lingoprocessor/speech-create-limited-anon",
+        response: res2,
+        request: { text, lang, contentContext, ref, voice },
+      });
       return null;
     }
     // Cache AudioMeta and Return
-    const createdAudioMeta = parseAudioMetaRow(await res2.json());
+    const createdAudioMeta = await parseAudioMetaResponse({
+      endpoint: "/api/lingoprocessor/speech-create-limited-anon",
+      response: res2,
+      request: { text, lang, contentContext, ref, voice },
+    });
     if (!createdAudioMeta) return null;
     audioMetaCache.push(createdAudioMeta);
     return createdAudioMeta;
@@ -818,14 +881,18 @@ async function getAudioMetaRow({
 
     const runtimeSupabaseClient = asSupabaseRuntimeClient(options.supabaseClient);
     if (!runtimeSupabaseClient) {
-      console.error("A Supabase client is required for MEMBER_CONTENT speech.");
+      console.error("Audio metadata resolution requires a Supabase client for MEMBER_CONTENT.", {
+        request: { text, lang, contentContext, ref, voice },
+      });
       return null;
     }
 
     // 1. Fetch Speech (for Member)
     const supabaseUserID = (await runtimeSupabaseClient.auth?.getUser?.())?.data.user?.id ?? null;
     if (!supabaseUserID) {
-      console.error("Supabase User ID couldn't be retrieved.");
+      console.error("Audio metadata resolution could not retrieve the Supabase user ID.", {
+        request: { text, lang, contentContext, ref, voice },
+      });
       return null;
     }
     const fetchedSpeech = await fetchSpeech({
@@ -852,11 +919,19 @@ async function getAudioMetaRow({
       body: JSON.stringify(createSpeechInput),
     });
     if (!response.ok) {
-      console.error(`Failed. Status: ${response.status} - Data: ${await response.text()}`);
+      await logAudioMetaResponseFailure({
+        endpoint: fetchUrl,
+        response,
+        request: { text, lang, contentContext, ref, voice },
+      });
       return null;
     }
     // Cache AudioMeta and Return
-    const createdAudioMeta = parseAudioMetaRow(await response.json());
+    const createdAudioMeta = await parseAudioMetaResponse({
+      endpoint: fetchUrl,
+      response,
+      request: { text, lang, contentContext, ref, voice },
+    });
     if (!createdAudioMeta) return null;
     audioMetaCache.push(createdAudioMeta);
     return createdAudioMeta;
@@ -865,12 +940,17 @@ async function getAudioMetaRow({
   // - PUBLIC_CONTENT
   if (contentContext == "PUBLIC_CONTENT") { // <- must provide REF
     if (!ref) {
-      console.error("ref required for PUBLIC_CONTENT");
+      console.error("Audio metadata resolution requires a ref for PUBLIC_CONTENT.", {
+        request: { text, lang, contentContext, ref, voice },
+      });
       return null;
     }
     // 0. Check Cache for Speech - match_on[ref]
     const match = audioMetaCache.find((row) =>
-      deepEqual(row.ref, ref) && ilike(row.lang, lang) && ilike(row.text, text),
+      deepEqual(row.ref, ref) &&
+      ilike(row.lang, lang) &&
+      ilike(row.text, text) &&
+      row.voice_id === voice.voice_id,
     );
     if (match) return match;
     // console.log('__getAudioMetaRow: PublicContent: No Match Found: ', ref, lang, text, audioMetaCache);
@@ -889,11 +969,19 @@ async function getAudioMetaRow({
       body: JSON.stringify(getPublicSpeechInput),
     });
     if (!res2.ok) {
-      console.error(`Failed. Status: ${res2.status} - Data: ${await res2.text()}`);
+      await logAudioMetaResponseFailure({
+        endpoint: "/api/lingoprocessor/speech-get-public",
+        response: res2,
+        request: { text, lang, contentContext, ref, voice },
+      });
       return null;
     }
     // Cache AudioMeta and Return
-    const publicAudioMeta = parseAudioMetaRow(await res2.json());
+    const publicAudioMeta = await parseAudioMetaResponse({
+      endpoint: "/api/lingoprocessor/speech-get-public",
+      response: res2,
+      request: { text, lang, contentContext, ref, voice },
+    });
     if (!publicAudioMeta) return null;
     audioMetaCache.push(publicAudioMeta);
     // - brute fix to remember original ref incase new one from /speech-get-public doesn't match (mismatch can happen when there are multiple translations with the same target_text (e.g. differing in source_text by case/slight-words that results in same target_lang translation)):
@@ -901,6 +989,9 @@ async function getAudioMetaRow({
     return publicAudioMeta;
   }
 
+  console.error("Audio metadata resolution received an unsupported contentContext.", {
+    request: { text, lang, contentContext, ref, voice },
+  });
   return null;
 }
 
@@ -1090,6 +1181,121 @@ function isSpeechSynthTTSVoice(value: unknown): value is SpeechSynthTTSVoice {
     typeof candidate.voice_id === "string" &&
     typeof candidate.voice_lang === "string"
   );
+}
+
+type AudioMetaRequestDetails = {
+  text: string;
+  lang: string;
+  voice: SpeechSynthTTSVoice;
+  contentContext?: ContentContext | undefined;
+  ref?: ContentReference | undefined;
+};
+
+const requestOptionIdentities = new WeakMap<object, number>();
+let nextRequestOptionIdentity = 1;
+
+function getRequestOptionIdentity(value: unknown): number | null {
+  if (
+    value === null ||
+    (typeof value !== "object" && typeof value !== "function")
+  ) {
+    return null;
+  }
+  const identityTarget = value as object;
+  const existing = requestOptionIdentities.get(identityTarget);
+  if (existing) return existing;
+  const identity = nextRequestOptionIdentity++;
+  requestOptionIdentities.set(identityTarget, identity);
+  return identity;
+}
+
+function getAudioMetaRequestKey(
+  request: AudioMetaRequestDetails,
+  options: SpeechSynthTTSOptions,
+): string {
+  return stableSerialize({
+    contentContext: request.contentContext,
+    lang: request.lang.toLowerCase(),
+    text: request.text.toLowerCase(),
+    ref: request.ref,
+    voice: request.voice,
+    useStagingBackend: options.useStagingBackend ?? false,
+    fetchImplIdentity: getRequestOptionIdentity(options.fetchImpl),
+    supabaseClientIdentity: getRequestOptionIdentity(options.supabaseClient),
+  });
+}
+
+function stableSerialize(value: unknown): string {
+  if (value === undefined) return "undefined";
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value) ?? String(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(stableSerialize).join(",")}]`;
+  }
+  const entries = Object.entries(value as Record<string, unknown>)
+    .sort(([left], [right]) => left.localeCompare(right));
+  return `{${entries.map(([key, entryValue]) =>
+    `${JSON.stringify(key)}:${stableSerialize(entryValue)}`
+  ).join(",")}}`;
+}
+
+async function logAudioMetaResponseFailure({
+  endpoint,
+  response,
+  request,
+}: {
+  endpoint: string;
+  response: SpeechFetchResponse;
+  request: AudioMetaRequestDetails;
+}): Promise<void> {
+  let responseBody: string;
+  try {
+    responseBody = await response.text();
+  } catch (error) {
+    responseBody = `[response body could not be read: ${String(error)}]`;
+  }
+  console.error("Audio metadata endpoint rejected the request.", {
+    endpoint,
+    status: response.status,
+    responseBody,
+    request,
+  });
+}
+
+async function parseAudioMetaResponse({
+  endpoint,
+  response,
+  request,
+}: {
+  endpoint: string;
+  response: SpeechFetchResponse;
+  request: AudioMetaRequestDetails;
+}): Promise<AudioMetaRow | null> {
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch (error) {
+    console.error("Audio metadata endpoint returned invalid JSON.", {
+      endpoint,
+      status: response.status,
+      error,
+      request,
+    });
+    return null;
+  }
+
+  const audioMetaRow = parseAudioMetaRow(payload);
+  if (!audioMetaRow) {
+    console.error("Audio metadata endpoint returned an invalid AudioMetaRow.", {
+      endpoint,
+      status: response.status,
+      payload,
+      request,
+    });
+    return null;
+  }
+  return audioMetaRow;
 }
 
 function parseAudioMetaRow(value: unknown): AudioMetaRow | null {

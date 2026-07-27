@@ -2,10 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   fetchSpeech,
+  preloadSpeech,
   prettifyVoiceId,
   speakableTextFromDisplayText,
   type AudioMetaRow,
   type SpeechSynthSupabaseClient,
+  type SpeechSynthTTSOptions,
 } from "./speech-synth-tts.js";
 
 type SpeechSupabaseSelectResult = {
@@ -118,5 +120,88 @@ describe("speech synth TTS", () => {
       id: 2,
       voice_id: "en-US-AndrewMultilingualNeural",
     });
+  });
+
+  it("deduplicates concurrent metadata and audio preload requests", async () => {
+    let publicSpeechRequestCount = 0;
+    let audioConstructionCount = 0;
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    class FakeAudio {
+      preload = "";
+      src = "";
+      oncanplaythrough: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      constructor() {
+        audioConstructionCount++;
+      }
+
+      load() {
+        queueMicrotask(() => this.oncanplaythrough?.());
+      }
+    }
+    vi.stubGlobal("Audio", FakeAudio);
+
+    const fetchImpl: NonNullable<SpeechSynthTTSOptions["fetchImpl"]> = vi.fn(async (input, init) => {
+      if (input.endsWith("/api/get-api-voices")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => "",
+          json: async () => [{
+            service: "MICROSOFT",
+            voice_id: "en-US-AndrewMultilingualNeural",
+            voice_lang: "en-US",
+          }],
+        };
+      }
+
+      publicSpeechRequestCount++;
+      const requestBody = JSON.parse(init?.body ?? "{}") as { file_text?: string };
+      const payload = requestBody.file_text === "invalid response"
+        ? { unexpected: true }
+        : baseRow;
+      return {
+        ok: true,
+        status: 200,
+        text: async () => "",
+        json: async () => payload,
+      };
+    });
+
+    const request = {
+      text: "hello",
+      lang: "en",
+      apiVoiceAccessProfile: "ONE_PER_LANG" as const,
+      contentContext: "PUBLIC_CONTENT" as const,
+      ref: baseRow.ref as { db: { table: string; column: string; id: number } },
+      fetchImpl,
+    };
+    await Promise.all([
+      preloadSpeech(request),
+      preloadSpeech(request),
+    ]);
+
+    expect(publicSpeechRequestCount).toBe(1);
+    expect(audioConstructionCount).toBe(1);
+
+    await preloadSpeech({
+      ...request,
+      text: "invalid response",
+      ref: { db: { table: "translations", column: "target_text", id: 2 } },
+    });
+
+    expect(consoleError).toHaveBeenCalledWith(
+      "Audio metadata endpoint returned an invalid AudioMetaRow.",
+      expect.objectContaining({
+        endpoint: "/api/lingoprocessor/speech-get-public",
+        status: 200,
+        payload: { unexpected: true },
+      }),
+    );
+
+    consoleError.mockRestore();
+    vi.unstubAllGlobals();
   });
 });
