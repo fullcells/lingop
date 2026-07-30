@@ -82,6 +82,7 @@ describe("callSBSelectTranslationsByRef", () => {
         supabaseClient,
         owner_id: "owner-1",
         source_lang: "en",
+        source_text: "source-1",
         target_lang: "th",
         db_table: "posts",
         db_column: "body",
@@ -94,6 +95,7 @@ describe("callSBSelectTranslationsByRef", () => {
     );
     expect(calls.eq).toHaveBeenCalledWith("owner_id", "owner-1");
     expect(calls.eq).toHaveBeenCalledWith("source_lang", "en");
+    expect(calls.eq).toHaveBeenCalledWith("source_text", "source-1");
     expect(calls.eq).toHaveBeenCalledWith("target_lang", "th");
     expect(calls.eq).toHaveBeenCalledWith("ref->db->>table", "posts");
     expect(calls.eq).toHaveBeenCalledWith("ref->db->>column", "body");
@@ -113,6 +115,7 @@ describe("callSBSelectTranslationsByRef", () => {
       supabaseClient,
       owner_id: "owner-1",
       source_lang: "en",
+      source_text: "shared source",
       target_lang: "th",
       db_table: "posts",
       db_column: "body",
@@ -122,6 +125,7 @@ describe("callSBSelectTranslationsByRef", () => {
       supabaseClient,
       owner_id: "owner-1",
       source_lang: "en",
+      source_text: "shared source",
       target_lang: "th",
       db_table: "posts",
       db_column: "body",
@@ -149,6 +153,7 @@ describe("callSBSelectTranslationsByRef", () => {
       supabaseClient,
       owner_id: "owner-1",
       source_lang: "en",
+      source_text: "source-1",
       target_lang: "th",
       db_table: "posts",
       db_column: "body",
@@ -158,6 +163,7 @@ describe("callSBSelectTranslationsByRef", () => {
       supabaseClient,
       owner_id: "owner-1",
       source_lang: "en",
+      source_text: "source-1",
       target_lang: "th",
       db_table: "posts",
       db_column: "body",
@@ -192,6 +198,7 @@ describe("callSBSelectTranslationsByRef", () => {
         supabaseClient,
         owner_id: "owner-1",
         source_lang: "en",
+        source_text: "source-1",
         target_lang: "th",
         db_table: "posts",
         db_column: "body",

@@ -284,6 +284,7 @@ async function _fetchLocalization2({
         supabaseClient: runtimeSupabaseClient,
         owner_id,
         source_lang,
+        source_text,
         target_lang,
         db_table: db.table,
         db_column: db.column,
@@ -295,7 +296,15 @@ async function _fetchLocalization2({
         return null;
       }
 
-      translations = data ?? [];
+      translations = (data ?? []).filter((translation) =>
+        translationMatchesSource({
+          translation,
+          sourceContent,
+          target_lang,
+          isRefDbId,
+          isRefFile,
+        }),
+      );
     }
 
     if (isRefFile) {

@@ -232,6 +232,38 @@ describe("utilsFetchLocalization", () => {
     expect(cache.current).toEqual([generatedTranslation]);
   });
 
+  it("generates a new translation when the db ref only returns stale source text", async () => {
+    const sourceContent = makeDbSourceContent(6);
+    const staleTranslation = makeTranslationRow(60, {
+      source_text: "old source text",
+      target_text: "stale translation",
+      ref: sourceContent.ref,
+    });
+    const generatedTranslation = makeTranslationRow(6, {
+      target_text: "fresh translation",
+    });
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => "",
+      json: async () => [generatedTranslation],
+    }));
+
+    await expect(
+      utilsFetchLocalization({
+        l10n_lang: "th",
+        sourceContent,
+        translationsCache: makeCache(),
+        supabaseClient: makeSupabaseClient([staleTranslation]),
+        fetchImpl,
+      }),
+    ).resolves.toMatchObject({
+      text: "fresh translation",
+      translationRow: generatedTranslation,
+    });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
   it("uses staging backend for generated owner translations when requested", async () => {
     const sourceContent = makeDbSourceContent(5);
     const generatedTranslation = makeTranslationRow(5);

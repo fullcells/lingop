@@ -15,6 +15,7 @@ export type SelectTranslationsByRefInput = {
   supabaseClient: SupabaseTranslationClient;
   owner_id: string | null;
   source_lang: string;
+  source_text: string;
   target_lang: string;
   db_table: string;
   db_column: string;
@@ -38,11 +39,12 @@ const batchTimers = new Map<string, ReturnType<typeof setTimeout>>();
 function getBatchKey({
   owner_id,
   source_lang,
+  source_text,
   target_lang,
   db_table,
   db_column,
 }: Omit<SelectTranslationsByRefInput, "supabaseClient" | "dbIds">): string {
-  return [owner_id, source_lang, target_lang, db_table, db_column].join(":");
+  return [owner_id, source_lang, source_text, target_lang, db_table, db_column].join(":");
 }
 
 function getRequestKey(input: SelectTranslationsByRefInput): string {
@@ -64,6 +66,7 @@ export async function __sbSelectTranslationsByRef({
   supabaseClient,
   owner_id,
   source_lang,
+  source_text,
   target_lang,
   db_table,
   db_column,
@@ -79,6 +82,7 @@ export async function __sbSelectTranslationsByRef({
     .select(TRANSLATION_COLUMNS)
     .eq("owner_id", owner_id)
     .eq("source_lang", source_lang)
+    .eq("source_text", source_text)
     .eq("target_lang", target_lang)
     .eq("ref->db->>table", db_table)
     .eq("ref->db->>column", db_column)
@@ -112,6 +116,7 @@ async function flushBatch(batchKey: string): Promise<void> {
       supabaseClient: firstRequest.supabaseClient,
       owner_id: firstRequest.owner_id,
       source_lang: firstRequest.source_lang,
+      source_text: firstRequest.source_text,
       target_lang: firstRequest.target_lang,
       db_table: firstRequest.db_table,
       db_column: firstRequest.db_column,
