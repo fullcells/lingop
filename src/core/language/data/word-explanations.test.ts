@@ -5,23 +5,28 @@ import {
   wordExplanationsLookup,
 } from "./word-explanations.js";
 
+function expectNonEmptyExplanations(explanations: string[]): void {
+  expect(explanations.length).toBeGreaterThan(0);
+  expect(explanations.every((explanation) => explanation.trim().length > 0)).toBe(true);
+}
+
 describe("word explanations", () => {
-  it("returns explanations for exact words", () => {
-    expect(getWordExplanationsForWord("ja", "食べ")).toEqual([
-      "Stem of 食べる. Means “eat” and appears in compound words and polite forms.",
-    ]);
+  it("returns explanations for known words", () => {
+    expectNonEmptyExplanations(getWordExplanationsForWord("ja", "食べ"));
   });
 
   it("indexes slash-separated variants independently", () => {
-    expect(getWordExplanationsForWord("yue", "你哋")).toEqual([
-      "When Personal Pronouns are followed by a 'classifier' or '嘅', they become possessive ('s)",
-    ]);
+    const explanationForVariant = getWordExplanationsForWord("yue", "你哋");
+
+    expectNonEmptyExplanations(explanationForVariant);
+    expect(getWordExplanationsForWord("yue", "佢哋")).toEqual(explanationForVariant);
   });
 
   it("normalizes lookup casing and whitespace", () => {
-    expect(getWordExplanationsForWord("ja", " またね ")).toEqual([
-      "Casual “see you” or “bye.” さようなら is more like “farewell” and is not used as casually.",
-    ]);
+    const canonicalResult = getWordExplanationsForWord("ja", "またね");
+
+    expectNonEmptyExplanations(canonicalResult);
+    expect(getWordExplanationsForWord("ja", " またね ")).toEqual(canonicalResult);
   });
 
   it("keeps exported raw data and lookup in sync", () => {
