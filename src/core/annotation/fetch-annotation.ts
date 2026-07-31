@@ -71,7 +71,6 @@ type AnnotationFetchState = FetchAnnotationBatchItem & {
   lang: string;
   text: string;
   ref: ContentReference | null;
-  isRefFile: boolean;
   belongsToPublicSuperAdmin: boolean;
   output: AnnotatedText | null;
   fromCache: boolean;
@@ -90,6 +89,13 @@ function keyFromLocalization(localization: Localization): string {
     JSON.stringify(contentRefFromLocalization(localization)),
     JSON.stringify(localization.sourceContent),
   ].join("|");
+}
+
+function annotationTextMatchesState(
+  annotatedText: AnnotatedText | null | undefined,
+  state: AnnotationFetchState,
+): annotatedText is AnnotatedText {
+  return annotatedText?.lang_text === state.text;
 }
 
 function getFetch(fetchImpl: FetchAnnotationFetch | undefined): FetchAnnotationFetch {
@@ -207,17 +213,14 @@ async function fetchAnnotationDataForState(
   let finalError: unknown;
 
   for (let attempt = 1; attempt <= 3; attempt++) {
-    let query = runtimeSupabaseClient
+    const query = runtimeSupabaseClient
       .from("annotations")
       .select(
         "id, lang, lang_text, lang_tokens, lang_gloss, lang_phonetics_2, created_at, owner_id, ref",
       )
       .eq("lang", state.lang)
-      .eq("ref", JSON.stringify(state.ref));
-
-    if (state.isRefFile) {
-      query = query.eq("lang_text", state.text);
-    }
+      .eq("ref", JSON.stringify(state.ref))
+      .eq("lang_text", state.text);
 
     const result = await query;
     if (!result.error) {
@@ -321,7 +324,6 @@ export async function fetchAnnotationsBatch({
       lang: localization.l10n_lang,
       text: localization.text,
       ref,
-      isRefFile: !!ref && "file" in ref,
       belongsToPublicSuperAdmin: isLocalizationDefinitelyFromPublicSource(localization),
       output: null,
       fromCache: false,
@@ -339,7 +341,8 @@ export async function fetchAnnotationsBatch({
 
     const cachedATextWithRef =
       cachedATexts.find((annotatedText) =>
-        isJsonDeepEqual(annotatedText?.ref ?? {}, state.ref),
+        annotationTextMatchesState(annotatedText, state) &&
+        isJsonDeepEqual(annotatedText.ref ?? {}, state.ref),
       ) ?? null;
 
     if (cachedATextWithRef) {
@@ -349,7 +352,9 @@ export async function fetchAnnotationsBatch({
     }
 
     if (state.belongsToPublicSuperAdmin) {
-      state.output = cachedATexts[0] ?? null;
+      state.output = cachedATexts.find((annotatedText) =>
+        annotationTextMatchesState(annotatedText, state),
+      ) ?? null;
       state.fromCache = !!state.output;
     }
   }
@@ -414,11 +419,11 @@ export async function fetchAnnotationsBatch({
           return;
         }
 
-        for (let index = 0; index < group.length; index++) {
-          const publicAText = publicATexts[index];
-          if (publicAText) {
-            group[index]!.output = publicAText;
-          }
+        for (const state of group) {
+          state.output =
+            publicATexts.find((annotatedText) =>
+              annotationTextMatchesState(annotatedText, state),
+            ) ?? null;
         }
       } catch (error) {
         console.error("Internal /annotate-get-public threw error.", error);
@@ -437,9 +442,10 @@ export async function fetchAnnotationsBatch({
           .map((entry) => convertAnnotatedEntryToAText(entry))
           .filter((annotatedText): annotatedText is AnnotatedText => Boolean(annotatedText));
 
-        if (fetchedAnnotatedTexts.length > 0) {
-          state.output = fetchedAnnotatedTexts[0] ?? null;
-        }
+        state.output =
+          fetchedAnnotatedTexts.find((annotatedText) =>
+            annotationTextMatchesState(annotatedText, state),
+          ) ?? null;
       } catch (error) {
         console.error("[3] Fetch SB by Ref: sb select error after retries:", error, "state:", state);
         state.failed = true;

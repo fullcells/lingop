@@ -141,18 +141,83 @@ describe("fetchAnnotationsBatch", () => {
   it("uses a caller-provided Supabase client for annotation table lookup", async () => {
     const ref = { db: { table: "custom_sources", column: "text", id: 1 } };
     const entry = makeAnnotationEntry("hello", ref);
+    const eqCalls: Array<[string, unknown]> = [];
 
     const results = await fetchAnnotationsBatch({
       items: [
         {
           localization: makeLocalization(),
           annotationsByLangNTextCache: { current: {} },
-          supabaseClient: makeSupabaseClient([entry]),
+          supabaseClient: makeSupabaseClient([entry], eqCalls),
         },
       ],
     });
 
     expect(results).toEqual([makeAnnotatedText("hello", ref)]);
+    expect(eqCalls).toContainEqual(["lang_text", "hello"]);
+  });
+
+  it("ignores stale Supabase annotations whose text no longer matches", async () => {
+    const ref = { db: { table: "custom_sources", column: "text", id: 1 } };
+    const staleEntry = makeAnnotationEntry("old hello", ref);
+
+    const results = await fetchAnnotationsBatch({
+      items: [
+        {
+          localization: makeLocalization(),
+          annotationsByLangNTextCache: { current: {} },
+          // Defensively verify returned rows too, in case a client or endpoint
+          // does not apply the lang_text filter as expected.
+          supabaseClient: makeSupabaseClient([staleEntry]),
+        },
+      ],
+    });
+
+    expect(results).toEqual([null]);
+  });
+
+  it("matches public annotation responses by text instead of array position", async () => {
+    const ref = { file: "lingodex" as const };
+    const hello = makeAnnotatedText("hello", ref);
+    const goodbye = makeAnnotatedText("goodbye", ref);
+    const fetchImpl = vi.fn<FetchAnnotationFetch>(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => "",
+      json: async () => [goodbye, hello],
+    }));
+
+    const results = await fetchAnnotationsBatch({
+      items: [
+        {
+          localization: makeLocalization({
+            sourceContent: {
+              owner_id: null,
+              lang: "en",
+              text: "hello",
+              ref,
+            },
+          }),
+          annotationsByLangNTextCache: { current: {} },
+          fetchImpl,
+        },
+        {
+          localization: makeLocalization({
+            text: "goodbye",
+            sourceContent: {
+              owner_id: null,
+              lang: "en",
+              text: "goodbye",
+              ref,
+            },
+          }),
+          annotationsByLangNTextCache: { current: {} },
+          fetchImpl,
+        },
+      ],
+    });
+
+    expect(results).toEqual([hello, goodbye]);
   });
 
   it("looks up translated segment annotations with preserved segment coordinates", async () => {
