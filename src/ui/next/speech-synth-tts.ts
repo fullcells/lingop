@@ -107,6 +107,31 @@ function getLocalStorageItem(key: string): string | null {
 
 // BROWSER VOICES - ORDERED with DEFAULT FIRST (DEV-DESIRE)
 let inFlightRawBrowserVoices: Promise<SpeechSynthesisVoice[]> | null = null;
+let inFlightBrowserVoices: Promise<SpeechSynthTTSVoice[]> | null = null;
+let inFlightVOICES: Promise<SpeechSynthTTSVoice[]> | null = null;
+let browserVoiceLifecycleListenersInitialized = false;
+
+function invalidateBrowserVoiceCache(): void {
+  inFlightRawBrowserVoices = null;
+  inFlightBrowserVoices = null;
+  inFlightVOICES = null;
+}
+
+function ensureBrowserVoiceLifecycleListeners(): void {
+  if (browserVoiceLifecycleListenersInitialized || typeof window === "undefined") return;
+  browserVoiceLifecycleListenersInitialized = true;
+
+  const invalidate = () => invalidateBrowserVoiceCache();
+  window.addEventListener?.("focus", invalidate);
+  window.addEventListener?.("pagehide", invalidate);
+  window.addEventListener?.("pageshow", invalidate);
+
+  if (typeof document !== "undefined") {
+    document.addEventListener("freeze", invalidate);
+    document.addEventListener("resume", invalidate);
+    document.addEventListener("visibilitychange", invalidate);
+  }
+}
 
 const DEPRIORITIZED_BROWSER_VOICE_NAME_PARTS = [
   "Albert",
@@ -275,37 +300,51 @@ async function getRawBrowserVoices(timeoutMs = 2000): Promise<SpeechSynthesisVoi
   if (typeof window === "undefined" || typeof window.speechSynthesis === "undefined") {
     return Promise.resolve([]);
   }
+  ensureBrowserVoiceLifecycleListeners();
   const synth = window.speechSynthesis;
 
   if (inFlightRawBrowserVoices) return inFlightRawBrowserVoices;
 
   inFlightRawBrowserVoices = new Promise<SpeechSynthesisVoice[]>((resolve) => {
-    // Load Function
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-    const tryLoad = () => {
-      let voices = synth.getVoices();
-      if (voices.length) {
-        if (timeoutId) clearTimeout(timeoutId);
-        if ("onvoiceschanged" in synth) synth.onvoiceschanged = null;
-        voices = sortAndDedupeBrowserVoices(voices);
-        resolve(voices);
+    let settled = false;
+    let listeningWithEventTarget = false;
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      if (listeningWithEventTarget) {
+        synth.removeEventListener("voiceschanged", tryLoad);
+      } else if (synth.onvoiceschanged === tryLoad) {
+        synth.onvoiceschanged = null;
       }
     };
-    // 1. Immediate attempt
-    tryLoad();
-    // 2. Event listener
-    if ("onvoiceschanged" in synth) synth.onvoiceschanged = tryLoad;
-    // 3. Fallback: resolve with whatever we have after timeout
+    const tryLoad = () => {
+      if (settled) return;
+      const voices = synth.getVoices();
+      if (voices.length) {
+        settled = true;
+        cleanup();
+        resolve(sortAndDedupeBrowserVoices(voices));
+      }
+    };
+
+    if (typeof synth.addEventListener === "function") {
+      listeningWithEventTarget = true;
+      synth.addEventListener("voiceschanged", tryLoad);
+    } else if ("onvoiceschanged" in synth) {
+      synth.onvoiceschanged = tryLoad;
+    }
     timeoutId = setTimeout(() => {
-      if ("onvoiceschanged" in synth) synth.onvoiceschanged = null;
+      if (settled) return;
+      settled = true;
+      cleanup();
       console.warn(`Timed out waiting for browser voices. Timeout duration: ${timeoutMs}`);
       resolve([]);
     }, timeoutMs);
+    tryLoad();
   });
   return inFlightRawBrowserVoices;
 }
 
-let inFlightBrowserVoices: Promise<SpeechSynthTTSVoice[]> | null = null;
 async function getBrowserVoices(): Promise<SpeechSynthTTSVoice[]> {
   const rawBrowserVoices = await getRawBrowserVoices();
   if (inFlightBrowserVoices) return inFlightBrowserVoices;
@@ -361,7 +400,6 @@ async function getAPIVoices(options: SpeechSynthTTSOptions = {}): Promise<Speech
 }
 
 // VOICES - i.e. Browser + API Voices
-let inFlightVOICES: Promise<SpeechSynthTTSVoice[]> | null = null;
 async function getVOICES(options: SpeechSynthTTSOptions = {}): Promise<SpeechSynthTTSVoice[]> { // ~10,000+ Voices
   if (inFlightVOICES) return inFlightVOICES;
   inFlightVOICES = (async () => {
@@ -611,7 +649,30 @@ export async function speak({
 
   // BROWSER VOICE
   if (voice.service == "BROWSER") {
-    await speakBrowserVoice(text, lang, voice);
+    try {
+      await speakBrowserVoice(text, lang, voice);
+    } catch (error) {
+      // NONE is a browser-only access contract, so recovery must not trigger a remote request.
+      if (
+        error instanceof BrowserSpeechStartTimeoutError &&
+        apiVoiceAccessProfile !== "NONE"
+      ) {
+        const voiceOptions = await getVoiceOptionsForLang(lang, apiVoiceAccessProfile, options);
+        const fallbackVoice = voiceOptions.available.voices.find((v) => v.service !== "BROWSER");
+        if (fallbackVoice) {
+          await speakAPIVoice({
+            text,
+            lang,
+            contentContext,
+            ref,
+            voice: fallbackVoice,
+            ...options,
+          });
+          return;
+        }
+      }
+      throw error;
+    }
   }
   // API VOICE
   if (voice.service !== "BROWSER") {
@@ -1016,6 +1077,61 @@ export function speakableTextFromDisplayText({
   return speakableText;
 }
 
+const BROWSER_SPEECH_START_TIMEOUT_MS = 1000;
+
+class BrowserSpeechStartTimeoutError extends Error {
+  constructor() {
+    super(`Browser speech synthesis did not start within ${BROWSER_SPEECH_START_TIMEOUT_MS}ms.`);
+    this.name = "BrowserSpeechStartTimeoutError";
+  }
+}
+
+async function speakBrowserUtterance(
+  text: string,
+  voice: SpeechSynthesisVoice,
+  rate: number,
+): Promise<void> {
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.voice = voice;
+  utterance.rate = rate;
+
+  await new Promise<void>((resolve, reject) => {
+    let started = false;
+    let settled = false;
+    const startTimeoutId = setTimeout(() => {
+      if (settled || started) return;
+      settled = true;
+      utterance.onstart = null;
+      utterance.onend = null;
+      utterance.onerror = null;
+      reject(new BrowserSpeechStartTimeoutError());
+    }, BROWSER_SPEECH_START_TIMEOUT_MS);
+
+    utterance.onstart = () => {
+      started = true;
+      clearTimeout(startTimeoutId);
+    };
+    utterance.onend = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(startTimeoutId);
+      if (!started) {
+        reject(new BrowserSpeechStartTimeoutError());
+        return;
+      }
+      resolve();
+    };
+    utterance.onerror = (event) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(startTimeoutId);
+      reject(new Error(`Browser speech synthesis failed: ${event.error}`, { cause: event }));
+    };
+    // Note: .onerror can occur if user interrupts the utterance and requests TTS on another thing, which is quite common for LingoDex.
+    speechSynthesis.speak(utterance);
+  });
+}
+
 async function speakBrowserVoice(
   text: string,
   lang: string,
@@ -1026,16 +1142,11 @@ async function speakBrowserVoice(
     return;
   }
 
-  // Clear the Queue (mainly since Google Chrome can get 'stuck')
-  speechSynthesis.cancel();
-  speechSynthesis.resume();
-
   // Get browser voice
   const rawBrowserVoices = await getRawBrowserVoices();
-  const speechSynthVoice = rawBrowserVoices.find((bv) => bv.voiceURI == voice.voice_id);
+  let speechSynthVoice = rawBrowserVoices.find((bv) => bv.voiceURI == voice.voice_id);
   if (!speechSynthVoice) {
-    console.error("Browser Voice couldn't be refound", voice);
-    return;
+    throw new Error(`Browser voice could not be resolved: ${voice.voice_id}`);
   } // shouldn't happen
 
   // Process Text - (currently replace "_" sequences)
@@ -1049,19 +1160,27 @@ async function speakBrowserVoice(
     }
   }
 
-  // Speak and await completion
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.voice = speechSynthVoice;
   const speed = Number(getLocalStorageItem(LOCALSTORE_PREF_VOICE_SPEED)) || 1.0;
-  utterance.rate = speed;
-  await new Promise<void>((resolve, reject) => {
-    utterance.onend = () => resolve();
-    utterance.onerror = (event) => {
-      reject(new Error(`Browser speech synthesis failed: ${event.error}`, { cause: event }));
-    };
-    // Note: .onerror can occur if user interrupts the utterance and requests TTS on another thing, which is quite common for LingoDex.
-    speechSynthesis.speak(utterance);
-  });
+
+  // Clear the queue before the first attempt. If Chrome accepts the utterance but
+  // never starts it, discard cached voice objects and retry once with a fresh one.
+  speechSynthesis.cancel();
+  speechSynthesis.resume();
+  try {
+    await speakBrowserUtterance(text, speechSynthVoice, speed);
+  } catch (error) {
+    if (!(error instanceof BrowserSpeechStartTimeoutError)) throw error;
+
+    speechSynthesis.cancel();
+    invalidateBrowserVoiceCache();
+    const refreshedBrowserVoices = await getRawBrowserVoices();
+    speechSynthVoice = refreshedBrowserVoices.find((bv) => bv.voiceURI == voice.voice_id);
+    if (!speechSynthVoice) {
+      throw new Error(`Browser voice could not be reacquired: ${voice.voice_id}`, { cause: error });
+    }
+    speechSynthesis.resume();
+    await speakBrowserUtterance(text, speechSynthVoice, speed);
+  }
 }
 
 export function prettifyVoiceId(voice_id: string): string {

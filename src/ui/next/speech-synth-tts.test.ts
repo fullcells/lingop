@@ -258,6 +258,7 @@ describe("speech synth TTS", () => {
     class FakeSpeechSynthesisUtterance {
       voice: SpeechSynthesisVoice | null = null;
       rate = 1;
+      onstart: (() => void) | null = null;
       onend: (() => void) | null = null;
       onerror: ((event: SpeechSynthesisErrorEvent) => void) | null = null;
 
@@ -272,7 +273,10 @@ describe("speech synth TTS", () => {
       speak: vi.fn((utterance: FakeSpeechSynthesisUtterance) => {
         calls.push("speak");
         if (playbackError) utterance.onerror?.(playbackError);
-        else utterance.onend?.();
+        else {
+          utterance.onstart?.();
+          utterance.onend?.();
+        }
       }),
     };
     vi.stubGlobal("window", { speechSynthesis });
@@ -294,6 +298,109 @@ describe("speech synth TTS", () => {
       apiVoiceAccessProfile: "NONE",
     })).rejects.toThrow("Browser speech synthesis failed: synthesis-failed");
 
+    vi.unstubAllGlobals();
+  });
+
+  it("invalidates cached browser voices when the page regains focus", async () => {
+    vi.resetModules();
+    const oldVoice = {
+      default: true,
+      lang: "en-US",
+      localService: true,
+      name: "Old English",
+      voiceURI: "old-english",
+    } as SpeechSynthesisVoice;
+    const refreshedVoice = {
+      ...oldVoice,
+      name: "Refreshed English",
+      voiceURI: "refreshed-english",
+    } as SpeechSynthesisVoice;
+    const speechSynthesis = {
+      getVoices: vi.fn()
+        .mockReturnValueOnce([oldVoice])
+        .mockReturnValue([refreshedVoice]),
+      onvoiceschanged: null,
+    };
+    const fakeWindow = Object.assign(new EventTarget(), { speechSynthesis });
+    vi.stubGlobal("window", fakeWindow);
+    vi.stubGlobal("document", new EventTarget());
+
+    const { getVoiceOptionsForLang } = await import("./speech-synth-tts.js");
+    await expect(getVoiceOptionsForLang("en", "NONE")).resolves.toMatchObject({
+      available: { voices: [{ voice_id: "old-english" }] },
+    });
+
+    fakeWindow.dispatchEvent(new Event("focus"));
+
+    await expect(getVoiceOptionsForLang("en", "NONE")).resolves.toMatchObject({
+      available: { voices: [{ voice_id: "refreshed-english" }] },
+    });
+    expect(speechSynthesis.getVoices).toHaveBeenCalledTimes(2);
+
+    vi.unstubAllGlobals();
+  });
+
+  it("reacquires the browser voice and retries once when playback does not start", async () => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    const oldVoice = {
+      default: true,
+      lang: "en-US",
+      localService: true,
+      name: "Old English",
+      voiceURI: "test-english",
+    } as SpeechSynthesisVoice;
+    const refreshedVoice = {
+      ...oldVoice,
+      name: "Refreshed English",
+    } as SpeechSynthesisVoice;
+
+    class FakeSpeechSynthesisUtterance {
+      voice: SpeechSynthesisVoice | null = null;
+      rate = 1;
+      onstart: (() => void) | null = null;
+      onend: (() => void) | null = null;
+      onerror: ((event: SpeechSynthesisErrorEvent) => void) | null = null;
+
+      constructor(public text: string) {}
+    }
+
+    const spokenUtterances: FakeSpeechSynthesisUtterance[] = [];
+    const speechSynthesis = {
+      cancel: vi.fn(),
+      getVoices: vi.fn()
+        .mockReturnValueOnce([oldVoice])
+        .mockReturnValue([refreshedVoice]),
+      onvoiceschanged: null,
+      resume: vi.fn(),
+      speak: vi.fn((utterance: FakeSpeechSynthesisUtterance) => {
+        spokenUtterances.push(utterance);
+        if (spokenUtterances.length === 2) {
+          utterance.onstart?.();
+          utterance.onend?.();
+        }
+      }),
+    };
+    vi.stubGlobal("window", { speechSynthesis });
+    vi.stubGlobal("speechSynthesis", speechSynthesis);
+    vi.stubGlobal("SpeechSynthesisUtterance", FakeSpeechSynthesisUtterance);
+
+    const { speak } = await import("./speech-synth-tts.js");
+    const playback = speak({
+      text: "hello",
+      lang: "en",
+      apiVoiceAccessProfile: "NONE",
+    });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    await expect(playback).resolves.toBeUndefined();
+    expect(spokenUtterances).toHaveLength(2);
+    expect(spokenUtterances[0]?.voice).toBe(oldVoice);
+    expect(spokenUtterances[1]?.voice).toBe(refreshedVoice);
+    expect(speechSynthesis.cancel).toHaveBeenCalledTimes(2);
+    expect(speechSynthesis.getVoices).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 });
