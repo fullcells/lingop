@@ -1028,6 +1028,7 @@ async function speakBrowserVoice(
 
   // Clear the Queue (mainly since Google Chrome can get 'stuck')
   speechSynthesis.cancel();
+  speechSynthesis.resume();
 
   // Get browser voice
   const rawBrowserVoices = await getRawBrowserVoices();
@@ -1053,9 +1054,12 @@ async function speakBrowserVoice(
   utterance.voice = speechSynthVoice;
   const speed = Number(getLocalStorageItem(LOCALSTORE_PREF_VOICE_SPEED)) || 1.0;
   utterance.rate = speed;
-  await new Promise<void>((resolve) => {
+  await new Promise<void>((resolve, reject) => {
     utterance.onend = () => resolve();
-    utterance.onerror = () => resolve(); // (event) => reject(event); // not throwing reject for now: .onerror will occur if user interrupts the utterance and requests TTS on another thing, which is quite common.
+    utterance.onerror = (event) => {
+      reject(new Error(`Browser speech synthesis failed: ${event.error}`, { cause: event }));
+    };
+    // Note: .onerror can occur if user interrupts the utterance and requests TTS on another thing, which is quite common for LingoDex.
     speechSynthesis.speak(utterance);
   });
 }
