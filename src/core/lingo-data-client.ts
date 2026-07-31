@@ -45,6 +45,13 @@ import {
   type SupabaseClientLike,
   type SupabaseQueryLike,
 } from "./supabase.js";
+import {
+  addWORDExposureNow as addWORDExposureNowWithSupabase,
+  createWordExposureRow as createWordExposureRowWithSupabase,
+  deleteWORDExposureRow as deleteWORDExposureRowWithSupabase,
+  getWORDExposureRow as getWORDExposureRowWithSupabase,
+  type SBUserWordExposure,
+} from "./user-word-exposures.js";
 
 export type { AnnotationCache, AnnotationCacheRef } from "./annotation/fetch-annotation.js";
 export type {
@@ -149,6 +156,30 @@ export type LingoDataClient = {
     source_word: string;
     target_lang: string;
   }): Promise<GlossOutputData | null>;
+  /** Creates a case-insensitively unique word exposure, preserving display casing. */
+  createWordExposureRow(input: {
+    word_lang: string;
+    word: string;
+    user_gloss_lang: string;
+    user_gloss: string;
+  }): Promise<SBUserWordExposure | null>;
+  /** Records an exposure now and retains at most 10 newest-first timestamps. */
+  addWORDExposureNow(input: {
+    word_lang: string;
+    word: string;
+    user_gloss_lang: string;
+  }): Promise<SBUserWordExposure | null>;
+  /** Deletes a word exposure using its full case-insensitive identity. */
+  deleteWORDExposureRow(input: {
+    word_lang: string;
+    word: string;
+    user_gloss_lang: string;
+  }): Promise<boolean>;
+  /** Returns the newest-created case-insensitive word match, or null. */
+  getWORDExposureRow(input: {
+    word_lang: string;
+    word: string;
+  }): Promise<SBUserWordExposure | null>;
 };
 
 function createAnnotationCacheRef(): AnnotationCacheRef {
@@ -887,5 +918,37 @@ export function createLingoDataClient({
           : {}),
       }),
     fetchAndGenGloss: fetchAndGenClientGloss,
+    createWordExposureRow: (input) =>
+      createWordExposureRowWithSupabase({
+        supabaseClient: runtimeSupabaseClient,
+        ...(authState.supabaseUserID
+          ? { supabaseUserID: authState.supabaseUserID }
+          : {}),
+        ...input,
+      }),
+    addWORDExposureNow: (input) =>
+      addWORDExposureNowWithSupabase({
+        supabaseClient: runtimeSupabaseClient,
+        ...(authState.supabaseUserID
+          ? { supabaseUserID: authState.supabaseUserID }
+          : {}),
+        ...input,
+      }),
+    deleteWORDExposureRow: (input) =>
+      deleteWORDExposureRowWithSupabase({
+        supabaseClient: runtimeSupabaseClient,
+        ...(authState.supabaseUserID
+          ? { supabaseUserID: authState.supabaseUserID }
+          : {}),
+        ...input,
+      }),
+    getWORDExposureRow: (input) =>
+      getWORDExposureRowWithSupabase({
+        supabaseClient: runtimeSupabaseClient,
+        ...(authState.supabaseUserID
+          ? { supabaseUserID: authState.supabaseUserID }
+          : {}),
+        ...input,
+      }),
   };
 }

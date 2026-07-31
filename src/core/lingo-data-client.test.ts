@@ -396,6 +396,86 @@ describe("createLingoDataClient", () => {
     expect(select).toHaveBeenCalledTimes(2);
   });
 
+  it("reuses its owned Supabase client for word exposure methods", async () => {
+    const insertedRows: Record<string, unknown>[] = [];
+
+    function makeQuery(result: { data: unknown[]; error: null }) {
+      const query = {
+        eq: vi.fn(() => query),
+        ilike: vi.fn(() => query),
+        select: vi.fn(() => query),
+        then: (
+          resolve: (value: { data: unknown[]; error: null }) => unknown,
+          reject: (reason: unknown) => unknown,
+        ) => Promise.resolve(result).then(resolve, reject),
+      };
+      return query;
+    }
+
+    const supabaseClient: SupabaseLingoDataClient = {
+      from: vi.fn((table: string) => {
+        if (table === "users_info") {
+          return {
+            select: vi.fn(() =>
+              makeQuery({
+                data: [
+                  {
+                    user_id: "user-1",
+                    stripe_id: null,
+                    enabled_sub_prod: null,
+                  },
+                ],
+                error: null,
+              }),
+            ),
+          };
+        }
+
+        return {
+          select: vi.fn(() => makeQuery({ data: [], error: null })),
+          insert: vi.fn((row: Record<string, unknown>) => {
+            insertedRows.push(row);
+            return makeQuery({
+              data: [
+                {
+                  id: 1,
+                  ...row,
+                  created_at: "2026-07-31T00:00:00.000Z",
+                },
+              ],
+              error: null,
+            });
+          }),
+        };
+      }),
+      auth: {
+        getUser: vi.fn(async () => ({
+          data: { user: { id: "user-1", email: "user@example.com" } },
+        })),
+      },
+    };
+    const client = createLingoDataClient({ supabaseClient });
+
+    await vi.waitFor(() => {
+      expect(client.supabaseUserID).toBe("user-1");
+    });
+    await expect(
+      client.createWordExposureRow({
+        word_lang: "en",
+        word: "Obama",
+        user_gloss_lang: "yue",
+        user_gloss: "奧巴馬",
+      }),
+    ).resolves.toMatchObject({
+      user_id: "user-1",
+      word: "Obama",
+    });
+    expect(insertedRows[0]).toMatchObject({
+      user_id: "user-1",
+      word: "Obama",
+    });
+  });
+
   it("regenerates translated segment annotations with the derived localization ref", async () => {
     vi.useFakeTimers();
 

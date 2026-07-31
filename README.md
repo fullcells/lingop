@@ -48,6 +48,7 @@ Low-level annotation API calls, `callAnnotate_storedForOwner()` remains public a
 - `getOneWayWordExplicitations({ source_lang, source_word, target_lang })`: filters the cached word-explicitation rows into the legacy one-way shape.
 - `loadEmojiData()` and `generateEmoji(en_gloss, study_word?, study_lang?)`: load shared cached Supabase emoji rows and generate emoji text for English glosses.
 - `isNotCoreWord(word_lang, word, gloss?)`, `getSBWordsForLangDir(word_lang, gloss_lang)`, `refreshCoreSBWordsCache(word_lang, gloss_lang)`, and `fetchAndGenGloss({ source_lang, source_word, target_lang })`: use the shared SBWords cache for core-word checks and one-word gloss generation.
+- `createWordExposureRow(...)`, `addWORDExposureNow(...)`, `getWORDExposureRow(...)`, and `deleteWORDExposureRow(...)`: manage the authenticated user's per-word exposure rows through the Supabase client already owned by `LingoDataClient`.
 
 Additional core helpers:
 
@@ -118,6 +119,67 @@ await setUserWordStreaksToMin1("es", ["adios"]);
 await deleteUserWordStreaks("es", ["hola"]);
 ```
 
+## User Word Exposures
+
+Word exposures complement word streaks with per-word encounter counts and recent
+timestamps. Unlike the Next.js word-streak provider, exposure methods are
+platform-neutral and available on the long-lived `LingoDataClient`. Supply the
+Supabase client once when creating `lingoData`, then reuse that client instance.
+
+```ts
+import { createLingoDataClient } from "lingop/core";
+
+const lingoData = createLingoDataClient({ supabaseClient });
+
+const created = await lingoData.createWordExposureRow({
+  word_lang: "en",
+  word: "Obama",
+  user_gloss_lang: "yue",
+  user_gloss: "奧巴馬",
+});
+
+const updated = await lingoData.addWORDExposureNow({
+  word_lang: "en",
+  word: "OBAMA",
+  user_gloss_lang: "yue",
+});
+
+const exposure = await lingoData.getWORDExposureRow({
+  word_lang: "en",
+  word: "obama",
+});
+
+const deleted = await lingoData.deleteWORDExposureRow({
+  word_lang: "en",
+  word: "oBaMa",
+  user_gloss_lang: "yue",
+});
+```
+
+The methods use the Supabase client and authenticated user already managed by
+`lingoData`.
+
+- `createWordExposureRow(...)` preserves the original casing supplied in
+  `word`. It returns the created row, or `null` when creation fails, including
+  when another row under the same user, word language, and gloss language
+  already has a case-insensitive word match.
+- `addWORDExposureNow(...)` finds the row case-insensitively, increments
+  `exposures`, prepends the current timestamp to `recent_exposures`, and returns
+  the updated row. It returns `null` if the row does not exist or cannot be
+  updated. `recent_exposures` is always newest-first and limited to 10 entries.
+- `getWORDExposureRow(...)` finds a word case-insensitively and returns its row,
+  or `null` when none exists. Because this read intentionally does not take
+  `user_gloss_lang`, if several gloss-language variants exist it returns the
+  most recently created matching row.
+- `deleteWORDExposureRow(...)` deletes the case-insensitive match for the full
+  user, gloss-language, word-language, and word key. It returns `true` when a
+  row was deleted and `false` otherwise.
+
+The database identity includes `user_gloss_lang`, so consumers must pass it
+when creating, incrementing, or deleting an exposure. Casing is presentation
+data: for example, `Obama` remains stored as `Obama`, while later calls using
+`OBAMA` or `obama` match the same row.
+
 ## Localization Docs & Segments
 
 `Localization` represents a full localized document/translation/string. To annotate only part of it, use the same `Localization` shape and store segment coordinates on the DB ref:
@@ -182,6 +244,7 @@ For `MEMBER_CONTENT`, pass the app's Supabase client: `speak({ ..., contentConte
 - `src/core/misc.ts` contains platform-neutral utility functions ported from old `utils/misc.ts`. Browser image helpers based on `html2canvas` and element download/image capture were intentionally not ported.
 - `src/core/sb-words.ts` ports the legacy Supabase `words2` cache, core-word checks, and one-word gloss generation through a shared module cache.
 - `src/core/translation/` contains platform-neutral translation types and internal table/localization helpers used by `createLingoDataClient()`.
+- `src/core/user-word-exposures.ts` contains the platform-neutral Supabase helpers for creating, reading, incrementing, and deleting per-user word exposure rows. It is exported from `lingop/core`.
 - `src/core/user-word-streaks.ts` contains internal helpers used by the Next user-word-streaks provider. It is intentionally not exported from `lingop/core`; app code should use `lingop/ui/next`.
 - `src/core/word-explicitations.ts` loads and filters Supabase `word_explicitations` rows through a shared module cache.
 - `src/ui/next/cookies.ts` contains browser cookie helpers separated from platform-neutral core utilities.
