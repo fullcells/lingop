@@ -136,6 +136,7 @@ const created = await lingoData.createWordExposureRow({
   word: "Obama",
   user_gloss_lang: "yue",
   user_gloss: "奧巴馬",
+  position: "Biography, opening paragraph",
 });
 
 const updated = await lingoData.addWORDExposureNow({
@@ -162,7 +163,9 @@ The methods use the Supabase client and authenticated user already managed by
 - `createWordExposureRow(...)` preserves the original casing supplied in
   `word`. It returns the created row, or `null` when creation fails, including
   when another row under the same user, word language, and gloss language
-  already has a case-insensitive word match.
+  already has a case-insensitive word match. Its optional `position` is a
+  user-supplied note describing where the word appeared and is stored as
+  `null` when omitted.
 - `addWORDExposureNow(...)` finds the row case-insensitively, increments
   `exposures`, prepends the current timestamp to `recent_exposures`, and returns
   the updated row. It returns `null` if the row does not exist or cannot be

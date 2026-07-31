@@ -465,14 +465,17 @@ describe("createLingoDataClient", () => {
         word: "Obama",
         user_gloss_lang: "yue",
         user_gloss: "奧巴馬",
+        position: "Biography, opening paragraph",
       }),
     ).resolves.toMatchObject({
       user_id: "user-1",
       word: "Obama",
+      position: "Biography, opening paragraph",
     });
     expect(insertedRows[0]).toMatchObject({
       user_id: "user-1",
       word: "Obama",
+      position: "Biography, opening paragraph",
     });
   });
 

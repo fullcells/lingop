@@ -48,6 +48,7 @@ function exposureRow(
     exposures: 0,
     recent_exposures: [],
     created_at: "2026-07-31T00:00:00.000Z",
+    position: null,
     ...overrides,
   };
 }
@@ -106,7 +107,10 @@ describe("user word exposure Supabase helpers", () => {
   });
 
   it("creates a zero-exposure row while preserving the word's casing", async () => {
-    const created = exposureRow({ word: "Obama" });
+    const created = exposureRow({
+      word: "Obama",
+      position: "Biography, opening paragraph",
+    });
     const { supabaseClient, insertedRows, eqCalls } = makeClient({
       selectResults: [{ data: [], error: null }],
       insertResult: { data: [created], error: null },
@@ -119,6 +123,7 @@ describe("user word exposure Supabase helpers", () => {
         word: "Obama",
         user_gloss_lang: "en",
         user_gloss: "Barack Obama",
+        position: "Biography, opening paragraph",
       }),
     ).resolves.toEqual(created);
     expect(insertedRows).toEqual([
@@ -130,6 +135,7 @@ describe("user word exposure Supabase helpers", () => {
         user_gloss: "Barack Obama",
         exposures: 0,
         recent_exposures: [],
+        position: "Biography, opening paragraph",
       },
     ]);
     expect(eqCalls).toEqual([
@@ -172,6 +178,7 @@ describe("user word exposure Supabase helpers", () => {
     const current = exposureRow({
       exposures: 10,
       recent_exposures: oldExposures,
+      position: "Chapter 1, paragraph 2",
     });
     const updated = exposureRow({
       exposures: 11,
@@ -179,6 +186,7 @@ describe("user word exposure Supabase helpers", () => {
         "2026-07-31T12:00:00.000Z",
         ...oldExposures.slice(0, 9),
       ],
+      position: "Chapter 1, paragraph 2",
     });
     const { supabaseClient, updatedRows } = makeClient({
       selectResults: [{ data: [current], error: null }],

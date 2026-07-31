@@ -14,12 +14,13 @@ export type SBUserWordExposure = {
   exposures: number;
   recent_exposures: string[];
   created_at: string;
+  position: string | null;
 };
 
 export type SupabaseUserWordExposuresClient = SupabaseClientLike;
 
 export const userWordExposureColumns =
-  "id, user_id, word_lang, word, user_gloss, user_gloss_lang, exposures, recent_exposures, created_at";
+  "id, user_id, word_lang, word, user_gloss, user_gloss_lang, exposures, recent_exposures, created_at, position";
 
 type SupabaseError = { message?: string } | unknown | null;
 
@@ -66,7 +67,9 @@ function isSBUserWordExposure(data: unknown): data is SBUserWordExposure {
     (data as SBUserWordExposure).recent_exposures.every(
       (exposure) => typeof exposure === "string",
     ) &&
-    typeof (data as SBUserWordExposure).created_at === "string"
+    typeof (data as SBUserWordExposure).created_at === "string" &&
+    ((data as SBUserWordExposure).position === null ||
+      typeof (data as SBUserWordExposure).position === "string")
   );
 }
 
@@ -119,6 +122,7 @@ export async function createWordExposureRow({
   word,
   user_gloss_lang,
   user_gloss,
+  position,
 }: {
   supabaseClient: SupabaseUserWordExposuresClient;
   supabaseUserID?: string | undefined;
@@ -126,6 +130,7 @@ export async function createWordExposureRow({
   word: string;
   user_gloss_lang: string;
   user_gloss: string;
+  position?: string | null | undefined;
 }): Promise<SBUserWordExposure | null> {
   const runtimeSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
   if (!runtimeSupabaseClient) {
@@ -173,6 +178,7 @@ export async function createWordExposureRow({
     user_gloss,
     exposures: 0,
     recent_exposures: [],
+    position: position ?? null,
   };
   const { data, error } = await runtimeSupabaseClient
     .from("user_word_exposures")

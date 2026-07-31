@@ -162,6 +162,7 @@ export type LingoDataClient = {
     word: string;
     user_gloss_lang: string;
     user_gloss: string;
+    position?: string | null;
   }): Promise<SBUserWordExposure | null>;
   /** Records an exposure now and retains at most 10 newest-first timestamps. */
   addWORDExposureNow(input: {
