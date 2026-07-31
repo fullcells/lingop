@@ -386,7 +386,9 @@ export async function getVoiceOptionsForLang(
   if (lang == "yue") voiceLangSuffixes = ["zh-hk", "yue"]; // 20260305: Apple seems to be quite sporadic with its Cantonese labels. E.g. on 20260305 it updated its Cantonese voice-lang labels from 'zh-HK' to 'yue-HK'.
   if (lang == "arz") voiceLangSuffixes = ["ar-eg", "arz", "ar"];
 
-  const VOICES = await getVOICES(options);
+  const VOICES = apiVoiceAccessProfile === "NONE"
+    ? await getBrowserVoices()
+    : await getVOICES(options);
 
   const voicesForLang: SpeechSynthTTSVoice[] = [];
   for (const voiceLangSuffix of voiceLangSuffixes) {

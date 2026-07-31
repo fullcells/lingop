@@ -204,4 +204,42 @@ describe("speech synth TTS", () => {
     consoleError.mockRestore();
     vi.unstubAllGlobals();
   });
+
+  it("discovers browser voices without requesting API voices for the NONE profile", async () => {
+    vi.resetModules();
+    const browserVoice = {
+      default: true,
+      lang: "en-US",
+      localService: true,
+      name: "Test English",
+      voiceURI: "test-english",
+    } as SpeechSynthesisVoice;
+    const speechSynthesis = {
+      getVoices: vi.fn(() => [browserVoice]),
+      onvoiceschanged: null,
+    };
+    vi.stubGlobal("window", { speechSynthesis });
+
+    const fetchImpl: NonNullable<SpeechSynthTTSOptions["fetchImpl"]> = vi.fn(
+      () => new Promise(() => undefined),
+    );
+    const { getVoiceOptionsForLang } = await import("./speech-synth-tts.js");
+
+    await expect(
+      getVoiceOptionsForLang("en", "NONE", { fetchImpl }),
+    ).resolves.toEqual({
+      available: {
+        voices: [{
+          service: "BROWSER",
+          voice_id: "test-english",
+          voice_lang: "en-US",
+        }],
+        defaultAPIVoice: null,
+      },
+      unavailableAPIVoices: [],
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
+  });
 });
