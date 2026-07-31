@@ -97,6 +97,9 @@ export const wordExplanationsByLang: WordExplanationsByLang = {
     "飲んで": `Te-form of 飲む: “drink,” “drinking,” or “and drink.”`,
     "描いて": `Te-form of 描く: “draw,” “drawing,” or “and draw.”`,
     "喉が渇いて": `Te-form of 喉が渇く: “getting thirsty” or “being thirsty.”`,
+    "酸っぱくて": `Te-form of 酸っぱい: “sour”`,
+    "長くて": `Te-form of 長い: “long”`,
+
     // - newer stem formats
     "使い": `Polite stem of "use" (使う).`,
     "聞き": `Polite stem that means "listen" or "ask" (聞く).`,
