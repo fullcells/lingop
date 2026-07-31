@@ -242,4 +242,58 @@ describe("speech synth TTS", () => {
 
     vi.unstubAllGlobals();
   });
+
+  it("resumes browser playback after clearing the queue and propagates playback errors", async () => {
+    vi.resetModules();
+    const calls: string[] = [];
+    let playbackError: SpeechSynthesisErrorEvent | null = null;
+    const browserVoice = {
+      default: true,
+      lang: "en-US",
+      localService: true,
+      name: "Test English",
+      voiceURI: "test-english",
+    } as SpeechSynthesisVoice;
+
+    class FakeSpeechSynthesisUtterance {
+      voice: SpeechSynthesisVoice | null = null;
+      rate = 1;
+      onend: (() => void) | null = null;
+      onerror: ((event: SpeechSynthesisErrorEvent) => void) | null = null;
+
+      constructor(public text: string) {}
+    }
+
+    const speechSynthesis = {
+      cancel: vi.fn(() => calls.push("cancel")),
+      getVoices: vi.fn(() => [browserVoice]),
+      onvoiceschanged: null,
+      resume: vi.fn(() => calls.push("resume")),
+      speak: vi.fn((utterance: FakeSpeechSynthesisUtterance) => {
+        calls.push("speak");
+        if (playbackError) utterance.onerror?.(playbackError);
+        else utterance.onend?.();
+      }),
+    };
+    vi.stubGlobal("window", { speechSynthesis });
+    vi.stubGlobal("speechSynthesis", speechSynthesis);
+    vi.stubGlobal("SpeechSynthesisUtterance", FakeSpeechSynthesisUtterance);
+
+    const { speak } = await import("./speech-synth-tts.js");
+    await expect(speak({
+      text: "hello",
+      lang: "en",
+      apiVoiceAccessProfile: "NONE",
+    })).resolves.toBeUndefined();
+    expect(calls).toEqual(["cancel", "resume", "speak"]);
+
+    playbackError = { error: "synthesis-failed" } as SpeechSynthesisErrorEvent;
+    await expect(speak({
+      text: "hello again",
+      lang: "en",
+      apiVoiceAccessProfile: "NONE",
+    })).rejects.toThrow("Browser speech synthesis failed: synthesis-failed");
+
+    vi.unstubAllGlobals();
+  });
 });
