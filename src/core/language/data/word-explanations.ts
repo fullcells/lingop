@@ -143,7 +143,7 @@ export const wordExplanationsByLang: WordExplanationsByLang = {
     "こぼす": `To spill. Can also be written 零す.`,
     "あなた": `“You.” Often avoided in Japanese because using someone’s name or omitting the pronoun can sound more natural.`,
     "時刻": `Time as a specific point on the clock, rather than a duration.`,
-    "普通": `"Normal", "ordinary", or "usually" in casual speech."`,
+    "普通": `"Normal", "ordinary", or "usually" in casual speech.`,
     "通常": `"Usually" in a formal objective context.`,
 
     // - Colors
