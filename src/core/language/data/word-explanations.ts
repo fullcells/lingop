@@ -72,7 +72,7 @@ export const wordExplanationsByLang: WordExplanationsByLang = {
     "あります": `Polite form of ある. Means “there is,” “exists,” or “has,” for inanimate things and abstract things.`,
     "ではありません": `Polite negative of です: “is not” or “are not.”`,
     "します": `Polite form of "do" (する).`,
-    "ですか": `"is?", as a question.`,
+    "ですか": `"Is?", as a question.`,
     "には": `Marks something as the relevant place, target, time, or purpose. Often “for,” “to,” or “when it comes to.” Used after nouns or plain verb phrases.`,
     "のか": `Means "I wonder is it true?". Here "の” normalizes a statement as a fact, and "か" turns it into a question.`,
     "どの": `“Which,” used before a noun, as in “which book.” Use どれ when asking “which one” by itself.`,
@@ -171,7 +171,7 @@ export const wordExplanationsByLang: WordExplanationsByLang = {
     "七つ": `seven things`,
     "八つ": `eight things`,
     "九つ": `nine things`,
-    "それとも": `"or" - used when offering distinct alternatives in a question.`,
+    "それとも": `"Or" - used when offering distinct alternatives in a question.`,
 
   },
 };
