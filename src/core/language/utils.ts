@@ -100,5 +100,5 @@ export function isAdvocatableLang(lang: string): boolean {
 }
 
 export function doesLangMainScriptHaveReadingGuide(lang: string): boolean {
-  return ["si", "el", "ko", "th", "arz"].includes(lang);
+  return ["si", "el", "ko", "th", "arz", "tok"].includes(lang);
 }
