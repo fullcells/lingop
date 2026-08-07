@@ -51,7 +51,7 @@ export const wordExplanationsByLang: WordExplanationsByLang = {
     "お": `Polite or honorific prefix added to some words to show respect or refinement.`,
     "た": `Marks a past or completed action. Often “-ed” or “did.”`,
     "て": `Connects actions, often meaning “and then.” Also used in requests, such as 〜てください. With いる, it can show an ongoing action, like “is doing,” or a resulting state, like “has arrived.”`,
-    "か": `Used at the end of a sentence to mark a question at the end of a sentence. Also means “or” between choices.`,
+    "か": `Used at the end of a sentence to indicate a question. Also means “or” between choices.`,
     "が": `Subject marker meaning “is the one that is”. Often points to something that "does" an action, "exists", or "is" something.`,
     "し": `Stem of "do" (する). Also used to list multiple facts or reasons, similar to “and” or “because.”`,
     "と": `“And” between nouns. Also marks a quotation, thought, or sound. After a verb, it can mean “when” or “if.”`,
@@ -61,13 +61,13 @@ export const wordExplanationsByLang: WordExplanationsByLang = {
     "へ": `Marks direction or destination, usually with a motion verb. Often “to” or “toward.” As a particle, it is pronounced え.`,
     "に": `Marks a destination, direction, location, point in time, or target. Means “to,” “in,” “at,” or “on.”`,
     "で": `Marks where an action or event happens. Often means “at” or “in.”`,
-    "な": `Adjectifies な-adjectives (nouns that can serve as adjectives and don't end in い). When attached to a dictionary verb, it means "don’t (do)!".`,
+    "な": `Adjectifies な-adjectives (nouns that can serve as adjectives and don't end in い). After a verb it means "don't (do)!". At the end of a sentence, it softens a statement into an opinion.`,
 
     // Compound Hiragana
     "いる": `Plain form of います. Means “there is,” “exists,” or “is present,” for animate things.`,
     "ある": `Plain form of あります. Means “there is,” “exists,” or “has,” for inanimate things and abstract things.`,
-    "ます": `A suffix that transforms Japanese verbs into their polite form.`,
-    "ますか": `A polite suffix added to verbs at the end of a question.`,
+    "ます": `A suffix that transforms verbs into their polite form.`,
+    "ますか": `A suffix that transforms verbs into a polite question.`,
     "います": `Polite form of いる. Means “there is,” “exists,” or “is present,” for animate things, especially people and animals.`,
     "いません": `Polite negative of います: “is not here,” “are not present,” or “does not exist,” for animate things.`,
     "あります": `Polite form of ある. Means “there is,” “exists,” or “has,” for inanimate things and abstract things.`,
@@ -76,8 +76,8 @@ export const wordExplanationsByLang: WordExplanationsByLang = {
     "ですか": `"Is?", as a question.`,
     "には": `Marks something as the relevant place, target, time, or purpose. Often “for,” “to,” or “when it comes to.” Used after nouns or plain verb phrases.`,
     "のか": `Means "I wonder is it true?". Here "の” normalizes a statement as a fact, and "か" turns it into a question.`,
-    "どの": `“Which”, used before a noun, as in “which book.” Use どれ instead when asking “which one”.`,
-    "どれ": `“Which one?” Used by itself. Use どの instead before a noun.`,
+    "どの": `“Which”, used before a noun, as in “which book.” When asking "which one", use どれ instead.`,
+    "どれ": `“Which one?”, used standalone. Before a noun, use どの instead.`,
     "どちら": `which (of two)`,
     "あり": `Conjunctive form of ある: “exists,” “there is,” or “has.”`,
     "より": `“Than” in comparisons. In AはBより..., A is more than B in the stated way.`,
@@ -95,7 +95,8 @@ export const wordExplanationsByLang: WordExplanationsByLang = {
     "いい": `"Good", a casual pronunciation of 良い. All other forms of 良い start with よ〜, not い〜.`,
     "ました": `"Did" – makes a verb polite past-tense.`,
     "ましたか": `"Did?" – makes a verb polite past-tense, as a question.`,
-
+    "たら": `“If” or “when” – sequential or temporal conditional.`,
+    "なら": `“If that's the case” – a topic-based conditional.`,
 
     // Stems
     // - old te-forms
@@ -126,13 +127,15 @@ export const wordExplanationsByLang: WordExplanationsByLang = {
     "飲み": `Polite stem of "drink" (飲む).`,
     "でき": `Universal stem of "can (able)" (できる).`,
     "飛び":  `Polite stem of "fly" (飛ぶ).`,
+    "来": `Universal stem of "come" (来る).`,
+    "落ち": `Universal stem of "fall" (落ちる).`,
 
 
     // General
     "匹": `Counter for small to medium-sized animals.`,
     "違う": `“Different” or “wrong.” Often used when something is not correct.`,
     "異なる": `“To differ” or “to be different.” More formal and more unambiguous than 違う.`,
-    "人": `“Person.” Read ひと when standing alone, and にん when counting people. Exceptions include 一人, ひとり, and 二人, ふたり.`,
+    "人": `“Person.” Pronounced ひと when standalone. Read にん when counting, with exceptions for: 一人；ひとり, and 二人；ふたり.`,
     "時間": `"Time" as a duration. Also a counter for "hours".`,
     "歳": `Age; also the counter for “years old.”`,
     "本": `“Book.” Also a counter for long, thin, or cylindrical things, such as bottles, pens, roads, and legs.`,
@@ -148,9 +151,9 @@ export const wordExplanationsByLang: WordExplanationsByLang = {
     "背が低い": `“Is short,” used as a full statement about a person or animal’s height.`,
     "背の低い": `“Short” or “short in height,” used before a noun, as in “a short person.”`,
     "違い": `Difference. Sometimes loosely glossed as “different,” but it is a noun.`,
-    "使う": `To use.`,
-    "長い": `Long; adjective form.`,
-    "長く": `Longly, for a long time, or in a long way; adverbial form of 長い.`,
+    "使う": `to use`,
+    "長い": `"Long", as an adjective.`,
+    "長く": `"Longly", "for a long time", or "in a long way" – the adverbial form of 長い.`,
     "低い": `Low; also 'short in height' depending on context.`,
     "低く": `Lowly, lower, or in a low way; adverbial form of 低い.`,
     "枚": `Counter for thin, flat things, such as paper, photos, plates, and shirts.`,
@@ -199,7 +202,10 @@ export const wordExplanationsByLang: WordExplanationsByLang = {
     "翼": `“Wing (structure)” – typically used for airplanes or abstract concepts.`,
     "的": `Adjectifies the preceding noun.`,
     "個": `"(Things)" – a general counter that can be used to count most things.`,
-
+    "ハンドル": `Often a "car's steering wheel". Can mean a "bicycle's handlebar", or a general "handle".`,
+    "高い": `“tall” or “expensive”`,
+    "ほう": `Means "way". When comparing two things it means "more". Also, a sound a surprised person makes, like "Whoa!".`,
+    "運動": `“exercise”, “sport”, or “movement”`,
   },
 };
 
