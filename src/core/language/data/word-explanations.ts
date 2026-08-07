@@ -95,7 +95,7 @@ export const wordExplanationsByLang: WordExplanationsByLang = {
     "いい": `"Good", a casual pronunciation of 良い. All other forms of 良い start with よ〜, not い〜.`,
     "ました": `"Did" – makes a verb polite past-tense.`,
     "ましたか": `"Did?" – makes a verb polite past-tense, as a question.`,
-    "たら": `“If” or “when” – sequential or temporal conditional.`,
+    "たら": `“If” or “when” – a sequential or temporal conditional.`,
     "なら": `“If that's the case” – a topic-based conditional.`,
 
     // Stems
@@ -206,6 +206,7 @@ export const wordExplanationsByLang: WordExplanationsByLang = {
     "高い": `“tall” or “expensive”`,
     "ほう": `Means "way". When comparing two things it means "more". Also, a sound a surprised person makes, like "Whoa!".`,
     "運動": `“exercise”, “sport”, or “movement”`,
+    "のに": `Means "in order to" or "for the purpose of". At the end of a clause, it means "despite that".`,
   },
 };
 
