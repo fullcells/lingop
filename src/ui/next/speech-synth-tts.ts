@@ -412,17 +412,45 @@ async function getVOICES(options: SpeechSynthTTSOptions = {}): Promise<SpeechSyn
   return inFlightVOICES;
 }
 
+function getVoiceSearchLangSuffixes(lang: string): string[] {
+  // Note: Suffixes are used in a case-insensitive manner.
+  // A. Old Brute Overrides
+  if (lang == "cmn-hans") return ["zh-cn"];
+  if (lang == "cmn-hant") return ["zh-tw"];
+  if (lang == "yue") return ["zh-hk", "yue"];
+  if (lang == "arz") return ["ar-eg", "arz", "ar"];
+
+  // B. New Scalable Standard way for getting Voice Search Suffixes (from LANGS.mttslocale_main + LANGS.mttslocale_options)
+  const langEntry = LANGS.find(
+    (l) => l.gcode_main.toLowerCase() === lang.toLowerCase(),
+  );
+
+  const mttsFallbacks = [
+    langEntry?.mttslocale_main,
+    ...(langEntry?.mttslocale_options?.split(",") ?? []),
+  ]
+    .map((v) => v?.trim())
+    .filter((v): v is string => !!v);
+
+  // De-dupe while preserving order (mttslocale_main/options can overlap, e.g. tok's are identical)
+  const seen = new Set<string>();
+  const suffixes: string[] = [];
+  for (const suffix of [lang, ...mttsFallbacks]) {
+    const key = suffix.toUpperCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    suffixes.push(suffix);
+  }
+  return suffixes;
+}
+
 export async function getVoiceOptionsForLang(
   lang: string,
   apiVoiceAccessProfile: APIVoiceAccessProfile,
   options: SpeechSynthTTSOptions = {},
 ): Promise<SpeechSynthVoiceOptions> {
   // Lang is treated as a case-insensitive suffix.
-  let voiceLangSuffixes = [lang]; // e.g. "en"
-  if (lang == "cmn-hans") voiceLangSuffixes = ["zh-cn"];
-  if (lang == "cmn-hant") voiceLangSuffixes = ["zh-tw"];
-  if (lang == "yue") voiceLangSuffixes = ["zh-hk", "yue"]; // 20260305: Apple seems to be quite sporadic with its Cantonese labels. E.g. on 20260305 it updated its Cantonese voice-lang labels from 'zh-HK' to 'yue-HK'.
-  if (lang == "arz") voiceLangSuffixes = ["ar-eg", "arz", "ar"];
+  let voiceLangSuffixes:string[] = getVoiceSearchLangSuffixes(lang);
 
   const VOICES = apiVoiceAccessProfile === "NONE"
     ? await getBrowserVoices()
