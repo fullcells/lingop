@@ -3,7 +3,22 @@
 import type { OATSourceData } from "./types.js";
 
 export const lingopOATSourceData: OATSourceData = {
-  "guiTextsByScope": {},
+  "guiTextsByScope": {
+    "_": [
+      "Already have an account?",
+      "Don't have an account?",
+      "Email",
+      "Forgot Password",
+      "Log in",
+      "or",
+      "Password",
+      "Password must be at least 6 characters.",
+      "Passwords do not match.",
+      "Re-Type Password",
+      "Sign up",
+      "Sorry, that email-password pair didn't match any of our records. Please try again with different details."
+    ]
+  },
   "focusTextsByScope": {},
   "staticFocusTextsByScope": {}
 };

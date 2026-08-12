@@ -1,0 +1,227 @@
+.lingop-camp-lingo-auth-form {
+  box-sizing: border-box;
+  width: 400px;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 5px 40px 40px;
+  color: #111827;
+  font-family: inherit;
+}
+
+.lingop-camp-lingo-auth-form *,
+.lingop-camp-lingo-auth-form *::before,
+.lingop-camp-lingo-auth-form *::after {
+  box-sizing: border-box;
+}
+
+.lingop-camp-lingo-auth-form__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin: 24px 0 16px;
+}
+
+.lingop-camp-lingo-auth-form__brand span {
+  color: #2563eb;
+  font-family: Quicksand, sans-serif;
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.lingop-camp-lingo-auth-form__brand img {
+  width: 48px;
+  height: 48px;
+  border-radius: 4px;
+}
+
+.lingop-camp-lingo-auth-form h1 {
+  margin: 0;
+  padding: 0 0 20px;
+  font-size: 24px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.lingop-camp-lingo-auth-form__google {
+  display: flex;
+  width: 100%;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+}
+
+.lingop-camp-lingo-auth-form__separator {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 0 16px;
+  color: #6b7280;
+}
+
+.lingop-camp-lingo-auth-form__separator span {
+  height: 1px;
+  flex: 1;
+  background: #e5e7eb;
+}
+
+.lingop-camp-lingo-auth-form__separator small {
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.lingop-camp-lingo-auth-form form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+}
+
+.lingop-camp-lingo-auth-form__field {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.lingop-camp-lingo-auth-form__field input {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #111827;
+  font: inherit;
+  font-size: 16px;
+  padding: 9px 12px 9px 40px;
+}
+
+.lingop-camp-lingo-auth-form__field input:focus {
+  border-color: #3b82f6;
+  outline: 2px solid rgba(59, 130, 246, 0.2);
+  outline-offset: 0;
+}
+
+.lingop-camp-lingo-auth-form__field-icon {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 12px;
+  width: 18px;
+  height: 18px;
+  color: #4b5563;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.lingop-camp-lingo-auth-form__field-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.lingop-camp-lingo-auth-form__forgot-password {
+  align-self: flex-end;
+  margin-bottom: 2px;
+  color: #6b7280;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.lingop-camp-lingo-auth-form__forgot-password:hover {
+  text-decoration: underline;
+}
+
+.lingop-camp-lingo-auth-form__error {
+  width: 100%;
+  margin: 10px 0 2px;
+  color: #dc2626;
+  font-size: 14px;
+  text-align: center;
+}
+
+.lingop-camp-lingo-auth-form__submit {
+  display: flex;
+  width: 100%;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 3px;
+  background: #000;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.lingop-camp-lingo-auth-form__submit:hover:not(:disabled) {
+  background: #3b82f6;
+}
+
+.lingop-camp-lingo-auth-form__submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.lingop-camp-lingo-auth-form__spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: lingop-camp-lingo-auth-form-spin 0.75s linear infinite;
+}
+
+.lingop-camp-lingo-auth-form__mode-switcher {
+  margin: 8px 0 0;
+  color: #6b7280;
+  font-size: 14px;
+  text-align: center;
+}
+
+.lingop-camp-lingo-auth-form__mode-switcher button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #3b82f6;
+  cursor: pointer;
+  font: inherit;
+}
+
+.lingop-camp-lingo-auth-form__mode-switcher button:hover {
+  text-decoration: underline;
+}
+
+.lingop-camp-lingo-auth-form__visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes lingop-camp-lingo-auth-form-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 420px) {
+  .lingop-camp-lingo-auth-form {
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+}

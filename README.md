@@ -48,6 +48,31 @@ Lingop developers write normal `OAT("source text")`, `OAT2("source text")`, and 
 
 At runtime, import `OATDataProvider` and `useOAT` from `lingop/oat/react`. The provider receives `guiLang` and `focusLang` read-only plus consumer-provided `loadTranslations` and `loadStaticAnnotations` functions. Web consumers can load the generated files with `fetch`; React Native consumers can use an asset manifest or another native-compatible loader.
 
+## Camp Lingo Auth Form in Next.js
+
+`CampLingoAuthForm` is the shared Camp Lingo browser login/signup UI. It owns the common Camp Lingo branding and labels, email/password flows, Google Identity Services integration, and forgot-password destination. It uses basic DOM elements and stable class names so consumers can override its appearance without taking on a UI-framework dependency.
+
+The consumer supplies its existing browser-configured Supabase client and current GUI language. Lingop does not create or configure Supabase, and the form is currently part of `lingop/ui/next`, not the React Native UI.
+
+```tsx
+import {
+  CampLingoAuthForm,
+  CampLingoAuthFormMode,
+} from "lingop/ui/next";
+import "lingop/ui/next/camp-lingo-auth-form.css";
+
+<CampLingoAuthForm
+  supabaseClient={supabaseClient}
+  guiLang={guiLang}
+  initialMode={CampLingoAuthFormMode.LOG_IN}
+  onSuccessfulAuth={(mode) => handleSuccessfulAuth(mode)}
+/>;
+```
+
+The stylesheet provides the default Camp Lingo appearance. Consumers can override the `lingop-camp-lingo-auth-form*` classes or pass an additional root `className`.
+
+Consumers must still keep server-only credentials—such as a Google client secret, Supabase service-role/secret key, or OAT override key—out of browser bundles and out of Lingop. Supabase's browser URL and publishable/anon key remain consumer configuration and are represented only by the injected browser client.
+
 ## Install
 
 - `npm install lingop@github:fullcells/lingop#v0.3.X` // Installs Directly from Github // Replace `X` with version number.
