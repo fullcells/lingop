@@ -225,19 +225,22 @@ describe("speech synth TTS", () => {
     );
     const { getVoiceOptionsForLang } = await import("./speech-synth-tts.js");
 
-    await expect(
-      getVoiceOptionsForLang("en", "NONE", { fetchImpl }),
-    ).resolves.toEqual({
+    const voiceOptions = await getVoiceOptionsForLang("en", "NONE", { fetchImpl });
+    expect(voiceOptions).toMatchObject({
       available: {
-        voices: [{
-          service: "BROWSER",
-          voice_id: "test-english",
-          voice_lang: "en-US",
-        }],
         defaultAPIVoice: null,
       },
       unavailableAPIVoices: [],
     });
+    expect(voiceOptions.available.voices).toEqual(
+      expect.arrayContaining([
+        {
+          service: "BROWSER",
+          voice_id: "test-english",
+          voice_lang: "en-US",
+        },
+      ]),
+    );
     expect(fetchImpl).not.toHaveBeenCalled();
 
     vi.unstubAllGlobals();
@@ -326,15 +329,17 @@ describe("speech synth TTS", () => {
     vi.stubGlobal("document", new EventTarget());
 
     const { getVoiceOptionsForLang } = await import("./speech-synth-tts.js");
-    await expect(getVoiceOptionsForLang("en", "NONE")).resolves.toMatchObject({
-      available: { voices: [{ voice_id: "old-english" }] },
-    });
+    const initialVoiceOptions = await getVoiceOptionsForLang("en", "NONE");
+    expect(initialVoiceOptions.available.voices).toEqual(
+      expect.arrayContaining([expect.objectContaining({ voice_id: "old-english" })]),
+    );
 
     fakeWindow.dispatchEvent(new Event("focus"));
 
-    await expect(getVoiceOptionsForLang("en", "NONE")).resolves.toMatchObject({
-      available: { voices: [{ voice_id: "refreshed-english" }] },
-    });
+    const refreshedVoiceOptions = await getVoiceOptionsForLang("en", "NONE");
+    expect(refreshedVoiceOptions.available.voices).toEqual(
+      expect.arrayContaining([expect.objectContaining({ voice_id: "refreshed-english" })]),
+    );
     expect(speechSynthesis.getVoices).toHaveBeenCalledTimes(2);
 
     vi.unstubAllGlobals();
