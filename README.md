@@ -71,8 +71,6 @@ import "lingop/ui/next/camp-lingo-auth-form.css";
 
 The stylesheet provides the default Camp Lingo appearance. Consumers can override the `lingop-camp-lingo-auth-form*` classes or pass an additional root `className`.
 
-Consumers must still keep server-only credentials—such as a Google client secret, Supabase service-role/secret key, or OAT override key—out of browser bundles and out of Lingop. Supabase's browser URL and publishable/anon key remain consumer configuration and are represented only by the injected browser client.
-
 ## Install
 
 - `npm install lingop@github:fullcells/lingop#v0.3.X` // Installs Directly from Github // Replace `X` with version number.
