@@ -1,4 +1,5 @@
 import type { OATSourceData, OATTextsByScope } from "../types.js";
+import { lingopOATSourceData } from "../lingop-source-data.generated.js";
 import type { OATConfig } from "./config.js";
 import {
   extractOATCalleeStringsFromFile,
@@ -86,5 +87,8 @@ export function mergeOATSourceData(allSourceData: OATSourceData[]): OATSourceDat
 }
 
 export function collectAllOATSourceData(config: OATConfig): OATSourceData {
-  return mergeOATSourceData([collectOATSourceData(config), ...config.additionalSourceData]);
+  return mergeOATSourceData([
+    collectOATSourceData(config),
+    lingopOATSourceData,
+  ]);
 }

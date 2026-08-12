@@ -66,7 +66,8 @@
   },
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
-    "build": "npm run clean && tsc -p tsconfig.json",
+    "generate:oat-source-data": "node scripts/generate-oat-source-data.mjs",
+    "build": "npm run clean && npm run generate:oat-source-data && tsc -p tsconfig.json",
     "prepare": "npm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"

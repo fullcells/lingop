@@ -36,8 +36,7 @@ function isOATConfig(value: unknown): value is OATConfig {
     typeof config.focusLangsByScope === "object" &&
     Array.isArray(config.allGuiLangs) &&
     Array.isArray(config.allFocusLangs) &&
-    typeof config.generatedAssetsRoot === "string" &&
-    Array.isArray(config.additionalSourceData)
+    typeof config.generatedAssetsRoot === "string"
   );
 }
 

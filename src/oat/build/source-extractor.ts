@@ -3,7 +3,19 @@ import path from "node:path";
 import { parse } from "@babel/parser";
 import traverseModule from "@babel/traverse";
 
-const traverse = traverseModule.default;
+type BabelTraverse = typeof import("@babel/traverse").default;
+const traverseModuleValue: unknown = traverseModule;
+const traverse = (
+  typeof traverseModuleValue === "function"
+    ? traverseModuleValue
+    : typeof (traverseModuleValue as { default?: unknown }).default === "function"
+      ? (traverseModuleValue as { default: unknown }).default
+      : (traverseModuleValue as { default?: { default?: unknown } }).default?.default
+) as BabelTraverse;
+
+if (typeof traverse !== "function") {
+  throw new Error("Unable to load @babel/traverse for OAT source extraction.");
+}
 
 function findFiles(dir: string, exts = [".js", ".jsx", ".ts", ".tsx"]): string[] {
   if (!fs.existsSync(dir)) return [];
