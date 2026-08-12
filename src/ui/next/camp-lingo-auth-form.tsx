@@ -36,6 +36,12 @@ type GoogleCredentialResponse = {
   credential?: string;
 };
 
+export type CampLingoGoogleButtonTheme =
+  | "outline"
+  | "filled_blue"
+  | "filled_black"
+  | "outline_dark";
+
 type GoogleIdentityServices = {
   accounts: {
     id: {
@@ -46,7 +52,7 @@ type GoogleIdentityServices = {
       renderButton(
         parent: HTMLElement,
         options: {
-          theme: "outline";
+          theme: CampLingoGoogleButtonTheme;
           size: "large";
           shape: "rectangular";
           width: number;
@@ -120,6 +126,8 @@ export type CampLingoAuthFormProps = {
   hideLoginSignupModeSwitcher?: boolean;
   /** Temporarily used by legacy OA/OS consumers that disable Google auth. */
   isGoogleAuthVisible?: boolean;
+  /** Uses one of Google Identity Services' native button themes. */
+  googleButtonTheme?: CampLingoGoogleButtonTheme;
   className?: string;
 };
 
@@ -176,6 +184,7 @@ export function CampLingoAuthForm({
   onSuccessfulAuth,
   hideLoginSignupModeSwitcher = false,
   isGoogleAuthVisible = true,
+  googleButtonTheme = "outline",
   className,
 }: CampLingoAuthFormProps) {
   const { OAT } = useOAT();
@@ -252,7 +261,7 @@ export function CampLingoAuthForm({
         });
         button.replaceChildren();
         google.accounts.id.renderButton(button, {
-          theme: "outline",
+          theme: googleButtonTheme,
           size: "large",
           shape: "rectangular",
           width: 320,
@@ -268,7 +277,7 @@ export function CampLingoAuthForm({
       cancelled = true;
       button.replaceChildren();
     };
-  }, [isGoogleAuthVisible, supabaseClient]);
+  }, [googleButtonTheme, isGoogleAuthVisible, supabaseClient]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
