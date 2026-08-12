@@ -4,6 +4,48 @@ Shared TypeScript code for Lingo projects.
 
 This codebase is intended to be used from both web apps, such as Next.js TypeScript apps, and native apps, such as React Native TypeScript apps.
 
+## OAT: Build-Time UI Localization
+
+OAT is separate from `LingoDataClient` and has a different lifecycle:
+
+- **OAT is build-time plus lightweight runtime lookup.** Consumers run `oat-preflight` before development/build to scan `OAT(...)`, `OAT2(...)`, and `getStaticFocusLangAText(...)` calls and generate the application's translation and annotation assets. The React provider then loads and looks up those generated assets.
+- **`LingoDataClient` is live application data.** It is a long-lived runtime/session client for live localization, annotation, Supabase, caching, and authenticated operations.
+
+### Consumer setup
+
+Create an `oat.config.ts` in the consumer's project root:
+
+```ts
+import { defineOATConfig } from "lingop/oat/build";
+
+export default defineOATConfig({
+  scanDirs: ["components", "pages", "contexts"],
+  guiLangsByScope,
+  focusLangsByScope,
+  allGuiLangs,
+  allFocusLangs,
+  generatedAssetsRoot: "public",
+});
+```
+
+OAT owns the relative `i18n/oat` and `i18n/static-a8ns` layout beneath `generatedAssetsRoot`, and uses English as its source language.
+
+Make the override key available to the build environment, and include the compiled CLI in the consumer workflow:
+
+```json
+{
+  "scripts": {
+    "oat-preflight": "oat-preflight",
+    "predev": "npm run oat-preflight",
+    "prebuild": "npm run oat-preflight"
+  }
+}
+```
+
+`oat-preflight` reads `_H_PERSONAL_OVERRIDE_KEY`, loads the root `oat.config.ts`, generates translations, then generates static annotations. Shared packages containing OAT calls must publish `OATSourceData`; consumers include it through `additionalSourceData` so those calls are generated alongside local source calls.
+
+At runtime, import `OATDataProvider` and `useOAT` from `lingop/oat/react`. The provider receives `guiLang` and `focusLang` read-only plus consumer-provided `loadTranslations` and `loadStaticAnnotations` functions. Web consumers can load the generated files with `fetch`; React Native consumers can use an asset manifest or another native-compatible loader.
+
 ## Install
 
 - `npm install lingop@github:fullcells/lingop#v0.3.X` // Installs Directly from Github // Replace `X` with version number.

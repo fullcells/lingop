@@ -32,6 +32,18 @@
       "types": "./dist/core/language/index.d.ts",
       "default": "./dist/core/language/index.js"
     },
+    "./oat": {
+      "types": "./dist/oat/index.d.ts",
+      "default": "./dist/oat/index.js"
+    },
+    "./oat/react": {
+      "types": "./dist/oat/react/index.d.ts",
+      "default": "./dist/oat/react/index.js"
+    },
+    "./oat/build": {
+      "types": "./dist/oat/build/index.d.ts",
+      "default": "./dist/oat/build/index.js"
+    },
     "./ui": {
       "types": "./dist/ui/index.d.ts",
       "default": "./dist/ui/index.js"
@@ -46,8 +58,12 @@
     }
   },
   "files": [
+    "bin",
     "dist"
   ],
+  "bin": {
+    "oat-preflight": "./bin/oat-preflight.js"
+  },
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "build": "npm run clean && tsc -p tsconfig.json",
@@ -59,11 +75,17 @@
     "react": ">=18"
   },
   "devDependencies": {
-    "@types/react": "^18",
+    "@types/babel__traverse": "^7.20.7",
+    "@types/node": "^22.13.11",
+    "@types/react": "^19",
     "typescript": "^5.5.0",
     "vitest": "^3.2.6"
   },
   "dependencies": {
+    "@babel/parser": "^7.28.0",
+    "@babel/traverse": "^7.28.0",
+    "dotenv": "^17.3.1",
+    "jiti": "^2.5.1",
     "wink-lemmatizer": "^3.0.4"
   }
 }
