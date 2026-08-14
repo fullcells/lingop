@@ -129,8 +129,9 @@ export const wordExplanationsByLang: WordExplanationsByLang = {
     "飛び":  `Polite stem of "fly" (飛ぶ).`,
     "来": `Universal stem of "come" (来る).`,
     "落ち": `Universal stem of "fall" (落ちる).`,
-    "作ら": `Stem of "make" (作る).`,
-    
+    "作ら": `Unrealized stem of "make" (作る).`,
+    "使わ": `Unrealized stem of "use" (使う).`,
+
 
     // General
     "匹": `Counter for small to medium-sized animals.`,
