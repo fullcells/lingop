@@ -20,7 +20,7 @@ export type FetchBinderDocsByMinL10nsOrderInput = {
   priorityDocIds?: readonly (string | number)[];
 };
 
-const DEFAULT_PRIORITY_DOC_IDS: readonly (string | number)[] = [179]; // 179 for LingoTrivia.
+const DEFAULT_PRIORITY_DOC_IDS: readonly (string | number)[] = [179, 180]; // 179,180 for LingoTrivia.
 const LARGE_VOCABULARY_SIZE = 1_000;
 
 function docIdKey(docId: string | number): string {
