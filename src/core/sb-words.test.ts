@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearSBWordsCache,
+  directlyFetchAndGenSBWord,
   fetchAndGenGloss,
   getSBWordsForLangDir,
   isNotCoreWord,
   type SBWordRow2,
   type SupabaseSBWordsClient,
 } from "./sb-words.js";
+import { BE_API_PRODUCTION_URL, BE_API_STAGING_URL } from "./backend-api.js";
 import type { SupabaseQueryLike, SupabaseQueryResult } from "./supabase.js";
 import type { OneWayWordExplicitations } from "./word-explicitations.js";
 
@@ -183,5 +185,72 @@ describe("sb words", () => {
         },
       ),
     ).resolves.toEqual({ targetWord: "貓", is_human_verified: true });
+  });
+
+  it("creates missing SBWords through the canonical backend with bearer auth", async () => {
+    const { supabaseClient } = makeSupabaseClient([]);
+    const authenticatedClient = {
+      ...(supabaseClient as object),
+      auth: {
+        getSession: vi.fn(async () => ({
+          data: { session: { access_token: "user-access-token" } },
+        })),
+      },
+    } as SupabaseSBWordsClient;
+    const createdRow = makeRow(3, {
+      word: "dog",
+      gloss: "狗",
+      is_core: false,
+    });
+    const requestFetch = vi.fn(async () =>
+      new Response(JSON.stringify(createdRow), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(
+      directlyFetchAndGenSBWord(
+        { source_lang: "en", source_word: "dog", target_lang: "yue" },
+        { supabaseClient: authenticatedClient, requestFetch },
+      ),
+    ).resolves.toEqual(createdRow);
+
+    expect(requestFetch).toHaveBeenCalledWith(
+      `${BE_API_PRODUCTION_URL}/api/sb-translate-and-upsert-sbword`,
+      expect.objectContaining({
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer user-access-token",
+        },
+      }),
+    );
+  });
+
+  it("supports the staging backend without requiring authentication", async () => {
+    const { supabaseClient } = makeSupabaseClient([]);
+    const createdRow = makeRow(4, {
+      word: "bird",
+      gloss: "鳥",
+      is_core: false,
+    });
+    const requestFetch = vi.fn(async () =>
+      new Response(JSON.stringify(createdRow), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await directlyFetchAndGenSBWord(
+      { source_lang: "en", source_word: "bird", target_lang: "yue" },
+      { supabaseClient, requestFetch, useStagingBackend: true },
+    );
+
+    expect(requestFetch).toHaveBeenCalledWith(
+      `${BE_API_STAGING_URL}/api/sb-translate-and-upsert-sbword`,
+      expect.objectContaining({
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
   });
 });

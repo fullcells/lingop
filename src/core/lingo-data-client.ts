@@ -840,6 +840,7 @@ export function createLingoDataClient({
             : {}),
         }),
       generateEmojiForGloss: generateClientEmoji,
+      ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
     });
   }
 

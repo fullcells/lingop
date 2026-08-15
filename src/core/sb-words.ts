@@ -2,6 +2,7 @@ import { generateEmoji, type SupabaseEmojiClient } from "./emojify.js";
 import { ilike } from "./misc.js";
 import { asSupabaseRuntimeClient, type SupabaseClientLike } from "./supabase.js";
 import type { OneWayWordExplicitations } from "./word-explicitations.js";
+import { getBEApiBaseUrl } from "./backend-api.js";
 
 export type SBWordRow2 = {
   id: number;
@@ -238,6 +239,7 @@ export async function fetchAndGenGloss(
     getOneWayWordExplicitations,
     generateEmojiForGloss,
     requestFetch = globalThis.fetch?.bind(globalThis),
+    useStagingBackend,
   }: {
     supabaseClient?: SupabaseSBWordsClient | undefined;
     getOneWayWordExplicitations(input: {
@@ -247,6 +249,7 @@ export async function fetchAndGenGloss(
     }): Promise<OneWayWordExplicitations>;
     generateEmojiForGloss(en_gloss: string): Promise<string | null>;
     requestFetch?: typeof fetch | undefined;
+    useStagingBackend?: boolean | undefined;
   },
 ): Promise<GlossOutputData | null> {
   // (Note: 'Gloss' here is used in the abstract sense (meaning a 1:1 Word Translation) - rather than the '(en)Gloss' inside sbWords) - Better named as 'fetchNGenWordTranslation'
@@ -299,7 +302,7 @@ export async function fetchAndGenGloss(
       source_word,
       target_lang,
     },
-    { supabaseClient, requestFetch },
+    { supabaseClient, requestFetch, useStagingBackend },
   );
   if (!sbWord) return null;
   // console.log('fetchAndGenGloss: 2. Standard: directlyFetchAndGenSBWord:', 'INPUT:', source_lang, source_word, target_lang, 'OUTPUT:', sbWord);
@@ -324,9 +327,11 @@ export async function directlyFetchAndGenSBWord(
   {
     supabaseClient,
     requestFetch = globalThis.fetch?.bind(globalThis),
+    useStagingBackend,
   }: {
     supabaseClient?: SupabaseSBWordsClient | undefined;
     requestFetch?: typeof fetch | undefined;
+    useStagingBackend?: boolean | undefined;
   } = {},
 ): Promise<SBWordRow2 | null> {
   // console.log('directlyFetchAndGenSBWord', source_lang, source_word, target_lang);
@@ -382,12 +387,21 @@ export async function directlyFetchAndGenSBWord(
   }
 
   // 2. Create New Gloss (via translate) and SB.Words Upsert
-  const fetchUrl: string = `/api/sb-translate-and-upsert-sbword`; // uses BE:/translate-create-limited-anon
+  const apiBaseUrl =
+    useStagingBackend === undefined
+      ? getBEApiBaseUrl()
+      : getBEApiBaseUrl({ useStagingBackend });
+  const fetchUrl = `${apiBaseUrl}/api/sb-translate-and-upsert-sbword`;
+  const accessToken = (
+    await asSupabaseRuntimeClient(supabaseClient)?.auth?.getSession?.()
+  )?.data.session?.access_token;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   const res = await requestFetch(fetchUrl, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify({
       source_lang,
       source_word,
