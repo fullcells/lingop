@@ -1,6 +1,18 @@
 import type { AnnotatedToken } from "./annotation/types.js";
 import { getLangName } from "./language/utils.js";
 import type { TranslationRow } from "./translation/types.js";
+import { ilike } from "../utils/string.js";
+
+// NOTE: Some of these functions should more appropriately sit in `lingop/utils/string`, but are included here for compatibility with existing consumers of `core/misc` that expect them to be present for now. New code should import from `lingop/utils/string` instead of `core/misc`.
+
+// Compatibility exports. Runtime-neutral consumers should import from
+// `lingop/utils/string` instead of the broader core surface.
+export {
+  anyIn_ci,
+  ilike,
+  isExplicitlyLowerCase,
+  toCleanFilename,
+} from "../utils/string.js";
 
 export type ReferenceDB = {
   db: {
@@ -188,17 +200,6 @@ export function prettyPrintCreditsAmount(amount: number): string {
   });
 }
 
-export function toCleanFilename(input: string, len: number): string {
-  return input
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/ /g, "_")
-    .replace(/[\s.,。，,]/g, "_")
-    .replace(/[^a-zA-Z0-9-]/g, "-")
-    .slice(0, len)
-    .toLowerCase();
-}
-
 export const STANDARD_AUDIO_TEXT_REPLACEMENTS = {
   SQUARE_BRACKETS: { label: "[squareBrackets]", pattern: "\\[.*?\\]" },
   CURLY_BRACKETS: { label: "{curlyBrackets}", pattern: "\\{.*?\\}" },
@@ -212,11 +213,6 @@ export function toTitleCase(str: string): string {
     /\w\S*/g,
     (txt) => txt.charAt(0).toUpperCase() + txt.slice(1).toLowerCase(),
   );
-}
-
-export function ilike(a: string | null | undefined, b: string | null | undefined): boolean {
-  if (!a && !b) return true;
-  return (a || "").toLowerCase() === (b || "").toLowerCase();
 }
 
 export function removeBracketedContent(text: string | null | undefined): string {

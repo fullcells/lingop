@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  anyIn_ci,
   contentRefFromLocalization,
   convertCantoJyutpingToSLWongRomanizedDiacritics,
   convertCantoJyutpingToTZWDiacritic,
   convertCantoJyutpingToYale,
   getLocalePrice,
+  ilike,
+  isExplicitlyLowerCase,
   isLocalizationDefinitelyFromPublicSource,
   isSourceContentDefinitelyPublic,
   replaceAllCurlyTexts,
@@ -33,6 +36,12 @@ describe("misc utilities", () => {
 
   it("keeps legacy formatting helpers", () => {
     expect(toCleanFilename("Olá, World.txt", 12)).toBe("ola--world-t");
+    expect(ilike("CMN-Hant", "cmn-hant")).toBe(true);
+    expect(ilike(null, undefined)).toBe(true);
+    expect(isExplicitlyLowerCase("lower case")).toBe(true);
+    expect(isExplicitlyLowerCase("Lower case")).toBe(false);
+    expect(isExplicitlyLowerCase("123")).toBe(false);
+    expect(anyIn_ci(["CAT", "dog"], "A cat naps")).toBe(true);
   });
 
   it("converts Cantonese Jyutping into display romanizations", () => {

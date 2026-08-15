@@ -4,6 +4,17 @@ Shared TypeScript code for Lingo projects.
 
 This codebase is intended to be used from both web apps, such as Next.js TypeScript apps, and native apps, such as React Native TypeScript apps.
 
+## Shared Learning Content
+
+Lingop is the source of truth for the static LingoDex and classic CL Learn CEFR datasets. Import the specific dataset subpath so consumers only bundle the content they need:
+
+```ts
+import { LingoDexData } from "lingop/content/lingodex";
+import { cefrConcepts } from "lingop/content/cl-learn-cefr";
+```
+
+`lingop/content` also exposes the datasets as the non-colliding `lingoDex` and `clLearnCEFR` namespaces. Runtime-neutral string helpers such as `ilike` and `toCleanFilename` are available from `lingop/utils/string` without importing the broader core or UI surfaces.
+
 ## OAT: Build-Time UI Localization
 
 OAT is separate from `LingoDataClient` and has a different lifecycle:
