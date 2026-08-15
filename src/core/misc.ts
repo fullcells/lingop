@@ -1,6 +1,7 @@
 import type { AnnotatedToken } from "./annotation/types.js";
 import { getLangName } from "./language/utils.js";
 import type { TranslationRow } from "./translation/types.js";
+import type { ContentReference } from "./content-reference.js";
 import { ilike } from "../utils/string.js";
 
 // NOTE: Some of these functions should more appropriately sit in `lingop/utils/string`, but are included here for compatibility with existing consumers of `core/misc` that expect them to be present for now. New code should import from `lingop/utils/string` instead of `core/misc`.
@@ -14,25 +15,12 @@ export {
   toCleanFilename,
 } from "../utils/string.js";
 
-export type ReferenceDB = {
-  db: {
-    table: string;
-    column: string;
-    id: number;
-    // Optional segment coordinates narrow a document-level DB row to a
-    // LocalizationSegment. Omit them for refs that target the whole row/doc.
-    line_idx?: number;
-    seg_idx?: number;
-  };
-};
-
-export type ReferenceableFile = "lingodex" | "cl_learn_cefr" | "OAT" | "WORDS";
-
-export type ReferenceFile = {
-  file: ReferenceableFile;
-};
-
-export type ContentReference = ReferenceDB | ReferenceFile;
+export type {
+  ContentReference,
+  ReferenceableFile,
+  ReferenceDB,
+  ReferenceFile,
+} from "./content-reference.js";
 
 export type BaseContent = {
   owner_id: string | null;
