@@ -1,6 +1,6 @@
 {
   "name": "lingop",
-  "version": "0.7.8",
+  "version": "0.7.9",
   "description": "Shared TypeScript code for Lingo web and native apps.",
   "type": "module",
   "exports": {
@@ -27,6 +27,10 @@
     "./content/cl-learn-cefr": {
       "types": "./dist/content/cl-learn-cefr.d.ts",
       "default": "./dist/content/cl-learn-cefr.js"
+    },
+    "./content-reference": {
+      "types": "./dist/core/content-reference.d.ts",
+      "default": "./dist/core/content-reference.js"
     },
     "./core/language": {
       "types": "./dist/core/language/index.d.ts",
