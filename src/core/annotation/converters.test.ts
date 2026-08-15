@@ -7,8 +7,9 @@ import {
   convertAnnotatedTokensToAEntry,
   convertAnnotatedTokensToAText,
   convertATokensToAEntryLangTokens,
+  linearizeTemplaticAText,
 } from "./converters.js";
-import type { AnnotatedToken, AnnotationEntry } from "./types.js";
+import type { AnnotatedText, AnnotatedToken, AnnotationEntry } from "./types.js";
 
 const rawAnnotationEntry: AnnotationEntry = {
   lang: "th",
@@ -133,6 +134,46 @@ describe("annotation conversions", () => {
     ).toEqual({
       texts: ["hi", "!"],
       isWordList: [1, 0],
+    });
+  });
+
+  it("leaves non-templatic text linear while reporting its morphemes", () => {
+    const annotatedText = convertAnnotatedEntryToAText(rawAnnotationEntry)!;
+
+    expect(linearizeTemplaticAText(annotatedText)).toEqual({
+      linearizedAText: annotatedText,
+      morphemesPerLinearToken: [
+        [{ morpheme: "สวัสดี", gloss: "hello" }],
+        [{ morpheme: "ครับ", gloss: "" }],
+      ],
+    });
+  });
+
+  it("linearizes root-and-pattern annotation tokens", () => {
+    const annotatedText: AnnotatedText = {
+      lang: "ar",
+      lang_text: "كتب",
+      tokens: [
+        { text: "√كتب", isWord: 1, gloss: "write" },
+        { text: "•••", isWord: 1, gloss: "perfect" },
+      ],
+      containsGloss: true,
+      containsPhonetics: false,
+      ref: null,
+      owner_id: null,
+    };
+
+    expect(linearizeTemplaticAText(annotatedText)).toEqual({
+      linearizedAText: {
+        ...annotatedText,
+        tokens: [{ text: "كتب", isWord: 1, gloss: "write ⚭ perfect" }],
+      },
+      morphemesPerLinearToken: [
+        [
+          { morpheme: "√كتب", gloss: "write" },
+          { morpheme: "•••", gloss: "perfect" },
+        ],
+      ],
     });
   });
 });

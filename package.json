@@ -1,6 +1,6 @@
 {
   "name": "lingop",
-  "version": "0.7.7",
+  "version": "0.7.8",
   "description": "Shared TypeScript code for Lingo web and native apps.",
   "type": "module",
   "exports": {
@@ -43,6 +43,10 @@
     "./annotation": {
       "types": "./dist/core/annotation/index.d.ts",
       "default": "./dist/core/annotation/index.js"
+    },
+    "./emojify": {
+      "types": "./dist/core/emojify.d.ts",
+      "default": "./dist/core/emojify.js"
     },
     "./language": {
       "types": "./dist/core/language/index.d.ts",

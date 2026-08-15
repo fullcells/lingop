@@ -13,11 +13,74 @@ const lowerToMixedCaseLangMap: Record<string, string> = {
   "cmn-hans": "cmn-Hans",
 };
 
+const langCodeAliases: Record<string, string> = {
+  "zh-cn": "cmn-hans",
+  "zh-tw": "cmn-hant",
+  "zh-hk": "yue",
+  "zh-hant": "cmn-hant",
+  "zh-hans": "cmn-hans",
+  "ar-eg": "arz",
+  "ar-ma": "ary",
+};
+
 export function getLang(gcodeMain: string): Lang | undefined {
   if (!gcodeMain) return undefined;
 
-  const targetCode = gcodeMain.toLowerCase();
+  const lowerCode = gcodeMain.toLowerCase();
+  const targetCode = langCodeAliases[lowerCode] ?? lowerCode;
   return LANGS.find((lang) => lang.gcode_main.toLowerCase() === targetCode);
+}
+
+export function estimateNumWords({
+  lang,
+  text,
+}: {
+  lang: string;
+  text: string;
+}): number {
+  // Note: Using Intl.Segmenter(locale, { granularity: "word" }) would produce
+  // more accurate word counts.
+  const langObj = getLang(lang);
+  if (!langObj) {
+    console.warn(
+      `⚠️ estimateNumWords: langObj not found for lang with code: ${lang}`,
+    );
+  }
+  const isWordSpacedLang = langObj
+    ? getLangScript(langObj.g_script)?.is_word_spaced
+    : undefined;
+
+  const averageGraphemesPerWordByLang: Record<string, number> = {
+    // Non-spaced, non-alphabetic languages.
+    ja: 2.5,
+    yue: 2.5,
+    "yue-hans": 2.5,
+    "cmn-hant": 2.5,
+    "cmn-hans": 2.5,
+    // Non-spaced, alphabetic languages.
+    th: 5,
+  };
+  const canonicalLang = langObj?.gcode_main ?? lang.toLowerCase();
+  let averageGraphemesPerWord =
+    averageGraphemesPerWordByLang[canonicalLang];
+
+  if (!averageGraphemesPerWord) {
+    if (isWordSpacedLang) {
+      // A fixed grapheme ratio was previously used here. Counting whitespace-
+      // separated words avoids splitting short multi-word expressions poorly.
+      return text.trim().split(/\s+/).filter(Boolean).length;
+    }
+
+    // Fall back to the historical non-spaced alphabetic-language estimate for
+    // unknown languages as well.
+    averageGraphemesPerWord = 5;
+  }
+
+  const graphemeSegmenter = new Intl.Segmenter(undefined, {
+    granularity: "grapheme",
+  });
+  const numGraphemes = [...graphemeSegmenter.segment(text)].length;
+  return numGraphemes / averageGraphemesPerWord;
 }
 
 export function getLangName(

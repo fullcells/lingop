@@ -9,6 +9,11 @@ export type AnnotatedToken = {
   phoneticToken?: PhoneticToken | null;
 };
 
+export type ATokenSubMorphemes = {
+  morpheme: string;
+  gloss: string;
+}[];
+
 export type AnnotatedText = {
   // Migrated shape: legacy AnnotatedText currently does not include an id.
   lang: string;
@@ -35,4 +40,3 @@ export type AnnotationEntry = {
   ref: unknown | null;
   owner_id: string | null;
 };
-

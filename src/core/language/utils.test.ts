@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   doesLangHaveMicrosoftVoice,
   doesLangMainScriptHaveReadingGuide,
+  estimateNumWords,
   getLang,
   getLangCodingVarName,
   getLangName,
@@ -17,6 +18,16 @@ describe("language utilities", () => {
   it("looks up languages case-insensitively", () => {
     expect(getLang("TH")?.name_english).toBe("Thai");
     expect(getLang("")).toBeUndefined();
+  });
+
+  it("resolves backend-compatible language aliases", () => {
+    expect(getLang("zh-CN")?.gcode_main).toBe("cmn-hans");
+    expect(getLang("zh-TW")?.gcode_main).toBe("cmn-hant");
+    expect(getLang("zh-HK")?.gcode_main).toBe("yue");
+    expect(getLang("zh-Hant")?.gcode_main).toBe("cmn-hant");
+    expect(getLang("zh-Hans")?.gcode_main).toBe("cmn-hans");
+    expect(getLang("ar-EG")?.gcode_main).toBe("arz");
+    expect(getLang("ar-MA")?.gcode_main).toBe("ary");
   });
 
   it("gets natural, English, and translated language names", () => {
@@ -39,5 +50,11 @@ describe("language utilities", () => {
     expect(toMixedCaseLang("cmn-hant")).toBe("cmn-Hant");
     expect(isAdvocatableLang("yue")).toBe(true);
     expect(doesLangMainScriptHaveReadingGuide("th")).toBe(true);
+  });
+
+  it("estimates word counts for spaced and non-spaced languages", () => {
+    expect(estimateNumWords({ lang: "en", text: "one two three" })).toBe(3);
+    expect(estimateNumWords({ lang: "ja", text: "日本語です" })).toBe(2);
+    expect(estimateNumWords({ lang: "zh-CN", text: "中文测试" })).toBe(1.6);
   });
 });
