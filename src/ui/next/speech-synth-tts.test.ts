@@ -9,6 +9,7 @@ import {
   type SpeechSynthSupabaseClient,
   type SpeechSynthTTSOptions,
 } from "./speech-synth-tts.js";
+import { BE_API_PRODUCTION_URL, BE_API_STAGING_URL } from "../../core/backend-api.js";
 
 type SpeechSupabaseSelectResult = {
   data: unknown[] | null;
@@ -86,6 +87,82 @@ describe("speech synth TTS", () => {
     expect(prettifyVoiceId("en-US-AndrewMultilingualNeural:DragonNeural")).toBe(
       "Andrew Multilingual Neural",
     );
+  });
+
+  it("creates limited anonymous speech through the canonical backend", async () => {
+    class FakeAudio {
+      preload = "";
+      src = "";
+      currentTime = 0;
+      playbackRate = 1;
+      oncanplaythrough: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      load() {
+        queueMicrotask(() => this.oncanplaythrough?.());
+      }
+
+      addEventListener() {}
+      removeEventListener() {}
+      play() {
+        return Promise.resolve();
+      }
+    }
+    vi.stubGlobal("Audio", FakeAudio);
+
+    const fetchImpl: NonNullable<SpeechSynthTTSOptions["fetchImpl"]> = vi.fn(async (input, init) => {
+      if (input.endsWith("/api/get-api-voices")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => "",
+          json: async () => [{
+            service: "MICROSOFT",
+            voice_id: "en-US-AndrewMultilingualNeural",
+            voice_lang: "en-US",
+          }],
+        };
+      }
+      const requestBody = JSON.parse(init?.body ?? "{}") as { text_for_db?: string };
+      return {
+        ok: true,
+        status: 200,
+        text: async () => "",
+        json: async () => ({
+          ...baseRow,
+          text: requestBody.text_for_db ?? baseRow.text,
+          filename: `${requestBody.text_for_db ?? "limited"}.mp3`,
+          ref: { isTempAnon: true },
+        }),
+      };
+    });
+
+    await preloadSpeech({
+      text: "limited production speech",
+      lang: "en",
+      apiVoiceAccessProfile: "ONE_PER_LANG",
+      contentContext: "LIMITED_TEMP_ANON",
+      fetchImpl,
+    });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      `${BE_API_PRODUCTION_URL}/api/speech-create-limited-anon`,
+      expect.objectContaining({ method: "POST" }),
+    );
+
+    await preloadSpeech({
+      text: "limited staging speech",
+      lang: "en",
+      apiVoiceAccessProfile: "ONE_PER_LANG",
+      contentContext: "LIMITED_TEMP_ANON",
+      useStagingBackend: true,
+      fetchImpl,
+    });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      `${BE_API_STAGING_URL}/api/speech-create-limited-anon`,
+      expect.objectContaining({ method: "POST" }),
+    );
+
+    vi.unstubAllGlobals();
   });
 
   it("fetches and prioritizes the closest speech row", async () => {

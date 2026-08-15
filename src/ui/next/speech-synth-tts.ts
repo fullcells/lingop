@@ -940,14 +940,18 @@ async function resolveAudioMetaRow({
     if (match) return match;
     // 1. Skip Fetching
     // 2. Create Limited Anon Speech
-    const res2 = await getFetch(options.fetchImpl)("/api/lingoprocessor/speech-create-limited-anon", {
+    const apiBaseUrl = getBEApiBaseUrl({
+      useStagingBackend: options.useStagingBackend ?? false,
+    });
+    const endpoint = `${apiBaseUrl}/api/speech-create-limited-anon`;
+    const res2 = await getFetch(options.fetchImpl)(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(createSpeechInput),
     });
     if (!res2.ok) {
       await logAudioMetaResponseFailure({
-        endpoint: "/api/lingoprocessor/speech-create-limited-anon",
+        endpoint,
         response: res2,
         request: { text, lang, contentContext, ref, voice },
       });
@@ -955,7 +959,7 @@ async function resolveAudioMetaRow({
     }
     // Cache AudioMeta and Return
     const createdAudioMeta = await parseAudioMetaResponse({
-      endpoint: "/api/lingoprocessor/speech-create-limited-anon",
+      endpoint,
       response: res2,
       request: { text, lang, contentContext, ref, voice },
     });
