@@ -155,7 +155,7 @@ describe("utilsFetchLocalization", () => {
       translationRow: publicTranslation,
     });
     expect(fetchImpl).toHaveBeenCalledWith(
-      "https://camplingo.com/api/lingoprocessor/translate-get-public",
+      `${BE_API_PRODUCTION_URL}/api/translate-get-public`,
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({

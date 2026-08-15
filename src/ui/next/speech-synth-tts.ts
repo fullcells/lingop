@@ -1058,14 +1058,18 @@ async function resolveAudioMetaRow({
       synth_voice: voice,
       file_text: text, // <- only relevant if ref is a "file"
     };
-    const res2 = await getFetch(options.fetchImpl)("/api/lingoprocessor/speech-get-public", {
+    const apiBaseUrl = getBEApiBaseUrl({
+      useStagingBackend: options.useStagingBackend ?? false,
+    });
+    const endpoint = `${apiBaseUrl}/api/speech-get-public`;
+    const res2 = await getFetch(options.fetchImpl)(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(getPublicSpeechInput),
     });
     if (!res2.ok) {
       await logAudioMetaResponseFailure({
-        endpoint: "/api/lingoprocessor/speech-get-public",
+        endpoint,
         response: res2,
         request: { text, lang, contentContext, ref, voice },
       });
@@ -1073,7 +1077,7 @@ async function resolveAudioMetaRow({
     }
     // Cache AudioMeta and Return
     const publicAudioMeta = await parseAudioMetaResponse({
-      endpoint: "/api/lingoprocessor/speech-get-public",
+      endpoint,
       response: res2,
       request: { text, lang, contentContext, ref, voice },
     });

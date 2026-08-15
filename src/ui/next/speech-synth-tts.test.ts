@@ -272,7 +272,7 @@ describe("speech synth TTS", () => {
     expect(consoleError).toHaveBeenCalledWith(
       "Audio metadata endpoint returned an invalid AudioMetaRow.",
       expect.objectContaining({
-        endpoint: "/api/lingoprocessor/speech-get-public",
+        endpoint: `${BE_API_PRODUCTION_URL}/api/speech-get-public`,
         status: 200,
         payload: { unexpected: true },
       }),

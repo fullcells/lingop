@@ -11,7 +11,7 @@ import type {
   TranslationRow,
 } from "./types.js";
 import { isTranslationRow } from "./validators.js";
-import { INTERNAL_API_BASE_URL } from "../backend-api.js";
+import { getBEApiBaseUrl } from "../backend-api.js";
 import { asSupabaseRuntimeClient, type SupabaseRuntimeClient } from "../supabase.js";
 
 const TRANSLATION_COLUMNS =
@@ -144,16 +144,20 @@ async function fetchPublicTranslation({
   sourceContent,
   target_lang,
   fetchImpl,
+  useStagingBackend,
 }: {
   sourceContent: SourceContent;
   target_lang: string;
   fetchImpl?: FetchLocalizationFetch | undefined;
+  useStagingBackend?: boolean | undefined;
 }): Promise<TranslationRow | null> {
   const requestFetch = getFetch(fetchImpl);
   const { lang: source_lang, text: source_text, ref } = sourceContent;
 
   const res = await requestFetch(
-    `${INTERNAL_API_BASE_URL}/api/lingoprocessor/translate-get-public`,
+    `${getBEApiBaseUrl({
+      useStagingBackend: useStagingBackend ?? false,
+    })}/api/translate-get-public`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -168,14 +172,13 @@ async function fetchPublicTranslation({
 
   if (!res.ok) {
     console.error(
-      `Internal /translate-get-public failed. HTTP ${res.status} - Data: ${JSON.stringify(
+      `Lingoprocessor /translate-get-public failed. HTTP ${res.status} - Data: ${JSON.stringify(
         await readFailedResponse(res),
       )}`,
     );
     return null;
   }
 
-  // PENDING TODO: output translate-get-public as TranslationRow rather than {target_text}.
   const publicTranslation = await res.json();
   if (!isTranslationRow(publicTranslation)) {
     console.error("Invalid public translation row:", publicTranslation);
@@ -266,6 +269,7 @@ async function _fetchLocalization2({
       sourceContent,
       target_lang,
       ...(fetchImpl ? { fetchImpl } : {}),
+      ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
     });
     if (publicTranslation) translations.push(publicTranslation);
   }

@@ -8,7 +8,7 @@ import {
 import callAnnotate_storedForOwner, { type AnnotateFetch } from "./api-client.js";
 import { convertAnnotatedEntryToAText } from "./converters.js";
 import type { AnnotatedText, AnnotationEntry } from "./types.js";
-import { INTERNAL_API_BASE_URL } from "../backend-api.js";
+import { getBEApiBaseUrl } from "../backend-api.js";
 import { asSupabaseRuntimeClient, type SupabaseClientLike } from "../supabase.js";
 
 const MAX_ANNOTATION_BATCH_SIZE = 10;
@@ -393,7 +393,9 @@ export async function fetchAnnotationsBatch({
         const requestFetch = getFetch(firstState.fetchImpl);
         const res = await fetchWithRetry(
           requestFetch,
-          `${INTERNAL_API_BASE_URL}/api/lingoprocessor/annotate-get-public`,
+          `${getBEApiBaseUrl({
+            useStagingBackend: firstState.useStagingBackend ?? false,
+          })}/api/annotate-get-public`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -404,7 +406,7 @@ export async function fetchAnnotationsBatch({
         if (!res.ok) {
           const data = await res.text();
           console.error(
-            `Internal /annotate-get-public failed. - Input: ${JSON.stringify(input)} - Data: ${data}`,
+            `Lingoprocessor /annotate-get-public failed. - Input: ${JSON.stringify(input)} - Data: ${data}`,
           );
           for (const state of group) state.failed = true;
           return;
@@ -413,7 +415,7 @@ export async function fetchAnnotationsBatch({
         const publicATexts = (await res.json()) as Array<AnnotatedText | null>;
         if (!Array.isArray(publicATexts)) {
           console.error(
-            `Internal /annotate-get-public returned invalid response. - Input: ${JSON.stringify(input)}`,
+            `Lingoprocessor /annotate-get-public returned invalid response. - Input: ${JSON.stringify(input)}`,
           );
           for (const state of group) state.failed = true;
           return;
@@ -426,7 +428,7 @@ export async function fetchAnnotationsBatch({
             ) ?? null;
         }
       } catch (error) {
-        console.error("Internal /annotate-get-public threw error.", error);
+        console.error("Lingoprocessor /annotate-get-public threw error.", error);
         for (const state of group) state.failed = true;
       }
     }),

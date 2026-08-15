@@ -8,6 +8,7 @@ import {
 import type { SupabaseQueryLike, SupabaseQueryResult } from "../supabase.js";
 import type { AnnotatedText, AnnotationEntry } from "./types.js";
 import type { Localization } from "../misc.js";
+import { BE_API_PRODUCTION_URL } from "../backend-api.js";
 
 type SupabaseAnnotationQuery = SupabaseQueryLike;
 type SupabaseAnnotationQueryResult = SupabaseQueryResult;
@@ -126,7 +127,7 @@ describe("fetchAnnotationsBatch", () => {
 
     expect(results).toEqual([publicText]);
     expect(fetchImpl).toHaveBeenCalledWith(
-      "https://camplingo.com/api/lingoprocessor/annotate-get-public",
+      `${BE_API_PRODUCTION_URL}/api/annotate-get-public`,
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
