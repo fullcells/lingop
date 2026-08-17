@@ -44,6 +44,14 @@ export const wordExplanationsByLang: WordExplanationsByLang = {
     "啦": "“(now)” - Final particle indicating an event has occured / “(~)” - Final particle that softens requests",
     // "佢哋": "they (multiple people)",
 		// "先": "first / only then",
+    "人哋": "people (in general)",
+    "又": `1. "also". 2. In the pattern "又A又B", it means "both A and B".`,
+    "地上": `ground (surface)`,
+    "多": `many / more / much`, // TTS of Word Explanations should be updated to read this as "many, more, or much".
+    "腳": `leg / foot`,
+    "落": `descend / down / drizzle`,
+    "咁": `1. "therefore". 2. Turns the previous word into an adverb.`,
+    "生": `1. "birth / grow". 2. "uncooked".`,
   },
   ja: {
     // Single Kana
