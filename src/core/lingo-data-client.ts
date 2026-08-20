@@ -52,6 +52,14 @@ import {
   getWORDExposureRow as getWORDExposureRowWithSupabase,
   type SBUserWordExposure,
 } from "./user-word-exposures.js";
+import {
+  loadSBCacheWordListsForLang,
+  loadWordListMetaData,
+  loadWordLists,
+  type SBCacheWordListL10nWordsRow,
+  type SBWordListRow,
+  type WordListMeta,
+} from "./word-lists.js";
 
 export type { AnnotationCache, AnnotationCacheRef } from "./annotation/fetch-annotation.js";
 export type {
@@ -136,6 +144,14 @@ export type LingoDataClient = {
     source_word: string;
     target_lang: string;
   }): Promise<OneWayWordExplicitations>;
+  /** Loads and caches public Supabase word-list source rows. */
+  loadWordLists(): Promise<SBWordListRow[]>;
+  /** Returns word-list metadata derived from the cached source rows. */
+  loadWordListMetaData(): Promise<WordListMeta[]>;
+  /** Loads and caches public localized word-list rows for one language. */
+  loadSBCacheWordListsForLang(
+    lang: string,
+  ): Promise<SBCacheWordListL10nWordsRow[]>;
   /** Loads and caches Supabase emoji rows. */
   loadEmojiData(): Promise<EmojiRow[]>;
   /** Generates emoji text for an English gloss using the shared emoji row cache. */
@@ -884,6 +900,24 @@ export function createLingoDataClient({
           ? {
               supabaseClient: runtimeSupabaseClient,
             }
+          : {}),
+      }),
+    loadWordLists: () =>
+      loadWordLists({
+        ...(runtimeSupabaseClient
+          ? { supabaseClient: runtimeSupabaseClient }
+          : {}),
+      }),
+    loadWordListMetaData: () =>
+      loadWordListMetaData({
+        ...(runtimeSupabaseClient
+          ? { supabaseClient: runtimeSupabaseClient }
+          : {}),
+      }),
+    loadSBCacheWordListsForLang: (lang) =>
+      loadSBCacheWordListsForLang(lang, {
+        ...(runtimeSupabaseClient
+          ? { supabaseClient: runtimeSupabaseClient }
           : {}),
       }),
     loadEmojiData: () =>

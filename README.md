@@ -124,6 +124,7 @@ Low-level annotation API calls, `callAnnotate_storedForOwner()` remains public a
 - `reAnnotateWithExistingData(input)`: re-runs backend annotation generation from existing stored annotation data and updates the annotation cache with the returned rows.
 - `loadWordExplicitationsRows()`: loads and caches Supabase `word_explicitations` rows.
 - `getOneWayWordExplicitations({ source_lang, source_word, target_lang })`: filters the cached word-explicitation rows into the legacy one-way shape.
+- `loadWordLists()`, `loadWordListMetaData()`, and `loadSBCacheWordListsForLang(lang)`: load and cache public word-list source and localization rows. They use the injected Supabase client but do not inspect or require an authenticated user.
 - `loadEmojiData()` and `generateEmoji(en_gloss, study_word?, study_lang?)`: load shared cached Supabase emoji rows and generate emoji text for English glosses.
 - `isNotCoreWord(word_lang, word, gloss?)`, `getSBWordsForLangDir(word_lang, gloss_lang)`, `refreshCoreSBWordsCache(word_lang, gloss_lang)`, and `fetchAndGenGloss({ source_lang, source_word, target_lang })`: use the shared SBWords cache for core-word checks and one-word gloss generation.
 - `createWordExposureRow(...)`, `addWORDExposureNow(...)`, `getWORDExposureRow(...)`, and `deleteWORDExposureRow(...)`: manage the authenticated user's per-word exposure rows through the Supabase client already owned by `LingoDataClient`.
@@ -328,6 +329,7 @@ For `MEMBER_CONTENT`, pass the app's Supabase client: `speak({ ..., contentConte
 - `src/core/user-word-exposures.ts` contains the platform-neutral Supabase helpers for creating, reading, incrementing, and deleting per-user word exposure rows. It is exported from `lingop/core`.
 - `src/core/user-word-streaks.ts` contains internal helpers used by the Next user-word-streaks provider. It is intentionally not exported from `lingop/core`; app code should use `lingop/ui/next`.
 - `src/core/word-explicitations.ts` loads and filters Supabase `word_explicitations` rows through a shared module cache.
+- `src/core/word-lists.ts` loads public Supabase word-list source and localization rows through shared module caches.
 - `src/ui/next/cookies.ts` contains browser cookie helpers separated from platform-neutral core utilities.
 - `src/ui/next/speech-synth-tts.ts` contains browser/Next speech synthesis helpers exported from `lingop/ui/next`.
 - `src/ui/next/user-word-streaks.tsx` contains the Next user-word-streaks provider and hook exported from `lingop/ui/next`.
