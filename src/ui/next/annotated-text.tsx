@@ -31,6 +31,8 @@ export type AnnotatedTextViewProps = {
   showGlossText?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
   showGlossEmoji?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
   isEmojiBlackWhite?: boolean;
+  /** Whether English verb glosses retain their leading "TO " prefix. */
+  showTokenGlossPrefix_TO__?: boolean;
   /** Fades words identified as non-core; Supabase-backed checks require supabaseClient. */
   localShouldFadeNonCoreWords?: boolean | null;
   nonCoreWordsFadeOpacity?: number;
@@ -166,6 +168,7 @@ type TokenGlossViewProps = {
   token: AnnotatedToken;
   showGlossText: "NEVER" | "ALWAYS";
   showGlossEmoji: "NEVER" | "ALWAYS";
+  showTokenGlossPrefix_TO__: boolean;
 };
 
 function TokenGlossView({
@@ -175,8 +178,20 @@ function TokenGlossView({
   token,
   showGlossText,
   showGlossEmoji,
+  showTokenGlossPrefix_TO__,
 }: TokenGlossViewProps): ReactNode {
-  const enGloss = isWordToken(token) ? token.gloss ?? null : null;
+  const enGloss = useMemo(() => {
+    // Format the gloss to strip out the "TO " prefix if specified.
+    let gloss = isWordToken(token) ? token.gloss ?? null : null;
+    if (
+      gloss &&
+      !showTokenGlossPrefix_TO__ &&
+      gloss.toUpperCase().startsWith("TO ")
+    ) {
+      gloss = gloss.slice("TO ".length);
+    }
+    return gloss;
+  }, [showTokenGlossPrefix_TO__, token]);
   const [emojiResult, setEmojiResult] = useState<{
     enGloss: string;
     emoji: string | null;
@@ -297,6 +312,7 @@ export function AnnotatedTextView({
   showGlossText = "ALWAYS",
   showGlossEmoji = "NEVER",
   isEmojiBlackWhite = false,
+  showTokenGlossPrefix_TO__ = true,
   localShouldFadeNonCoreWords = false,
   nonCoreWordsFadeOpacity = 0.5,
   supabaseClient,
@@ -412,6 +428,7 @@ export function AnnotatedTextView({
                 token={token}
                 showGlossText={showGlossText}
                 showGlossEmoji={showGlossEmoji}
+                showTokenGlossPrefix_TO__={showTokenGlossPrefix_TO__}
               />
             </span>
           );
