@@ -358,6 +358,27 @@ import "lingop/ui/next/annotated-text.css";
 <AnnotatedTextView annotatedText={annotatedText} />;
 ```
 
+Use the OmniAccess-compatible `astyle` input for per-instance typography,
+colours, spacing, and annotation placement. Inputs are merged with the exported
+defaults:
+
+```tsx
+import {
+  AnnotatedTextView,
+  DEFAULT_ANNOTATED_TEXT_STYLE,
+  type AnnotatedTextStyle,
+} from "lingop/ui/next";
+
+const astyle: AnnotatedTextStyle = {
+  ...DEFAULT_ANNOTATED_TEXT_STYLE,
+  mainTextSize: 20,
+  spellingColor: "#475569",
+  glossPlacement: "bottom",
+};
+
+<AnnotatedTextView annotatedText={annotatedText} astyle={astyle} />;
+```
+
 The optional stylesheet supplies the default color and monochrome emoji font
 handling. Critical layout remains built into the component, so importing the
 stylesheet is not required when an application provides its own ATV styles.

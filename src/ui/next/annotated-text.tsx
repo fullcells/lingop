@@ -24,6 +24,86 @@ import {
 } from "../../core/lingo-data-client.js";
 import { ilike } from "../../core/misc.js";
 
+export type GlossPlacement = "bottom" | "left" | "top" | "right";
+
+export type TextTransformType =
+  | "capitalize"
+  | "uppercase"
+  | "lowercase"
+  | "none"
+  | "full-width"
+  | "full-size-kana"
+  | "math-auto";
+
+export type FontStyleType = "normal" | "italic" | "oblique" | string;
+
+export type AnnotatedTextStyle = {
+  // Note Future: CSSProperties (e.g. mainTextCSS: CSSProperties) could be
+  // added and applied directly to the corresponding render component.
+  spellingSize?: number;
+  mainTextSize?: number;
+  glossTextSize?: number;
+  glossEmojiSize?: number;
+
+  spellingColor?: string;
+  mainTextColor?: string;
+  glossTextColor?: string;
+  glossEmojiColor?: string;
+
+  wordSpacing?: number;
+  spellingOnBottom?: boolean;
+  glossPlacement?: GlossPlacement;
+  glossTextAboveEmoji?: boolean;
+  glossTextTextTransform?: TextTransformType | null;
+  mainTextTextTransform?: TextTransformType | null;
+  mainTextFontWeight?: string | null;
+  spellingTextTransform?: TextTransformType | null;
+  glossTextFontStyle?: FontStyleType | null;
+  spellingFontStyle?: FontStyleType | null;
+  tokenPhonicsColumnGap?: string | null;
+  tokenPhonicSpellingLineHeight?: string | null;
+
+  css?: CSSProperties;
+};
+
+export const DEFAULT_ANNOTATED_TEXT_STYLE: AnnotatedTextStyle = {
+  spellingColor: "#000",
+  mainTextColor: "#000",
+  glossTextColor: "#000",
+  glossEmojiColor: "#000",
+  spellingSize: 12,
+  mainTextSize: 16,
+  glossTextSize: 12,
+  glossEmojiSize: 12,
+  wordSpacing: 3.0, // 1.0 = Normal WordSpacing (if applied to WordSpaced Langs)
+  spellingTextTransform: null,
+  mainTextTextTransform: null,
+  mainTextFontWeight: null,
+  glossTextTextTransform: null,
+  glossTextFontStyle: null,
+  spellingFontStyle: null,
+  tokenPhonicsColumnGap: null,
+  tokenPhonicSpellingLineHeight: null,
+  spellingOnBottom: false,
+  glossPlacement: "bottom",
+  glossTextAboveEmoji: false,
+};
+
+type ResolvedAnnotatedTextStyle = Required<
+  Omit<AnnotatedTextStyle, "css">
+> & {
+  css?: CSSProperties;
+};
+
+function resolveAnnotatedTextStyle(
+  astyle: AnnotatedTextStyle,
+): ResolvedAnnotatedTextStyle {
+  return {
+    ...DEFAULT_ANNOTATED_TEXT_STYLE,
+    ...astyle,
+  } as ResolvedAnnotatedTextStyle;
+}
+
 export type AnnotatedTextViewProps = {
   annotatedText: AnnotatedText;
   showSpelling?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
@@ -33,6 +113,8 @@ export type AnnotatedTextViewProps = {
   isEmojiBlackWhite?: boolean;
   /** Language used for the displayed gloss text. */
   glossTextTipLang?: string;
+  /** OmniAccess-compatible per-instance annotated-text styling. */
+  astyle?: AnnotatedTextStyle;
   /** Whether English verb glosses retain their leading "TO " prefix. */
   showTokenGlossPrefix_TO__?: boolean;
   /** Fades words identified as non-core; Supabase-backed checks require supabaseClient. */
@@ -44,10 +126,15 @@ export type AnnotatedTextViewProps = {
 
 const visuallyEmpty = "\u00a0";
 
-const annotationSlotStyle: CSSProperties = {
+const glossPlacementFlexDirections = {
+  bottom: "column",
+  top: "column-reverse",
+  left: "row-reverse",
+  right: "row",
+} satisfies Record<GlossPlacement, CSSProperties["flexDirection"]>;
+
+const emptyAnnotationSlotStyle: CSSProperties = {
   minHeight: "1em",
-  fontSize: "0.72em",
-  opacity: 0.75,
   lineHeight: 1,
 };
 
@@ -78,17 +165,22 @@ function tokenToPhoneticParts(token: AnnotatedToken): PhoneticPart[] {
 
 // 20260821: AnnotatedTextView is being ported gradually from OmniAccess.
 // The current port only includes the basic render-component structure and
-// visibility inputs. Action Buttons, TTS, ON_HINT state (including
+// visibility and style inputs. Action Buttons, TTS, ON_HINT state (including
 // l10nWordDetailHandler, isWordUnfamiliar, and userWordStreaks),
 // useUserLingoPrefsData, download-as-image, and the other OmniAccess behavior
 // are intentionally not ported yet.
 // 20260821: Gloss emojis currently port basic color/black-and-white rendering
 // and NEVER/ALWAYS visibility. ON_HINT, per-grapheme flipping, loading spinners,
 // and non-core gloss preferences remain deferred.
+// 20260822: The OmniAccess astyle shape, defaults, and current render behavior
+// are ported without its Chakra dependency. astyle.css applies to Lingop's
+// .annotated-text-view root because the future action-button wrapper is not
+// present yet.
 type TokenSpellingAndMainViewProps = {
   _showSpelling: "NEVER" | "ALWAYS";
   _showMainText: boolean;
   annotatedText: AnnotatedText;
+  astyle: ResolvedAnnotatedTextStyle;
   token: AnnotatedToken;
 };
 
@@ -96,20 +188,36 @@ function TokenSpellingAndMainView({
   _showSpelling,
   _showMainText,
   annotatedText,
+  astyle,
   token,
 }: TokenSpellingAndMainViewProps): ReactNode {
   if (!_showMainText && _showSpelling === "NEVER") return null;
 
   if (!isWordToken(token)) {
     return (
-      <>
-        <TokenSpellingTextSpan>
+      <span
+        className="token-spelling-and-main"
+        style={{
+          display: "inline-flex",
+          flexDirection: astyle.spellingOnBottom ? "column-reverse" : "column",
+          alignItems: "center",
+        }}
+      >
+        <TokenSpellingTextSpan
+          astyle={astyle}
+          lang={annotatedText.lang}
+          showMainText={_showMainText}
+        >
           {_showSpelling === "ALWAYS" && !_showMainText
             ? token.text
             : visuallyEmpty}
         </TokenSpellingTextSpan>
-        {_showMainText && <TokenMainTextSpan>{token.text}</TokenMainTextSpan>}
-      </>
+        {_showMainText && (
+          <TokenMainTextSpan astyle={astyle} isWord={false}>
+            {token.text}
+          </TokenMainTextSpan>
+        )}
+      </span>
     );
   }
 
@@ -118,7 +226,10 @@ function TokenSpellingAndMainView({
       className="token-phonics"
       style={{
         display: "inline-flex",
-        alignItems: "flex-end",
+        alignItems: "center",
+        ...(astyle.tokenPhonicsColumnGap
+          ? { columnGap: astyle.tokenPhonicsColumnGap }
+          : {}),
       }}
     >
       {tokenToPhoneticParts(token).map((part, partIndex) => {
@@ -133,13 +244,25 @@ function TokenSpellingAndMainView({
             className="phonic"
             style={{
               display: "inline-flex",
-              flexDirection: "column",
+              flexDirection: astyle.spellingOnBottom
+                ? "column-reverse"
+                : "column",
               alignItems: "center",
               minWidth: "max-content",
             }}
           >
-            <TokenSpellingTextSpan>{partSpelling}</TokenSpellingTextSpan>
-            {_showMainText && <TokenMainTextSpan>{chars}</TokenMainTextSpan>}
+            <TokenSpellingTextSpan
+              astyle={astyle}
+              lang={annotatedText.lang}
+              showMainText={_showMainText}
+            >
+              {partSpelling}
+            </TokenSpellingTextSpan>
+            {_showMainText && (
+              <TokenMainTextSpan astyle={astyle} isWord>
+                {chars}
+              </TokenMainTextSpan>
+            )}
           </span>
         );
       })}
@@ -148,22 +271,80 @@ function TokenSpellingAndMainView({
 }
 
 function TokenSpellingTextSpan({
+  astyle,
   children,
+  lang,
+  showMainText,
 }: {
+  astyle: ResolvedAnnotatedTextStyle;
   children: ReactNode;
+  lang: string;
+  showMainText: boolean;
 }): ReactNode {
+  const spellingSize = showMainText ? astyle.spellingSize : astyle.mainTextSize;
+  const localSpellingSize = ilike(lang, "yue")
+    ? spellingSize + 2 // "LS Jyutping" tweak to be more visually equal in size.
+    : spellingSize;
+
   return (
-    <span className="phonic-spelling" style={annotationSlotStyle}>
+    <span
+      className="phonic-spelling"
+      style={{
+        minHeight: "1em",
+        width: "100%",
+        boxSizing: "border-box",
+        textAlign: "center",
+        userSelect: "none",
+        fontSize: `${localSpellingSize}px`,
+        color: showMainText ? astyle.spellingColor : "#000",
+        ...(astyle.spellingTextTransform
+          ? { textTransform: astyle.spellingTextTransform }
+          : {}),
+        ...(astyle.spellingFontStyle
+          ? { fontStyle: astyle.spellingFontStyle }
+          : {}),
+        ...(astyle.tokenPhonicSpellingLineHeight
+          ? { lineHeight: astyle.tokenPhonicSpellingLineHeight }
+          : {}),
+      }}
+    >
       {children}
     </span>
   );
 }
 
-function TokenMainTextSpan({ children }: { children: ReactNode }): ReactNode {
-  return <span className="main-text">{children}</span>;
+function TokenMainTextSpan({
+  astyle,
+  children,
+  isWord,
+}: {
+  astyle: ResolvedAnnotatedTextStyle;
+  children: ReactNode;
+  isWord: boolean;
+}): ReactNode {
+  return (
+    <span
+      className="main-text"
+      style={{
+        lineHeight: "1em",
+        opacity: isWord ? 1 : 0.8,
+        color: astyle.mainTextColor,
+        fontSize: `${astyle.mainTextSize}px`,
+        ...(astyle.mainTextTextTransform
+          ? { textTransform: astyle.mainTextTextTransform }
+          : {}),
+        ...(astyle.mainTextFontWeight
+          ? { fontWeight: astyle.mainTextFontWeight }
+          : {}),
+      }}
+    >
+      {children}
+    </span>
+  );
 }
 
 type TokenGlossViewProps = {
+  astyle: ResolvedAnnotatedTextStyle;
   isEmojiBlackWhite: boolean;
   glossTextTipLang: string;
   lang: string;
@@ -175,6 +356,7 @@ type TokenGlossViewProps = {
 };
 
 function TokenGlossView({
+  astyle,
   isEmojiBlackWhite,
   glossTextTipLang,
   lang,
@@ -314,7 +496,17 @@ function TokenGlossView({
 
   if (!shouldDisplayGloss) {
     return (
-      <span className="no-gloss-space" style={annotationSlotStyle}>
+      <span
+        className="no-gloss-space"
+        style={{
+          ...emptyAnnotationSlotStyle,
+          boxSizing: "border-box",
+          width: "100%",
+          userSelect: "none",
+          color: astyle.glossTextColor,
+          fontSize: `${astyle.glossTextSize}px`,
+        }}
+      >
         {visuallyEmpty}
       </span>
     );
@@ -335,7 +527,9 @@ function TokenGlossView({
       className="gloss"
       style={{
         display: "inline-flex",
-        flexDirection: "column",
+        flexDirection: astyle.glossTextAboveEmoji
+          ? "column-reverse"
+          : "column",
         alignItems: "center",
         minWidth: "max-content",
       }}
@@ -345,7 +539,10 @@ function TokenGlossView({
         <span
           className={`gloss-emoji ${emojiFont}`}
           style={{
-            ...annotationSlotStyle,
+            minHeight: "1em",
+            lineHeight: 1,
+            fontSize: `${astyle.glossEmojiSize}px`,
+            color: astyle.glossEmojiColor,
             ...(isEmojiBlackWhite ? { filter: "grayscale(100%)" } : {}),
           }}
           // FUTURE CONSIDERATION: CUR: BRUTE Temp Forcing to LTR. FUTURE: For RTL Langs: Emoji Content needs to adopt: (ARROW DIRECTIONS + Reflip Directions of Emojis) - 20260707
@@ -357,7 +554,21 @@ function TokenGlossView({
 
       {/* GLOSS TEXT */}
       {showGlossText === "ALWAYS" && (
-        <span className="gloss-text-wrapper" style={annotationSlotStyle}>
+        <span
+          className="gloss-text-wrapper"
+          style={{
+            minHeight: "1em",
+            lineHeight: 1,
+            fontSize: `${astyle.glossTextSize}px`,
+            color: astyle.glossTextColor,
+            ...(astyle.glossTextTextTransform
+              ? { textTransform: astyle.glossTextTextTransform }
+              : {}),
+            ...(astyle.glossTextFontStyle
+              ? { fontStyle: astyle.glossTextFontStyle }
+              : {}),
+          }}
+        >
           <span className="gloss-text">
             {loadingTipLangGloss ? (
               <span className="gloss-text-loading" aria-label="Loading gloss">
@@ -387,6 +598,7 @@ export function AnnotatedTextView({
   showMainText = true,
   showGlossText = "ALWAYS",
   showGlossEmoji = "NEVER",
+  astyle: astyleInput = DEFAULT_ANNOTATED_TEXT_STYLE,
   isEmojiBlackWhite = false,
   glossTextTipLang = "en",
   showTokenGlossPrefix_TO__ = true,
@@ -394,6 +606,7 @@ export function AnnotatedTextView({
   nonCoreWordsFadeOpacity = 0.5,
   supabaseClient,
 }: AnnotatedTextViewProps): ReactNode {
+  const astyle = resolveAnnotatedTextStyle(astyleInput);
   const lingopClient = useMemo(
     () =>
       createLingoDataClient({
@@ -457,9 +670,9 @@ export function AnnotatedTextView({
         display: "flex",
         flexWrap: "wrap",
         alignItems: "flex-end",
-        columnGap: "0.35em",
         rowGap: "0.25em",
         lineHeight: 1.2,
+        ...astyle.css,
       }}
     >
       <span className="tokens" style={{ display: "contents" }}>
@@ -472,6 +685,13 @@ export function AnnotatedTextView({
             localShouldFadeNonCoreWords && !wordIsCoreOrUnknown
               ? nonCoreWordsFadeOpacity
               : 1;
+          const tokenInlinePadding = index === annotatedText.tokens.length - 1
+            ? "0"
+            : `${(
+              (astyle.mainTextSize / 5.0) *
+              astyle.wordSpacing /
+              2.0
+            ).toFixed(2)}px`;
 
           return (
             <span
@@ -484,10 +704,12 @@ export function AnnotatedTextView({
               }
               style={{
                 display: "inline-flex",
-                flexDirection: "column",
+                flexDirection:
+                  glossPlacementFlexDirections[astyle.glossPlacement],
                 alignItems: "center",
                 justifyContent: "flex-end",
                 minWidth: "max-content",
+                paddingInline: tokenInlinePadding,
                 opacity,
                 transition: "opacity 0.1s ease-in-out",
               }}
@@ -496,9 +718,11 @@ export function AnnotatedTextView({
                 _showSpelling={showSpelling}
                 _showMainText={showMainText}
                 annotatedText={annotatedText}
+                astyle={astyle}
                 token={token}
               />
               <TokenGlossView
+                astyle={astyle}
                 isEmojiBlackWhite={isEmojiBlackWhite}
                 glossTextTipLang={glossTextTipLang}
                 lang={annotatedText.lang}
