@@ -15,6 +15,7 @@ import type {
 } from "../../core/annotation/types.js";
 import {
   createLingoDataClient,
+  type LingoDataClient,
   type SupabaseLingoDataClient,
 } from "../../core/lingo-data-client.js";
 import { ilike } from "../../core/misc.js";
@@ -23,7 +24,8 @@ export type AnnotatedTextViewProps = {
   annotatedText: AnnotatedText;
   showSpelling?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
   showMainText?: boolean;
-  showGloss?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
+  showGlossText?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
+  showGlossEmoji?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
   /** Fades words identified as non-core; Supabase-backed checks require supabaseClient. */
   localShouldFadeNonCoreWords?: boolean | null;
   nonCoreWordsFadeOpacity?: number;
@@ -71,6 +73,9 @@ function tokenToPhoneticParts(token: AnnotatedToken): PhoneticPart[] {
 // l10nWordDetailHandler, isWordUnfamiliar, and userWordStreaks),
 // useUserLingoPrefsData, download-as-image, and the other OmniAccess behavior
 // are intentionally not ported yet.
+// 20260821: Gloss emojis currently port only basic color rendering and
+// NEVER/ALWAYS visibility. ON_HINT, black-and-white conversion, per-grapheme
+// flipping, loading spinners, and non-core gloss preferences remain deferred.
 type TokenSpellingAndMainViewProps = {
   _showSpelling: "NEVER" | "ALWAYS";
   _showMainText: boolean;
@@ -150,27 +155,105 @@ function TokenMainTextSpan({ children }: { children: ReactNode }): ReactNode {
 }
 
 type TokenGlossViewProps = {
+  lang: string;
+  lingopClient: LingoDataClient;
   token: AnnotatedToken;
-  showGloss: "NEVER" | "ALWAYS";
+  showGlossText: "NEVER" | "ALWAYS";
+  showGlossEmoji: "NEVER" | "ALWAYS";
 };
 
 function TokenGlossView({
+  lang,
+  lingopClient,
   token,
-  showGloss,
+  showGlossText,
+  showGlossEmoji,
 }: TokenGlossViewProps): ReactNode {
-  if (!isWordToken(token)) {
+  const enGloss = isWordToken(token) ? token.gloss ?? null : null;
+  const [emojiResult, setEmojiResult] = useState<{
+    enGloss: string;
+    emoji: string | null;
+    lang: string;
+    token: AnnotatedToken;
+  } | null>(null);
+  const emoji =
+    emojiResult?.token === token &&
+    emojiResult.enGloss === enGloss &&
+    emojiResult.lang === lang
+      ? emojiResult.emoji
+      : null;
+
+  // Emoji
+  useEffect(() => {
+    let cancelled = false;
+    setEmojiResult(null);
+
+    if (showGlossEmoji === "NEVER" || !enGloss) return;
+
+    void lingopClient
+      .generateEmoji(enGloss)
+      .then((generatedEmoji) => {
+        if (!cancelled) {
+          setEmojiResult({
+            enGloss,
+            emoji: generatedEmoji,
+            lang,
+            token,
+          });
+        }
+      })
+      .catch((error: unknown) => {
+        // Fail open: retain the gloss fallback if public emoji data cannot load.
+        if (!cancelled) {
+          console.error("Error determining gloss emoji:", error);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [enGloss, lang, lingopClient, showGlossEmoji, token]);
+
+  const shouldDisplayGloss =
+    !!enGloss &&
+    (showGlossText === "ALWAYS" || showGlossEmoji === "ALWAYS");
+
+  if (!shouldDisplayGloss) {
     return (
-      <span className="gloss" style={annotationSlotStyle}>
+      <span className="no-gloss-space" style={annotationSlotStyle}>
         {visuallyEmpty}
       </span>
     );
   }
 
-  const gloss = showGloss === "ALWAYS" ? token.gloss : null;
-
   return (
-    <span className="gloss" style={annotationSlotStyle}>
-      {gloss ?? visuallyEmpty}
+    <span
+      className="gloss"
+      style={{
+        display: "inline-flex",
+        flexDirection: "column",
+        alignItems: "center",
+        minWidth: "max-content",
+      }}
+    >
+      {/* GLOSS EMOJI */}
+      {showGlossEmoji === "ALWAYS" && (
+        <span
+          className="gloss-emoji emoji-color-font"
+          style={annotationSlotStyle}
+          // FUTURE CONSIDERATION: CUR: BRUTE Temp Forcing to LTR. FUTURE: For RTL Langs: Emoji Content needs to adopt: (ARROW DIRECTIONS + Reflip Directions of Emojis) - 20260707
+          dir="ltr"
+        >
+          {emoji ?? enGloss ?? visuallyEmpty}
+        </span>
+      )}
+
+      {/* GLOSS TEXT */}
+      {showGlossText === "ALWAYS" && (
+        <span className="gloss-text-wrapper" style={annotationSlotStyle}>
+          <span className="gloss-text">{enGloss}</span>
+        </span>
+      )}
     </span>
   );
 }
@@ -187,7 +270,8 @@ export function AnnotatedTextView({
   annotatedText,
   showSpelling = "ALWAYS",
   showMainText = true,
-  showGloss = "ALWAYS",
+  showGlossText = "ALWAYS",
+  showGlossEmoji = "NEVER",
   localShouldFadeNonCoreWords = false,
   nonCoreWordsFadeOpacity = 0.5,
   supabaseClient,
@@ -296,7 +380,13 @@ export function AnnotatedTextView({
                 annotatedText={annotatedText}
                 token={token}
               />
-              <TokenGlossView token={token} showGloss={showGloss} />
+              <TokenGlossView
+                lang={annotatedText.lang}
+                lingopClient={lingopClient}
+                token={token}
+                showGlossText={showGlossText}
+                showGlossEmoji={showGlossEmoji}
+              />
             </span>
           );
         })}
