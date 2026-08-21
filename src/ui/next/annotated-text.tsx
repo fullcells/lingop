@@ -66,6 +66,131 @@ function tokenToPhoneticParts(token: AnnotatedToken): PhoneticPart[] {
   return token.phoneticToken?.length ? token.phoneticToken : [[token.text]];
 }
 
+// 20260821: AnnotatedTextView is being ported gradually from OmniAccess.
+// This first pass only ports the render-component structure. Action Buttons,
+// TTS, ON_HINT state (including l10nWordDetailHandler, isWordUnfamiliar, and
+// userWordStreaks), useUserLingoPrefsData, download-as-image, and the other
+// OmniAccess behavior are intentionally not ported yet.
+type TokenSpellingAndMainViewProps = {
+  token: AnnotatedToken;
+  tokenIndex: number;
+  lang: string;
+  showSpelling: boolean;
+  renderTokenText:
+    | ((token: AnnotatedToken, index: number) => ReactNode)
+    | undefined;
+  renderSpelling:
+    | ((token: AnnotatedToken, index: number) => ReactNode)
+    | undefined;
+};
+
+function TokenSpellingAndMainView({
+  token,
+  tokenIndex,
+  lang,
+  showSpelling,
+  renderTokenText,
+  renderSpelling,
+}: TokenSpellingAndMainViewProps): ReactNode {
+  if (!isWordToken(token)) {
+    return (
+      <>
+        <TokenSpellingTextSpan>{visuallyEmpty}</TokenSpellingTextSpan>
+        <TokenMainTextSpan>{token.text}</TokenMainTextSpan>
+      </>
+    );
+  }
+
+  const prefShowMainText = true;
+  const spelling = showSpelling
+    ? phoneticTokenToSpelling(token, lang, prefShowMainText)
+    : null;
+  const customTokenText = renderTokenText?.(token, tokenIndex);
+  const customSpelling = renderSpelling?.(token, tokenIndex);
+
+  if (customTokenText !== undefined || customSpelling !== undefined) {
+    return (
+      <>
+        <TokenSpellingTextSpan>
+          {customSpelling ?? spelling ?? visuallyEmpty}
+        </TokenSpellingTextSpan>
+        <TokenMainTextSpan>{customTokenText ?? token.text}</TokenMainTextSpan>
+      </>
+    );
+  }
+
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "flex-end",
+      }}
+    >
+      {tokenToPhoneticParts(token).map((part, partIndex) => {
+        const [chars] = part;
+        const partSpelling = showSpelling
+          ? phoneticPartToSpelling(part, lang, prefShowMainText)
+          : visuallyEmpty;
+
+        return (
+          <span
+            key={`${partIndex}-${chars}`}
+            style={{
+              display: "inline-flex",
+              flexDirection: "column",
+              alignItems: "center",
+              minWidth: "max-content",
+            }}
+          >
+            <TokenSpellingTextSpan>{partSpelling}</TokenSpellingTextSpan>
+            <TokenMainTextSpan>{chars}</TokenMainTextSpan>
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+function TokenSpellingTextSpan({
+  children,
+}: {
+  children: ReactNode;
+}): ReactNode {
+  return <span style={annotationSlotStyle}>{children}</span>;
+}
+
+function TokenMainTextSpan({ children }: { children: ReactNode }): ReactNode {
+  return <span>{children}</span>;
+}
+
+type TokenGlossViewProps = {
+  token: AnnotatedToken;
+  tokenIndex: number;
+  showGloss: boolean;
+  renderGloss:
+    | ((token: AnnotatedToken, index: number) => ReactNode)
+    | undefined;
+};
+
+function TokenGlossView({
+  token,
+  tokenIndex,
+  showGloss,
+  renderGloss,
+}: TokenGlossViewProps): ReactNode {
+  if (!isWordToken(token)) {
+    return <span style={annotationSlotStyle}>{visuallyEmpty}</span>;
+  }
+
+  const gloss = showGloss ? token.gloss : null;
+
+  return (
+    <span style={annotationSlotStyle}>
+      {renderGloss?.(token, tokenIndex) ?? gloss ?? visuallyEmpty}
+    </span>
+  );
+}
+
 /**
  * Renders annotated text as horizontally wrapping token blocks.
  *
@@ -103,88 +228,36 @@ export function AnnotatedTextView({
       {annotatedText.tokens.map((token, index) => {
         const key = `${index}-${token.text}`;
 
-        if (!isWordToken(token)) {
-          return (
-            <span
-              key={key}
-              aria-hidden={token.text.trim() === "" ? true : undefined}
-              style={{
-                display: "inline-flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "flex-end",
-                minWidth: "max-content",
-              }}
-            >
-              <span style={annotationSlotStyle}>{visuallyEmpty}</span>
-              <span>{token.text}</span>
-              <span style={annotationSlotStyle}>{visuallyEmpty}</span>
-            </span>
-          );
-        }
-
-        const prefShowMainText = true;
-        const spelling = showSpelling
-          ? phoneticTokenToSpelling(token, annotatedText.lang, prefShowMainText)
-          : null;
-        const gloss = showGloss ? token.gloss : null;
-        const phoneticParts = tokenToPhoneticParts(token);
-        const customTokenText = renderTokenText?.(token, index);
-        const customSpelling = renderSpelling?.(token, index);
-
         return (
           <span
             key={key}
-            className={tokenClassName}
+            className={isWordToken(token) ? tokenClassName : undefined}
+            aria-hidden={
+              !isWordToken(token) && token.text.trim() === "" ? true : undefined
+            }
             style={{
               display: "inline-flex",
               flexDirection: "column",
               alignItems: "center",
               justifyContent: "flex-end",
               minWidth: "max-content",
-              ...tokenStyle,
+              ...(isWordToken(token) ? tokenStyle : undefined),
             }}
           >
-            {customTokenText !== undefined || customSpelling !== undefined ? (
-              <>
-                <span style={annotationSlotStyle}>
-                  {customSpelling ?? spelling ?? visuallyEmpty}
-                </span>
-                <span>{customTokenText ?? token.text}</span>
-              </>
-            ) : (
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "flex-end",
-                }}
-              >
-                {phoneticParts.map((part, partIndex) => {
-                  const [chars] = part;
-                  const partSpelling = showSpelling
-                    ? phoneticPartToSpelling(part, annotatedText.lang, prefShowMainText)
-                    : visuallyEmpty;
-
-                  return (
-                    <span
-                      key={`${partIndex}-${chars}`}
-                      style={{
-                        display: "inline-flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        minWidth: "max-content",
-                      }}
-                    >
-                      <span style={annotationSlotStyle}>{partSpelling}</span>
-                      <span>{chars}</span>
-                    </span>
-                  );
-                })}
-              </span>
-            )}
-            <span style={annotationSlotStyle}>
-              {renderGloss?.(token, index) ?? gloss ?? visuallyEmpty}
-            </span>
+            <TokenSpellingAndMainView
+              token={token}
+              tokenIndex={index}
+              lang={annotatedText.lang}
+              showSpelling={showSpelling}
+              renderTokenText={renderTokenText}
+              renderSpelling={renderSpelling}
+            />
+            <TokenGlossView
+              token={token}
+              tokenIndex={index}
+              showGloss={showGloss}
+              renderGloss={renderGloss}
+            />
           </span>
         );
       })}
