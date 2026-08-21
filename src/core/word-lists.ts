@@ -23,6 +23,16 @@ export type SBCacheWordListL10nWordsRow = {
 
 export type SupabaseWordListsClient = SupabaseClientLike;
 
+export type PublicWordListsDataApiOptions = {
+  supabaseUrl: string;
+  /**
+   * A publishable key (or legacy anon key). This identifies the public Data API
+   * project; it is not a user session and grants only the database's `anon` role.
+   */
+  supabasePublicKey: string;
+  fetchImpl?: typeof globalThis.fetch;
+};
+
 const WORD_LIST_COLUMNS = "title, sublists, words, lang, type, updated_at";
 const CACHE_WORD_LIST_COLUMNS =
   "lang, list_title, l10n_words, updated_at, is_human_verified";
@@ -143,6 +153,87 @@ export async function loadSBCacheWordListsForLang(
 
   cacheWordListPromisesByLang.set(lang, dataPromise);
   return dataPromise;
+}
+
+/**
+ * Build scripts do not need a Supabase client or user authentication for these
+ * public tables. Reading the Data API directly also keeps `@supabase/supabase-js`
+ * out of Lingop and out of Prebake's consumer setup.
+ */
+export async function loadPublicWordListMetaData(
+  options: PublicWordListsDataApiOptions,
+): Promise<WordListMeta[]> {
+  const rows = await loadPublicDataApiRows({
+    ...options,
+    table: "word_lists",
+    columns: WORD_LIST_COLUMNS,
+    orderColumn: "title",
+    isRow: isSBWordListRow,
+  });
+  return rows.map(({ words: _words, ...meta }) => meta);
+}
+
+export async function loadPublicSBCacheWordListsForLang(
+  lang: string,
+  options: PublicWordListsDataApiOptions,
+): Promise<SBCacheWordListL10nWordsRow[]> {
+  return loadPublicDataApiRows({
+    ...options,
+    table: "cache_word_list_l10n_words",
+    columns: CACHE_WORD_LIST_COLUMNS,
+    orderColumn: "list_title",
+    filters: { lang },
+    isRow: isSBCacheWordListL10nWordsRow,
+  });
+}
+
+async function loadPublicDataApiRows<T>({
+  supabaseUrl,
+  supabasePublicKey,
+  fetchImpl = globalThis.fetch,
+  table,
+  columns,
+  orderColumn,
+  filters = {},
+  isRow,
+}: PublicWordListsDataApiOptions & {
+  table: string;
+  columns: string;
+  orderColumn: string;
+  filters?: Record<string, string>;
+  isRow: (row: unknown) => row is T;
+}): Promise<T[]> {
+  if (!fetchImpl) throw new Error("Public word-list loading requires fetch.");
+
+  const rows: T[] = [];
+  for (let offset = 0; ; offset += WORD_LIST_BATCH_SIZE) {
+    const url = new URL(
+      `/rest/v1/${table}`,
+      `${supabaseUrl.replace(/\/+$/, "")}/`,
+    );
+    url.searchParams.set("select", columns);
+    url.searchParams.set("order", `${orderColumn}.asc`);
+    url.searchParams.set("offset", String(offset));
+    url.searchParams.set("limit", String(WORD_LIST_BATCH_SIZE));
+    for (const [column, value] of Object.entries(filters)) {
+      url.searchParams.set(column, `eq.${value}`);
+    }
+
+    const response = await fetchImpl(url, {
+      headers: { Accept: "application/json", apikey: supabasePublicKey },
+    });
+    if (!response.ok) {
+      throw new Error(
+        `Public Supabase read failed for ${table}. HTTP ${response.status}.`,
+      );
+    }
+    const data: unknown = await response.json();
+    if (!Array.isArray(data)) {
+      throw new Error(`Public Supabase read for ${table} returned non-array data.`);
+    }
+    rows.push(...data.filter(isRow));
+    if (data.length < WORD_LIST_BATCH_SIZE) return rows;
+  }
 }
 
 function isSBWordListRow(row: unknown): row is SBWordListRow {

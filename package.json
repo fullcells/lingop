@@ -72,6 +72,14 @@
       "types": "./dist/oat/build/index.d.ts",
       "default": "./dist/oat/build/index.js"
     },
+    "./prebake/react": {
+      "types": "./dist/prebake/react/index.d.ts",
+      "default": "./dist/prebake/react/index.js"
+    },
+    "./prebake/build": {
+      "types": "./dist/prebake/build/index.d.ts",
+      "default": "./dist/prebake/build/index.js"
+    },
     "./ui": {
       "types": "./dist/ui/index.d.ts",
       "default": "./dist/ui/index.js"
@@ -92,7 +100,8 @@
     "src/ui/next/camp-lingo-auth-form.css"
   ],
   "bin": {
-    "oat-preflight": "./bin/oat-preflight.js"
+    "oat-preflight": "./bin/oat-preflight.js",
+    "prebake-preflight": "./bin/prebake-preflight.js"
   },
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",

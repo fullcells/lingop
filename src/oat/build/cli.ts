@@ -56,7 +56,12 @@ async function main(): Promise<void> {
   if (!privateOverrideKey) {
     throw new Error("oat-preflight requires _H_PERSONAL_OVERRIDE_KEY.");
   }
-  await runOATPreflight(await loadConsumerConfig(), { privateOverrideKey });
+  await runOATPreflight(await loadConsumerConfig(), {
+    privateOverrideKey,
+    ...(process.env.LINGOP_USE_STAGING_BACKEND === "true"
+      ? { useStagingBackend: true }
+      : {}),
+  });
 }
 
 void main().catch((error: unknown) => {

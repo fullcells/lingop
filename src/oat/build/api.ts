@@ -1,18 +1,20 @@
 import type { AnnotatedText } from "../../core/annotation/types.js";
+import { getBEApiBaseUrl } from "../../core/backend-api.js";
 import type { TranslationRow } from "../../core/translation/types.js";
 import { OAT_SOURCE_LANG } from "../constants.js";
 
-const OAT_BACKEND_URL = "https://lingoprocessor.omnilingualaccess.com";
-
 export type OATBuildServices = {
   privateOverrideKey: string;
+  fetchImpl?: typeof globalThis.fetch;
+  useStagingBackend?: boolean;
 };
 
-function getFetch(): typeof globalThis.fetch {
-  if (!globalThis.fetch) {
+function getFetch(services: OATBuildServices): typeof globalThis.fetch {
+  const fetchImpl = services.fetchImpl ?? globalThis.fetch;
+  if (!fetchImpl) {
     throw new Error("OAT preflight requires a fetch implementation.");
   }
-  return globalThis.fetch.bind(globalThis);
+  return fetchImpl.bind(globalThis);
 }
 
 async function throwResponseError(response: Response, operation: string): Promise<never> {
@@ -37,8 +39,8 @@ export async function translateOATTexts({
   refs: unknown[];
   services: OATBuildServices;
 }): Promise<Record<string, string>> {
-  const fetchImpl = getFetch();
-  const response = await fetchImpl(`${OAT_BACKEND_URL}/api/translate`, {
+  const fetchImpl = getFetch(services);
+  const response = await fetchImpl(`${getBEApiBaseUrl(services)}/api/translate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -64,16 +66,19 @@ export async function resetOATCoreWordsCache(
   targetLang: string,
   services: OATBuildServices,
 ): Promise<void> {
-  const fetchImpl = getFetch();
-  const response = await fetchImpl(`${OAT_BACKEND_URL}/api/reset-core-sbwords`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      word_lang: targetLang,
-      gloss_lang: "en",
-      private_override_key: services.privateOverrideKey,
-    }),
-  });
+  const fetchImpl = getFetch(services);
+  const response = await fetchImpl(
+    `${getBEApiBaseUrl(services)}/api/reset-core-sbwords`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        word_lang: targetLang,
+        gloss_lang: "en",
+        private_override_key: services.privateOverrideKey,
+      }),
+    },
+  );
   if (!response.ok) {
     await throwResponseError(response, "OAT reset-core-sbwords");
   }
@@ -84,8 +89,8 @@ export async function annotateOATTexts(
   texts: string[],
   services: OATBuildServices,
 ): Promise<AnnotatedText[]> {
-  const fetchImpl = getFetch();
-  const response = await fetchImpl(`${OAT_BACKEND_URL}/api/annotate`, {
+  const fetchImpl = getFetch(services);
+  const response = await fetchImpl(`${getBEApiBaseUrl(services)}/api/annotate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

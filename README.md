@@ -53,11 +53,69 @@ Make the override key available to the build environment, and include the compil
 }
 ```
 
-`oat-preflight` reads `_H_PERSONAL_OVERRIDE_KEY`, loads the root `oat.config.ts`, generates translations, then generates static annotations.
+`oat-preflight` loads the consumer's `.env`, reads `_H_PERSONAL_OVERRIDE_KEY`, loads the root `oat.config.ts`, generates translations, then generates static annotations. Variables already supplied by the process environment are preserved.
+
+OAT and Prebake use Lingop's shared backend selection. Production is the default; set `LINGOP_USE_STAGING_BACKEND=true` for both build CLIs to use Lingop's staging backend.
 
 Lingop developers write normal `OAT("source text")`, `OAT2("source text")`, and `getStaticFocusLangAText("source text")` calls directly in shared components. Lingop's build scans those calls and generates `lingopOATSourceData`; the packaged `oat-preflight` inherently combines it with the consumer's locally scanned calls. Consumers do not maintain a separate string list or configure shared source data.
 
 At runtime, import `OATDataProvider` and `useOAT` from `lingop/oat/react`. The provider receives `guiLang` and `focusLang` read-only plus consumer-provided `loadTranslations` and `loadStaticAnnotations` functions. Web consumers can load the generated files with `fetch`; React Native consumers can use an asset manifest or another native-compatible loader.
+
+## Prebake: Build-Time Content Translations and Annotations
+
+Prebake complements OAT but has a narrower job. OAT discovers literal UI calls in source code; Prebake reads the public word-list data and generates translations for word-list titles plus annotations for localized word-list words. It preserves OmniAccess's `i18n/var/translations/t.{source}-to-{target}.json` and `i18n/var/annotations/a.{lang}.json` layout.
+
+### Build setup
+
+Create `prebake.config.ts` in the consumer project root:
+
+```ts
+import { definePrebakeConfig } from "lingop/prebake/build";
+
+export default definePrebakeConfig({
+  generatedAssetsRoot: "public",
+  translationRootListTitle: "_public",
+  allLangs,
+  guiLangs,
+});
+```
+
+Add the CLI to predevelopment and prebuild workflows:
+
+```json
+{
+  "scripts": {
+    "prebake-preflight": "prebake-preflight",
+    "predev": "npm run prebake-preflight",
+    "prebuild": "npm run prebake-preflight"
+  }
+}
+```
+
+`prebake-preflight` loads the consumer's `.env`. It reads the public word-list tables directly using `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (or the legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY`), so consumers do not construct or inject a Supabase client and no user authentication is involved. `_H_PERSONAL_OVERRIDE_KEY` remains required for the backend translation and annotation generation calls. Variables already supplied by the process environment are preserved.
+
+Translations fully refresh every three days. Annotations fully refresh every seven days and whenever translations receive a full refresh; otherwise both stages generate only missing values. Annotation requests retain OmniAccess's batches of ten and reset each language's backend core-word cache before generation.
+
+Do not run annotation prebaking in `prestart`: full annotation refreshes during production server startup caused live-server crashes in OmniAccess. Keep generation in `predev` and `prebuild`.
+
+### Runtime setup
+
+The React provider mirrors OmniAccess's translation-only context. It loads generated files from `public/i18n/var/translations`, using filesystem reads during server rendering and relative fetches in the browser:
+
+```tsx
+import { PrebakedDataProvider, usePrebaked } from "lingop/prebake/react";
+
+<PrebakedDataProvider>
+  <App />
+</PrebakedDataProvider>;
+
+function ContentLabel() {
+  const { PrebakedT9n } = usePrebaked();
+  const label = PrebakedT9n("Animals", "en", "es");
+  // `label` is "…" while its language-pair asset loads; a missing translation
+  // falls back to the source text once the asset has loaded.
+}
+```
 
 ## Camp Lingo Auth Form in Next.js
 
@@ -310,7 +368,7 @@ For `MEMBER_CONTENT`, pass the app's Supabase client: `speak({ ..., contentConte
 - Public APIs accept Supabase clients loosely and cast internally to a small runtime shape. This avoids pushing Supabase's deep generated query types into app code while keeping row validation at module boundaries.
 - `createLingoDataClient()` owns annotation and translation caches per client instance, matching the old context behavior without React state. Apps should reuse the same instance across normal user navigation to preserve cache continuity.
 - Supabase user id and access token are derived from the injected Supabase client via `auth.getUser()` and `auth.getSession()` when owner-specific operations need them.
-- External backend environment is selected with `useStagingBackend`; public `/api/lingoprocessor/*` helpers call a fixed base URL atm (to be merged with backend enviro in far future)
+- External backend environment is selected consistently with `useStagingBackend`; production is the default.
 - Context-private lookup helpers remain modular inside this package, but package consumers should prefer `createLingoDataClient()` for annotation/localization workflows.
 
 ## Current Modules
