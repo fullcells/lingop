@@ -9,8 +9,6 @@ import { ilike } from "../../core/misc.js";
 
 export type AnnotatedTextViewProps = {
   annotatedText: AnnotatedText;
-  style?: CSSProperties; // deprecating in future to use OmniAccess' style
-  tokenStyle?: CSSProperties; // deprecating in future to use OmniAccess' style
   showSpelling?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
   showGloss?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
 };
@@ -163,8 +161,6 @@ function TokenGlossView({
  */
 export function AnnotatedTextView({
   annotatedText,
-  style,
-  tokenStyle,
   showSpelling = "ALWAYS",
   showGloss = "ALWAYS",
 }: AnnotatedTextViewProps): ReactNode {
@@ -179,7 +175,6 @@ export function AnnotatedTextView({
         columnGap: "0.35em",
         rowGap: "0.25em",
         lineHeight: 1.2,
-        ...style,
       }}
     >
       <span className="tokens" style={{ display: "contents" }}>
@@ -201,7 +196,6 @@ export function AnnotatedTextView({
                 alignItems: "center",
                 justifyContent: "flex-end",
                 minWidth: "max-content",
-                ...(isWordToken(token) ? tokenStyle : undefined),
               }}
             >
               <TokenSpellingAndMainView
