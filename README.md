@@ -379,6 +379,24 @@ const astyle: AnnotatedTextStyle = {
 <AnnotatedTextView annotatedText={annotatedText} astyle={astyle} />;
 ```
 
+Image export is available through the component ref. `html2canvas` is loaded
+only when one of these methods is called:
+
+```tsx
+import { useRef } from "react";
+import {
+  AnnotatedTextView,
+  type AnnotatedTextViewHandle,
+} from "lingop/ui/next";
+
+const annotatedTextRef = useRef<AnnotatedTextViewHandle>(null);
+
+<AnnotatedTextView ref={annotatedTextRef} annotatedText={annotatedText} />;
+
+await annotatedTextRef.current?.requestDownloadImage(0);
+const image = await annotatedTextRef.current?.requestImageData(2);
+```
+
 The optional stylesheet supplies the default color and monochrome emoji font
 handling. Critical layout remains built into the component, so importing the
 stylesheet is not required when an application provides its own ATV styles.
@@ -436,7 +454,7 @@ For `MEMBER_CONTENT`, pass the app's Supabase client: `speak({ ..., contentConte
 - `src/core/emojify.ts` ports the legacy emoji-gloss generator and black/white emoji compatibility helpers. Emoji rows use a shared module cache.
 - `src/core/language/` contains language metadata, script metadata, localized language names, OpenAI voice metadata, and language lookup helpers. Large metadata tables live under `src/core/language/data/`.
 - `src/core/lingo-data-client.ts` is the platform-neutral successor to old `LingoDataContext`. It owns annotation and translation caches and exposes localization, translation-cache, annotation, re-generation, and re-annotation methods.
-- `src/core/misc.ts` contains platform-neutral utility functions ported from old `utils/misc.ts`. Browser image helpers based on `html2canvas` and element download/image capture were intentionally not ported.
+- `src/core/misc.ts` contains platform-neutral utility functions ported from old `utils/misc.ts`. Browser image behavior remains outside the core surface.
 - `src/core/sb-words.ts` ports the legacy Supabase `words2` cache, core-word checks, and one-word gloss generation through a shared module cache.
 - `src/core/translation/` contains platform-neutral translation types and internal table/localization helpers used by `createLingoDataClient()`.
 - `src/core/user-word-exposures.ts` contains the platform-neutral Supabase helpers for creating, reading, incrementing, and deleting per-user word exposure rows. It is exported from `lingop/core`.
@@ -444,6 +462,7 @@ For `MEMBER_CONTENT`, pass the app's Supabase client: `speak({ ..., contentConte
 - `src/core/word-explicitations.ts` loads and filters Supabase `word_explicitations` rows through a shared module cache.
 - `src/core/word-lists.ts` loads public Supabase word-list source and localization rows through shared module caches.
 - `src/ui/next/cookies.ts` contains browser cookie helpers separated from platform-neutral core utilities.
+- `src/ui/next/annotated-text-image.ts` lazily loads `html2canvas` for the annotated-text ref's image-data and download methods.
 - `src/ui/next/speech-synth-tts.ts` contains browser/Next speech synthesis helpers exported from `lingop/ui/next`.
 - `src/ui/next/user-word-streaks.tsx` contains the Next user-word-streaks provider and hook exported from `lingop/ui/next`.
 - `src/ui/react-native/` is reserved for React Native-specific UI helpers.

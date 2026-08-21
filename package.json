@@ -129,6 +129,7 @@
     "@babel/parser": "^7.28.0",
     "@babel/traverse": "^7.28.0",
     "dotenv": "^17.3.1",
+    "html2canvas": "^1.4.1",
     "jiti": "^2.5.1",
     "wink-lemmatizer": "^3.0.4"
   }

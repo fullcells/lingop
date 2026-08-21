@@ -1,10 +1,14 @@
 "use client";
 
 import {
+  forwardRef,
   useEffect,
+  useImperativeHandle,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
+  type ForwardedRef,
   type ReactNode,
 } from "react";
 
@@ -23,6 +27,20 @@ import {
   type SupabaseLingoDataClient,
 } from "../../core/lingo-data-client.js";
 import { ilike } from "../../core/misc.js";
+import {
+  captureAnnotatedTextImage,
+  downloadAnnotatedTextImage,
+  type AnnotatedTextImageData,
+} from "./annotated-text-image.js";
+
+export type { AnnotatedTextImageData } from "./annotated-text-image.js";
+
+export type AnnotatedTextViewHandle = {
+  requestDownloadImage: (index: number) => Promise<void>;
+  requestImageData: (
+    scale?: number,
+  ) => Promise<AnnotatedTextImageData | undefined>;
+};
 
 export type GlossPlacement = "bottom" | "left" | "top" | "right";
 
@@ -167,8 +185,8 @@ function tokenToPhoneticParts(token: AnnotatedToken): PhoneticPart[] {
 // The current port only includes the basic render-component structure and
 // visibility and style inputs. Action Buttons, TTS, ON_HINT state (including
 // l10nWordDetailHandler, isWordUnfamiliar, and userWordStreaks),
-// useUserLingoPrefsData, download-as-image, and the other OmniAccess behavior
-// are intentionally not ported yet.
+// useUserLingoPrefsData, and the other OmniAccess behavior are intentionally
+// not ported yet.
 // 20260821: Gloss emojis currently port basic color/black-and-white rendering
 // and NEVER/ALWAYS visibility. ON_HINT, per-grapheme flipping, loading spinners,
 // and non-core gloss preferences remain deferred.
@@ -176,6 +194,9 @@ function tokenToPhoneticParts(token: AnnotatedToken): PhoneticPart[] {
 // are ported without its Chakra dependency. astyle.css applies to Lingop's
 // .annotated-text-view root because the future action-button wrapper is not
 // present yet.
+// 20260822: Download-image and image-data imperative handles are ported with a
+// lazy html2canvas import. HTML-table export and unrelated imperative handles
+// remain deferred.
 type TokenSpellingAndMainViewProps = {
   _showSpelling: "NEVER" | "ALWAYS";
   _showMainText: boolean;
@@ -592,7 +613,7 @@ function TokenGlossView({
  * Punctuation/non-word tokens keep the same vertical slots so the main text
  * baseline stays aligned with word tokens.
  */
-export function AnnotatedTextView({
+function AnnotatedTextViewComponent({
   annotatedText,
   showSpelling = "ALWAYS",
   showMainText = true,
@@ -605,8 +626,9 @@ export function AnnotatedTextView({
   localShouldFadeNonCoreWords = false,
   nonCoreWordsFadeOpacity = 0.5,
   supabaseClient,
-}: AnnotatedTextViewProps): ReactNode {
+}: AnnotatedTextViewProps, ref: ForwardedRef<AnnotatedTextViewHandle>): ReactNode {
   const astyle = resolveAnnotatedTextStyle(astyleInput);
+  const exportHTMLElementRef = useRef<HTMLSpanElement>(null);
   const lingopClient = useMemo(
     () =>
       createLingoDataClient({
@@ -622,6 +644,22 @@ export function AnnotatedTextView({
     coreWordStatusResult?.annotatedText === annotatedText
       ? coreWordStatusResult.statuses
       : null;
+
+  // EXPORTS: IMPERATIVE HANDLES (For Exports)
+  useImperativeHandle(ref, () => ({
+    requestDownloadImage: async (index: number) => {
+      const element = exportHTMLElementRef.current;
+      if (!element) return;
+      const scale = 4;
+      const { dataUrl } = await captureAnnotatedTextImage(element, scale);
+      downloadAnnotatedTextImage(dataUrl, index, scale);
+    },
+    requestImageData: async (scale?: number) => {
+      const element = exportHTMLElementRef.current;
+      if (!element) return undefined;
+      return captureAnnotatedTextImage(element, scale);
+    },
+  }), []);
 
   // DISPLAY: CORE WORD STATUSES
   useEffect(() => {
@@ -664,6 +702,7 @@ export function AnnotatedTextView({
 
   return (
     <span
+      ref={exportHTMLElementRef}
       className="annotated-text-view"
       lang={annotatedText.lang}
       style={{
@@ -739,3 +778,10 @@ export function AnnotatedTextView({
     </span>
   );
 }
+
+export const AnnotatedTextView = forwardRef<
+  AnnotatedTextViewHandle,
+  AnnotatedTextViewProps
+>(AnnotatedTextViewComponent);
+
+AnnotatedTextView.displayName = "AnnotatedTextView";
