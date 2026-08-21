@@ -1,10 +1,22 @@
-import type { CSSProperties, ReactNode } from "react";
+"use client";
+
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 
 import type {
   AnnotatedText,
   AnnotatedToken,
   PhoneticPart,
 } from "../../core/annotation/types.js";
+import {
+  createLingoDataClient,
+  type SupabaseLingoDataClient,
+} from "../../core/lingo-data-client.js";
 import { ilike } from "../../core/misc.js";
 
 export type AnnotatedTextViewProps = {
@@ -12,6 +24,11 @@ export type AnnotatedTextViewProps = {
   showSpelling?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
   showMainText?: boolean;
   showGloss?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
+  /** Fades words identified as non-core; Supabase-backed checks require supabaseClient. */
+  localShouldFadeNonCoreWords?: boolean | null;
+  nonCoreWordsFadeOpacity?: number;
+  /** A browser-safe public Supabase client. Never pass a service-role client here. */
+  supabaseClient?: SupabaseLingoDataClient;
 };
 
 const visuallyEmpty = "\u00a0";
@@ -171,7 +188,65 @@ export function AnnotatedTextView({
   showSpelling = "ALWAYS",
   showMainText = true,
   showGloss = "ALWAYS",
+  localShouldFadeNonCoreWords = false,
+  nonCoreWordsFadeOpacity = 0.5,
+  supabaseClient,
 }: AnnotatedTextViewProps): ReactNode {
+  const lingopClient = useMemo(
+    () =>
+      createLingoDataClient({
+        ...(supabaseClient ? { supabaseClient } : {}),
+      }),
+    [supabaseClient],
+  );
+  const [coreWordStatusResult, setCoreWordStatusResult] = useState<{
+    annotatedText: AnnotatedText;
+    statuses: (boolean | null)[]; // boolean if it's a word, null if it's not
+  } | null>(null);
+  const tokensCoreWordOrUnknownStatus =
+    coreWordStatusResult?.annotatedText === annotatedText
+      ? coreWordStatusResult.statuses
+      : null;
+
+  // DISPLAY: CORE WORD STATUSES
+  useEffect(() => {
+    let cancelled = false;
+    setCoreWordStatusResult(null);
+
+    if (!localShouldFadeNonCoreWords) return;
+
+    void Promise.all(
+      annotatedText.tokens.map(async (token) => {
+        if (!isWordToken(token)) return null;
+        // Await the async function, then negate its result.
+        const isNotCoreWord = await lingopClient.isNotCoreWord(
+          annotatedText.lang,
+          token.text,
+          token.gloss ?? undefined,
+        );
+        return !isNotCoreWord;
+      }),
+    )
+      .then((coreWordStatuses) => {
+        if (!cancelled) {
+          setCoreWordStatusResult({
+            annotatedText,
+            statuses: coreWordStatuses,
+          });
+        }
+      })
+      .catch((error: unknown) => {
+        // Fail open: unknown words stay fully visible if public data cannot load.
+        if (!cancelled) {
+          console.error("Error determining core-word statuses:", error);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [annotatedText, lingopClient, localShouldFadeNonCoreWords]);
+
   return (
     <span
       className="annotated-text-view"
@@ -188,6 +263,13 @@ export function AnnotatedTextView({
       <span className="tokens" style={{ display: "contents" }}>
         {annotatedText.tokens.map((token, index) => {
           const key = `${index}-${token.text}`;
+          // Non-Core - Fade
+          const wordIsCoreOrUnknown =
+            tokensCoreWordOrUnknownStatus?.[index] ?? true;
+          const opacity =
+            localShouldFadeNonCoreWords && !wordIsCoreOrUnknown
+              ? nonCoreWordsFadeOpacity
+              : 1;
 
           return (
             <span
@@ -204,6 +286,8 @@ export function AnnotatedTextView({
                 alignItems: "center",
                 justifyContent: "flex-end",
                 minWidth: "max-content",
+                opacity,
+                transition: "opacity 0.1s ease-in-out",
               }}
             >
               <TokenSpellingAndMainView
