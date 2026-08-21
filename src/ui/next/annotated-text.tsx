@@ -9,15 +9,10 @@ import { ilike } from "../../core/misc.js";
 
 export type AnnotatedTextViewProps = {
   annotatedText: AnnotatedText;
-  className?: string;
-  style?: CSSProperties;
-  tokenClassName?: string;
-  tokenStyle?: CSSProperties;
-  showSpelling?: boolean;
-  showGloss?: boolean;
-  renderTokenText?: (token: AnnotatedToken, index: number) => ReactNode;
-  renderSpelling?: (token: AnnotatedToken, index: number) => ReactNode;
-  renderGloss?: (token: AnnotatedToken, index: number) => ReactNode;
+  style?: CSSProperties; // deprecating in future to use OmniAccess' style
+  tokenStyle?: CSSProperties; // deprecating in future to use OmniAccess' style
+  showSpelling?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
+  showGloss?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
 };
 
 const visuallyEmpty = "\u00a0";
@@ -28,18 +23,6 @@ const annotationSlotStyle: CSSProperties = {
   opacity: 0.75,
   lineHeight: 1,
 };
-
-function phoneticTokenToSpelling(
-  token: AnnotatedToken,
-  lang: string,
-  prefShowMainText: boolean,
-): string | null {
-  if (!token.phoneticToken?.length) return null;
-
-  return token.phoneticToken
-    .map((part) => phoneticPartToSpelling(part, lang, prefShowMainText))
-    .join("");
-}
 
 function isWordToken(token: AnnotatedToken): boolean {
   return token.isWord === 1;
@@ -67,30 +50,21 @@ function tokenToPhoneticParts(token: AnnotatedToken): PhoneticPart[] {
 }
 
 // 20260821: AnnotatedTextView is being ported gradually from OmniAccess.
-// This first pass only ports the render-component structure. Action Buttons,
-// TTS, ON_HINT state (including l10nWordDetailHandler, isWordUnfamiliar, and
-// userWordStreaks), useUserLingoPrefsData, download-as-image, and the other
-// OmniAccess behavior are intentionally not ported yet.
+// The current port only includes the basic render-component structure and
+// NEVER/ALWAYS visibility inputs. Action Buttons, TTS, ON_HINT state (including
+// l10nWordDetailHandler, isWordUnfamiliar, and userWordStreaks),
+// useUserLingoPrefsData, download-as-image, and the other OmniAccess behavior
+// are intentionally not ported yet.
 type TokenSpellingAndMainViewProps = {
   token: AnnotatedToken;
-  tokenIndex: number;
   lang: string;
-  showSpelling: boolean;
-  renderTokenText:
-    | ((token: AnnotatedToken, index: number) => ReactNode)
-    | undefined;
-  renderSpelling:
-    | ((token: AnnotatedToken, index: number) => ReactNode)
-    | undefined;
+  showSpelling: "NEVER" | "ALWAYS";
 };
 
 function TokenSpellingAndMainView({
   token,
-  tokenIndex,
   lang,
   showSpelling,
-  renderTokenText,
-  renderSpelling,
 }: TokenSpellingAndMainViewProps): ReactNode {
   if (!isWordToken(token)) {
     return (
@@ -102,25 +76,10 @@ function TokenSpellingAndMainView({
   }
 
   const prefShowMainText = true;
-  const spelling = showSpelling
-    ? phoneticTokenToSpelling(token, lang, prefShowMainText)
-    : null;
-  const customTokenText = renderTokenText?.(token, tokenIndex);
-  const customSpelling = renderSpelling?.(token, tokenIndex);
-
-  if (customTokenText !== undefined || customSpelling !== undefined) {
-    return (
-      <>
-        <TokenSpellingTextSpan>
-          {customSpelling ?? spelling ?? visuallyEmpty}
-        </TokenSpellingTextSpan>
-        <TokenMainTextSpan>{customTokenText ?? token.text}</TokenMainTextSpan>
-      </>
-    );
-  }
 
   return (
     <span
+      className="token-phonics"
       style={{
         display: "inline-flex",
         alignItems: "flex-end",
@@ -128,13 +87,14 @@ function TokenSpellingAndMainView({
     >
       {tokenToPhoneticParts(token).map((part, partIndex) => {
         const [chars] = part;
-        const partSpelling = showSpelling
+        const partSpelling = showSpelling === "ALWAYS"
           ? phoneticPartToSpelling(part, lang, prefShowMainText)
           : visuallyEmpty;
 
         return (
           <span
             key={`${partIndex}-${chars}`}
+            className="phonic"
             style={{
               display: "inline-flex",
               flexDirection: "column",
@@ -156,37 +116,39 @@ function TokenSpellingTextSpan({
 }: {
   children: ReactNode;
 }): ReactNode {
-  return <span style={annotationSlotStyle}>{children}</span>;
+  return (
+    <span className="phonic-spelling" style={annotationSlotStyle}>
+      {children}
+    </span>
+  );
 }
 
 function TokenMainTextSpan({ children }: { children: ReactNode }): ReactNode {
-  return <span>{children}</span>;
+  return <span className="main-text">{children}</span>;
 }
 
 type TokenGlossViewProps = {
   token: AnnotatedToken;
-  tokenIndex: number;
-  showGloss: boolean;
-  renderGloss:
-    | ((token: AnnotatedToken, index: number) => ReactNode)
-    | undefined;
+  showGloss: "NEVER" | "ALWAYS";
 };
 
 function TokenGlossView({
   token,
-  tokenIndex,
   showGloss,
-  renderGloss,
 }: TokenGlossViewProps): ReactNode {
   if (!isWordToken(token)) {
-    return <span style={annotationSlotStyle}>{visuallyEmpty}</span>;
+    return (
+      <span className="gloss" style={annotationSlotStyle}>
+        {visuallyEmpty}
+      </span>
+    );
   }
 
-  const gloss = showGloss ? token.gloss : null;
+  const gloss = showGloss === "ALWAYS" ? token.gloss : null;
 
   return (
-    <span style={annotationSlotStyle}>
-      {renderGloss?.(token, tokenIndex) ?? gloss ?? visuallyEmpty}
+    <span className="gloss" style={annotationSlotStyle}>
+      {gloss ?? visuallyEmpty}
     </span>
   );
 }
@@ -201,19 +163,14 @@ function TokenGlossView({
  */
 export function AnnotatedTextView({
   annotatedText,
-  className,
   style,
-  tokenClassName,
   tokenStyle,
-  showSpelling = true,
-  showGloss = true,
-  renderTokenText,
-  renderSpelling,
-  renderGloss,
+  showSpelling = "ALWAYS",
+  showGloss = "ALWAYS",
 }: AnnotatedTextViewProps): ReactNode {
   return (
     <span
-      className={className}
+      className="annotated-text-view"
       lang={annotatedText.lang}
       style={{
         display: "flex",
@@ -225,42 +182,38 @@ export function AnnotatedTextView({
         ...style,
       }}
     >
-      {annotatedText.tokens.map((token, index) => {
-        const key = `${index}-${token.text}`;
+      <span className="tokens" style={{ display: "contents" }}>
+        {annotatedText.tokens.map((token, index) => {
+          const key = `${index}-${token.text}`;
 
-        return (
-          <span
-            key={key}
-            className={isWordToken(token) ? tokenClassName : undefined}
-            aria-hidden={
-              !isWordToken(token) && token.text.trim() === "" ? true : undefined
-            }
-            style={{
-              display: "inline-flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "flex-end",
-              minWidth: "max-content",
-              ...(isWordToken(token) ? tokenStyle : undefined),
-            }}
-          >
-            <TokenSpellingAndMainView
-              token={token}
-              tokenIndex={index}
-              lang={annotatedText.lang}
-              showSpelling={showSpelling}
-              renderTokenText={renderTokenText}
-              renderSpelling={renderSpelling}
-            />
-            <TokenGlossView
-              token={token}
-              tokenIndex={index}
-              showGloss={showGloss}
-              renderGloss={renderGloss}
-            />
-          </span>
-        );
-      })}
+          return (
+            <span
+              key={key}
+              className="token"
+              aria-hidden={
+                !isWordToken(token) && token.text.trim() === ""
+                  ? true
+                  : undefined
+              }
+              style={{
+                display: "inline-flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "flex-end",
+                minWidth: "max-content",
+                ...(isWordToken(token) ? tokenStyle : undefined),
+              }}
+            >
+              <TokenSpellingAndMainView
+                token={token}
+                lang={annotatedText.lang}
+                showSpelling={showSpelling}
+              />
+              <TokenGlossView token={token} showGloss={showGloss} />
+            </span>
+          );
+        })}
+      </span>
     </span>
   );
 }
