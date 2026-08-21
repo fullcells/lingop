@@ -91,19 +91,13 @@ export function PrebakedDataProvider({
 async function readTranslationAsset(langPair: string): Promise<PrebakedTranslations> {
   const relativePath = `i18n/var/translations/t.${langPair}.json`;
 
-  // Server rendering cannot fetch a relative browser URL, so mirror the
-  // original OmniAccess behavior and read the generated public asset directly.
+  // Server rendering cannot fetch a relative browser URL. Return an empty map
+  // to suppress that request and mark the pair as attempted; consumers that
+  // need translated SSR output can pass `initialTranslationsByLangPair`.
+  // Avoid importing Node filesystem modules here because this provider is also
+  // compiled into browser bundles.
   if (typeof window === "undefined") {
-    const fs = await import("node:fs/promises");
-    const path = await import("node:path");
-    try {
-      return JSON.parse(
-        await fs.readFile(path.join(process.cwd(), "public", relativePath), "utf-8"),
-      ) as PrebakedTranslations;
-    } catch {
-      console.warn(`Failed to read translation file for ${langPair}`);
-      return {};
-    }
+    return {};
   }
 
   const fileUrl = `/${relativePath}`;

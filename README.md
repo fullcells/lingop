@@ -100,7 +100,7 @@ Do not run annotation prebaking in `prestart`: full annotation refreshes during 
 
 ### Runtime setup
 
-The React provider mirrors OmniAccess's translation-only context. It loads generated files from `public/i18n/var/translations`, using filesystem reads during server rendering and relative fetches in the browser:
+The React provider mirrors OmniAccess's translation-only context. Browsers load generated files from `public/i18n/var/translations`. Server rendering avoids relative asset requests; consumers that need translated SSR output can pass `initialTranslationsByLangPair`.
 
 ```tsx
 import { PrebakedDataProvider, usePrebaked } from "lingop/prebake/react";
