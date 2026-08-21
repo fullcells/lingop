@@ -31,6 +31,8 @@ export type AnnotatedTextViewProps = {
   showGlossText?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
   showGlossEmoji?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
   isEmojiBlackWhite?: boolean;
+  /** Language used for the displayed gloss text. */
+  glossTextTipLang?: string;
   /** Whether English verb glosses retain their leading "TO " prefix. */
   showTokenGlossPrefix_TO__?: boolean;
   /** Fades words identified as non-core; Supabase-backed checks require supabaseClient. */
@@ -163,6 +165,7 @@ function TokenMainTextSpan({ children }: { children: ReactNode }): ReactNode {
 
 type TokenGlossViewProps = {
   isEmojiBlackWhite: boolean;
+  glossTextTipLang: string;
   lang: string;
   lingopClient: LingoDataClient;
   token: AnnotatedToken;
@@ -173,6 +176,7 @@ type TokenGlossViewProps = {
 
 function TokenGlossView({
   isEmojiBlackWhite,
+  glossTextTipLang,
   lang,
   lingopClient,
   token,
@@ -192,6 +196,26 @@ function TokenGlossView({
     }
     return gloss;
   }, [showTokenGlossPrefix_TO__, token]);
+  const [tipLangGlossResult, setTipLangGlossResult] = useState<{
+    enGloss: string;
+    glossTextTipLang: string;
+    tipLangGloss: string;
+  } | null>(null);
+  const matchingTipLangGloss =
+    tipLangGlossResult?.enGloss === enGloss &&
+    tipLangGlossResult.glossTextTipLang === glossTextTipLang
+      ? tipLangGlossResult.tipLangGloss
+      : null;
+  const shouldFetchTipLangGloss =
+    showGlossText !== "NEVER" &&
+    !!enGloss &&
+    !!glossTextTipLang &&
+    !ilike(glossTextTipLang, "en");
+  const loadingTipLangGloss =
+    shouldFetchTipLangGloss && matchingTipLangGloss === null;
+  const tipLangGloss = ilike(glossTextTipLang, "en")
+    ? enGloss
+    : matchingTipLangGloss ?? enGloss;
   const [emojiResult, setEmojiResult] = useState<{
     enGloss: string;
     emoji: string | null;
@@ -208,6 +232,50 @@ function TokenGlossView({
     generatedEmoji && isEmojiBlackWhite
       ? convertEmojiTextToBlackWhiteCompatibleEmojiText(generatedEmoji)
       : generatedEmoji;
+
+  // GlossTextTipLang
+  useEffect(() => {
+    let cancelled = false;
+    setTipLangGlossResult(null);
+
+    if (!shouldFetchTipLangGloss || !enGloss) return;
+
+    void lingopClient
+      .fetchAndGenGloss({
+        source_lang: "en",
+        source_word: enGloss,
+        target_lang: glossTextTipLang,
+      })
+      .then((glossOutput) => {
+        if (!cancelled) {
+          setTipLangGlossResult({
+            enGloss,
+            glossTextTipLang,
+            // Fail open to the English gloss when no translation is available.
+            tipLangGloss: glossOutput?.targetWord ?? enGloss,
+          });
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          console.error("Error determining tip-language gloss:", error);
+          setTipLangGlossResult({
+            enGloss,
+            glossTextTipLang,
+            tipLangGloss: enGloss,
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    enGloss,
+    glossTextTipLang,
+    lingopClient,
+    shouldFetchTipLangGloss,
+  ]);
 
   // Emoji
   useEffect(() => {
@@ -283,14 +351,22 @@ function TokenGlossView({
           // FUTURE CONSIDERATION: CUR: BRUTE Temp Forcing to LTR. FUTURE: For RTL Langs: Emoji Content needs to adopt: (ARROW DIRECTIONS + Reflip Directions of Emojis) - 20260707
           dir="ltr"
         >
-          {emoji ?? enGloss ?? visuallyEmpty}
+          {emoji ?? tipLangGloss ?? visuallyEmpty}
         </span>
       )}
 
       {/* GLOSS TEXT */}
       {showGlossText === "ALWAYS" && (
         <span className="gloss-text-wrapper" style={annotationSlotStyle}>
-          <span className="gloss-text">{enGloss}</span>
+          <span className="gloss-text">
+            {loadingTipLangGloss ? (
+              <span className="gloss-text-loading" aria-label="Loading gloss">
+                …
+              </span>
+            ) : (
+              tipLangGloss
+            )}
+          </span>
         </span>
       )}
     </span>
@@ -312,6 +388,7 @@ export function AnnotatedTextView({
   showGlossText = "ALWAYS",
   showGlossEmoji = "NEVER",
   isEmojiBlackWhite = false,
+  glossTextTipLang = "en",
   showTokenGlossPrefix_TO__ = true,
   localShouldFadeNonCoreWords = false,
   nonCoreWordsFadeOpacity = 0.5,
@@ -423,6 +500,7 @@ export function AnnotatedTextView({
               />
               <TokenGlossView
                 isEmojiBlackWhite={isEmojiBlackWhite}
+                glossTextTipLang={glossTextTipLang}
                 lang={annotatedText.lang}
                 lingopClient={lingopClient}
                 token={token}
