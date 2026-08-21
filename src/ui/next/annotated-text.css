@@ -1,0 +1,41 @@
+.annotated-text-view .gloss {
+  user-select: none;
+  text-align: center;
+}
+
+.annotated-text-view .gloss-emoji,
+.annotated-text-view .gloss-text-wrapper {
+  box-sizing: border-box;
+  width: 100%;
+  text-align: center;
+}
+
+/*
+ * 20260821: Noto Color Emoji's CBDT/CBLC format can be slow or unreliable in
+ * Safari/WebKit, so retain system-font default there. Consumers
+ * can override either font stack through the custom properties below without
+ * replacing Lingop's selectors.
+ */
+.annotated-text-view .emoji-color-font {
+  font-family: var(--lingop-atv-color-emoji-font-family, initial);
+}
+
+.annotated-text-view .emoji-bw-font {
+  font-family: var(
+    --lingop-atv-bw-emoji-font-family,
+    "Noto Emoji",
+    sans-serif
+  );
+}
+
+/* Not iOS/macOS Safari: prefer the platform's Noto color emoji font. */
+@supports not (font: -apple-system-body) {
+  .annotated-text-view .emoji-color-font {
+    font-family: var(
+      --lingop-atv-color-emoji-font-family,
+      "Noto Color Emoji",
+      "Apple Color Emoji",
+      sans-serif
+    );
+  }
+}

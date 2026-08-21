@@ -88,6 +88,7 @@
       "types": "./dist/ui/next/index.d.ts",
       "default": "./dist/ui/next/index.js"
     },
+    "./ui/next/annotated-text.css": "./src/ui/next/annotated-text.css",
     "./ui/next/camp-lingo-auth-form.css": "./src/ui/next/camp-lingo-auth-form.css",
     "./ui/next/word-lists-selector.css": "./src/ui/next/word-lists-selector.css",
     "./ui/react-native": {
@@ -98,6 +99,7 @@
   "files": [
     "bin",
     "dist",
+    "src/ui/next/annotated-text.css",
     "src/ui/next/camp-lingo-auth-form.css",
     "src/ui/next/word-lists-selector.css"
   ],

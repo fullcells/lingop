@@ -351,9 +351,24 @@ data: for example, `Obama` remains stored as `Obama`, while later calls using
 
 ## Rendering Annotation in Next.js
 
-`import { AnnotatedTextView } from "lingop/ui/next";
+```tsx
+import { AnnotatedTextView } from "lingop/ui/next";
+import "lingop/ui/next/annotated-text.css";
 
-<AnnotatedTextView annotatedText={annotatedText} />;`
+<AnnotatedTextView annotatedText={annotatedText} />;
+```
+
+The optional stylesheet supplies the default color and monochrome emoji font
+handling. Critical layout remains built into the component, so importing the
+stylesheet is not required when an application provides its own ATV styles.
+Consumers can override its font stacks with CSS custom properties:
+
+```css
+.annotated-text-view {
+  --lingop-atv-color-emoji-font-family: "My Color Emoji", sans-serif;
+  --lingop-atv-bw-emoji-font-family: "My Monochrome Emoji", sans-serif;
+}
+```
 
 ## Speech/TTS in Next.js
 
