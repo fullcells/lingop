@@ -10,6 +10,7 @@ import { ilike } from "../../core/misc.js";
 export type AnnotatedTextViewProps = {
   annotatedText: AnnotatedText;
   showSpelling?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
+  showMainText?: boolean;
   showGloss?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
 };
 
@@ -29,13 +30,13 @@ function isWordToken(token: AnnotatedToken): boolean {
 function phoneticPartToSpelling(
   [chars, spelling]: PhoneticPart,
   lang: string,
-  prefShowMainText: boolean,
+  showMainText: boolean,
 ): string {
   let phoneticPartSpelling = spelling ?? chars;
 
   if (ilike("ja", lang)) {
     // BE default is Hiragana. Hide duplicates when the main text already shows it.
-    if (phoneticPartSpelling === chars && chars !== "ー" && prefShowMainText) {
+    if (phoneticPartSpelling === chars && chars !== "ー" && showMainText) {
       phoneticPartSpelling = visuallyEmpty;
     }
   }
@@ -49,31 +50,37 @@ function tokenToPhoneticParts(token: AnnotatedToken): PhoneticPart[] {
 
 // 20260821: AnnotatedTextView is being ported gradually from OmniAccess.
 // The current port only includes the basic render-component structure and
-// NEVER/ALWAYS visibility inputs. Action Buttons, TTS, ON_HINT state (including
+// visibility inputs. Action Buttons, TTS, ON_HINT state (including
 // l10nWordDetailHandler, isWordUnfamiliar, and userWordStreaks),
 // useUserLingoPrefsData, download-as-image, and the other OmniAccess behavior
 // are intentionally not ported yet.
 type TokenSpellingAndMainViewProps = {
+  _showSpelling: "NEVER" | "ALWAYS";
+  _showMainText: boolean;
+  annotatedText: AnnotatedText;
   token: AnnotatedToken;
-  lang: string;
-  showSpelling: "NEVER" | "ALWAYS";
 };
 
 function TokenSpellingAndMainView({
+  _showSpelling,
+  _showMainText,
+  annotatedText,
   token,
-  lang,
-  showSpelling,
 }: TokenSpellingAndMainViewProps): ReactNode {
+  if (!_showMainText && _showSpelling === "NEVER") return null;
+
   if (!isWordToken(token)) {
     return (
       <>
-        <TokenSpellingTextSpan>{visuallyEmpty}</TokenSpellingTextSpan>
-        <TokenMainTextSpan>{token.text}</TokenMainTextSpan>
+        <TokenSpellingTextSpan>
+          {_showSpelling === "ALWAYS" && !_showMainText
+            ? token.text
+            : visuallyEmpty}
+        </TokenSpellingTextSpan>
+        {_showMainText && <TokenMainTextSpan>{token.text}</TokenMainTextSpan>}
       </>
     );
   }
-
-  const prefShowMainText = true;
 
   return (
     <span
@@ -85,8 +92,8 @@ function TokenSpellingAndMainView({
     >
       {tokenToPhoneticParts(token).map((part, partIndex) => {
         const [chars] = part;
-        const partSpelling = showSpelling === "ALWAYS"
-          ? phoneticPartToSpelling(part, lang, prefShowMainText)
+        const partSpelling = _showSpelling === "ALWAYS"
+          ? phoneticPartToSpelling(part, annotatedText.lang, _showMainText)
           : visuallyEmpty;
 
         return (
@@ -101,7 +108,7 @@ function TokenSpellingAndMainView({
             }}
           >
             <TokenSpellingTextSpan>{partSpelling}</TokenSpellingTextSpan>
-            <TokenMainTextSpan>{chars}</TokenMainTextSpan>
+            {_showMainText && <TokenMainTextSpan>{chars}</TokenMainTextSpan>}
           </span>
         );
       })}
@@ -162,6 +169,7 @@ function TokenGlossView({
 export function AnnotatedTextView({
   annotatedText,
   showSpelling = "ALWAYS",
+  showMainText = true,
   showGloss = "ALWAYS",
 }: AnnotatedTextViewProps): ReactNode {
   return (
@@ -199,9 +207,10 @@ export function AnnotatedTextView({
               }}
             >
               <TokenSpellingAndMainView
+                _showSpelling={showSpelling}
+                _showMainText={showMainText}
+                annotatedText={annotatedText}
                 token={token}
-                lang={annotatedText.lang}
-                showSpelling={showSpelling}
               />
               <TokenGlossView token={token} showGloss={showGloss} />
             </span>
