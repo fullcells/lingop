@@ -1,0 +1,261 @@
+.lingop-word-lists-selector,
+.lingop-word-lists-selector * {
+  box-sizing: border-box;
+}
+
+.lingop-word-lists-selector {
+  width: 100%;
+  color: #1a202c;
+}
+
+.lingop-word-lists-selector button,
+.lingop-word-lists-selector a {
+  color: inherit;
+  font: inherit;
+}
+
+.lingop-word-lists-selector__root,
+.lingop-word-lists-selector__branches,
+.lingop-word-lists-selector__branch {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.lingop-word-lists-selector__root {
+  gap: 1rem;
+  padding-block: 1rem;
+}
+
+.lingop-word-lists-selector__branches {
+  gap: 0.5rem;
+}
+
+.lingop-word-lists-selector__branch {
+  align-items: flex-start;
+}
+
+.lingop-word-lists-selector__branch--outlined {
+  padding: 1rem;
+  border: 1px solid #a0aec0;
+  border-radius: 0.5rem;
+}
+
+.lingop-word-lists-selector__branch--selected {
+  background: #bee3f8;
+}
+
+.lingop-word-lists-selector__branch-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0 1rem;
+  border: 0;
+  background: none;
+  text-align: left;
+}
+
+button.lingop-word-lists-selector__branch-title {
+  cursor: pointer;
+  transition: color 0.2s ease-in-out;
+}
+
+button.lingop-word-lists-selector__branch-title:hover {
+  color: #3182ce;
+}
+
+.lingop-word-lists-selector__branch-title small {
+  color: #718096;
+  font-size: 0.75rem;
+}
+
+.lingop-word-lists-selector__leaf-grid {
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+}
+
+.lingop-word-lists-selector__leaf-grid > .lingop-word-list-leaf {
+  flex: 0 0 120px;
+}
+
+.lingop-word-lists-selector__scroll-spacer {
+  flex: 0 0 0.5rem;
+}
+
+.lingop-word-lists-selector hr {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid #e2e8f0;
+}
+
+.lingop-word-lists-selector__spinner {
+  display: block;
+  width: 2rem;
+  height: 2rem;
+  margin: 1rem auto;
+  border: 3px solid #e2e8f0;
+  border-top-color: #3182ce;
+  border-radius: 50%;
+  animation: lingop-word-lists-selector-spin 0.7s linear infinite;
+}
+
+.lingop-word-lists-selector__spinner--small {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0.125rem auto;
+  border-width: 2px;
+}
+
+.lingop-word-list-leaf {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #edf2f7;
+  border-radius: 0.25rem;
+  background: white;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
+  text-align: center;
+  transition: all 0.2s ease-in-out;
+}
+
+.lingop-word-list-leaf--selected {
+  border: 4px solid #2b6cb0;
+  background: #3182ce;
+  color: white;
+}
+
+.lingop-word-list-leaf__main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  gap: 0;
+  padding: 0.5rem;
+  border: 0;
+  background: transparent;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.lingop-word-list-leaf__main:hover {
+  background: #bee3f8;
+  color: #2b6cb0;
+}
+
+.lingop-word-list-leaf__emoji {
+  min-height: 1.75rem;
+  font-size: 1.25rem;
+}
+
+.lingop-word-list-leaf__primary-title,
+.lingop-word-list-leaf__secondary-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.lingop-word-list-leaf__primary-title {
+  font-size: 1.125rem;
+}
+
+.lingop-word-list-leaf__secondary-title {
+  font-size: 0.875rem;
+}
+
+.lingop-word-list-leaf__primary-title small,
+.lingop-word-list-leaf__secondary-title small {
+  opacity: 0.5;
+  font-size: inherit;
+}
+
+.lingop-word-list-leaf__toolbar {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  background: #edf2f7;
+  color: #a0aec0;
+}
+
+.lingop-word-list-leaf__toolbar button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0.5rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.lingop-word-list-leaf__toolbar button:hover:not(:disabled) {
+  background: #bee3f8;
+  color: #2b6cb0;
+}
+
+.lingop-word-list-leaf__toolbar button:disabled {
+  cursor: default;
+}
+
+.lingop-word-list-leaf__toolbar svg {
+  width: 1rem;
+  height: 1rem;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 2;
+}
+
+.lingop-word-list-leaf__progress-button {
+  flex: 1;
+}
+
+.lingop-word-list-leaf__progress-track {
+  width: 100%;
+  height: 0.25rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: white;
+}
+
+.lingop-word-list-leaf__progress-value {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #d69e2e;
+}
+
+.lingop-word-list-leaf__progress-value--complete {
+  background: #38a169;
+}
+
+@media (min-width: 48rem) {
+  .lingop-word-lists-selector__leaf-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: 0.5rem;
+    padding-top: 0.5rem;
+    overflow: visible;
+  }
+
+  .lingop-word-lists-selector__leaf-grid > .lingop-word-list-leaf {
+    min-width: 0;
+  }
+
+  .lingop-word-lists-selector__scroll-spacer {
+    display: none;
+  }
+}
+
+@keyframes lingop-word-lists-selector-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

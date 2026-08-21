@@ -89,6 +89,7 @@
       "default": "./dist/ui/next/index.js"
     },
     "./ui/next/camp-lingo-auth-form.css": "./src/ui/next/camp-lingo-auth-form.css",
+    "./ui/next/word-lists-selector.css": "./src/ui/next/word-lists-selector.css",
     "./ui/react-native": {
       "types": "./dist/ui/react-native/index.d.ts",
       "default": "./dist/ui/react-native/index.js"
@@ -97,7 +98,8 @@
   "files": [
     "bin",
     "dist",
-    "src/ui/next/camp-lingo-auth-form.css"
+    "src/ui/next/camp-lingo-auth-form.css",
+    "src/ui/next/word-lists-selector.css"
   ],
   "bin": {
     "oat-preflight": "./bin/oat-preflight.js",

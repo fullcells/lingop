@@ -140,6 +140,25 @@ import "lingop/ui/next/camp-lingo-auth-form.css";
 
 The stylesheet provides the default Camp Lingo appearance. Consumers can override the `lingop-camp-lingo-auth-form*` classes or pass an additional root `className`.
 
+## Word-list selector in Next.js
+
+`WordListsSelector` and its `WordListVisualLeafNode` use plain React and CSS, with no Chakra UI or other visual-framework dependency. They use the existing Prebake and user-word-streak providers; the consumer supplies its browser Supabase client and current language pair.
+
+```tsx
+import { WordListsSelector } from "lingop/ui/next";
+import "lingop/ui/next/word-lists-selector.css";
+
+<WordListsSelector
+  supabaseClient={supabaseClient}
+  guiLang={guiLang}
+  focusLang={focusLang}
+  rootListPk="_public"
+  mode="EXPLORE"
+  onSelectedWordListPks={(listPks) => openSession(listPks[0])}
+  showWordStreaks
+/>;
+```
+
 ## Install
 
 - `npm install lingop@github:fullcells/lingop#v0.3.X` // Installs Directly from Github // Replace `X` with version number.
