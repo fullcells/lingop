@@ -14,6 +14,10 @@ import type {
   PhoneticPart,
 } from "../../core/annotation/types.js";
 import {
+  convertEmojiTextToBlackWhiteCompatibleEmojiText,
+  shouldBlackWhiteEmojiUseColorEmojiFont,
+} from "../../core/emojify.js";
+import {
   createLingoDataClient,
   type LingoDataClient,
   type SupabaseLingoDataClient,
@@ -26,6 +30,7 @@ export type AnnotatedTextViewProps = {
   showMainText?: boolean;
   showGlossText?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
   showGlossEmoji?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
+  isEmojiBlackWhite?: boolean;
   /** Fades words identified as non-core; Supabase-backed checks require supabaseClient. */
   localShouldFadeNonCoreWords?: boolean | null;
   nonCoreWordsFadeOpacity?: number;
@@ -73,9 +78,9 @@ function tokenToPhoneticParts(token: AnnotatedToken): PhoneticPart[] {
 // l10nWordDetailHandler, isWordUnfamiliar, and userWordStreaks),
 // useUserLingoPrefsData, download-as-image, and the other OmniAccess behavior
 // are intentionally not ported yet.
-// 20260821: Gloss emojis currently port only basic color rendering and
-// NEVER/ALWAYS visibility. ON_HINT, black-and-white conversion, per-grapheme
-// flipping, loading spinners, and non-core gloss preferences remain deferred.
+// 20260821: Gloss emojis currently port basic color/black-and-white rendering
+// and NEVER/ALWAYS visibility. ON_HINT, per-grapheme flipping, loading spinners,
+// and non-core gloss preferences remain deferred.
 type TokenSpellingAndMainViewProps = {
   _showSpelling: "NEVER" | "ALWAYS";
   _showMainText: boolean;
@@ -155,6 +160,7 @@ function TokenMainTextSpan({ children }: { children: ReactNode }): ReactNode {
 }
 
 type TokenGlossViewProps = {
+  isEmojiBlackWhite: boolean;
   lang: string;
   lingopClient: LingoDataClient;
   token: AnnotatedToken;
@@ -163,6 +169,7 @@ type TokenGlossViewProps = {
 };
 
 function TokenGlossView({
+  isEmojiBlackWhite,
   lang,
   lingopClient,
   token,
@@ -176,12 +183,16 @@ function TokenGlossView({
     lang: string;
     token: AnnotatedToken;
   } | null>(null);
-  const emoji =
+  const generatedEmoji =
     emojiResult?.token === token &&
     emojiResult.enGloss === enGloss &&
     emojiResult.lang === lang
       ? emojiResult.emoji
       : null;
+  const emoji =
+    generatedEmoji && isEmojiBlackWhite
+      ? convertEmojiTextToBlackWhiteCompatibleEmojiText(generatedEmoji)
+      : generatedEmoji;
 
   // Emoji
   useEffect(() => {
@@ -226,6 +237,16 @@ function TokenGlossView({
     );
   }
 
+  // Emoji Font
+  let emojiFont = "emoji-color-font";
+  if (
+    emoji &&
+    isEmojiBlackWhite &&
+    !shouldBlackWhiteEmojiUseColorEmojiFont(emoji)
+  ) {
+    emojiFont = "emoji-bw-font";
+  }
+
   return (
     <span
       className="gloss"
@@ -239,8 +260,11 @@ function TokenGlossView({
       {/* GLOSS EMOJI */}
       {showGlossEmoji === "ALWAYS" && (
         <span
-          className="gloss-emoji emoji-color-font"
-          style={annotationSlotStyle}
+          className={`gloss-emoji ${emojiFont}`}
+          style={{
+            ...annotationSlotStyle,
+            ...(isEmojiBlackWhite ? { filter: "grayscale(100%)" } : {}),
+          }}
           // FUTURE CONSIDERATION: CUR: BRUTE Temp Forcing to LTR. FUTURE: For RTL Langs: Emoji Content needs to adopt: (ARROW DIRECTIONS + Reflip Directions of Emojis) - 20260707
           dir="ltr"
         >
@@ -272,6 +296,7 @@ export function AnnotatedTextView({
   showMainText = true,
   showGlossText = "ALWAYS",
   showGlossEmoji = "NEVER",
+  isEmojiBlackWhite = false,
   localShouldFadeNonCoreWords = false,
   nonCoreWordsFadeOpacity = 0.5,
   supabaseClient,
@@ -381,6 +406,7 @@ export function AnnotatedTextView({
                 token={token}
               />
               <TokenGlossView
+                isEmojiBlackWhite={isEmojiBlackWhite}
                 lang={annotatedText.lang}
                 lingopClient={lingopClient}
                 token={token}
