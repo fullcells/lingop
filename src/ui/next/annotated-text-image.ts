@@ -4,9 +4,9 @@ export type AnnotatedTextImageData = {
   height: number;
 };
 
-const horizontalPadding = 12;
+const horizontalPadding = 2; // 12;
 const topPadding = 2;
-const bottomPadding = 2;
+const bottomPadding = 2; //20;
 
 export async function captureAnnotatedTextImage(
   element: HTMLElement,
