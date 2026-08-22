@@ -371,6 +371,20 @@ describe("speech synth TTS", () => {
     })).resolves.toBeUndefined();
     expect(calls).toEqual(["cancel", "resume", "speak"]);
 
+    playbackError = { error: "interrupted" } as SpeechSynthesisErrorEvent;
+    await expect(speak({
+      text: "interrupted speech",
+      lang: "en",
+      apiVoiceAccessProfile: "NONE",
+    })).resolves.toBeUndefined();
+
+    playbackError = { error: "canceled" } as SpeechSynthesisErrorEvent;
+    await expect(speak({
+      text: "canceled speech",
+      lang: "en",
+      apiVoiceAccessProfile: "NONE",
+    })).resolves.toBeUndefined();
+
     playbackError = { error: "synthesis-failed" } as SpeechSynthesisErrorEvent;
     await expect(speak({
       text: "hello again",

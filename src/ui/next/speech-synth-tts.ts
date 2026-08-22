@@ -1161,9 +1161,15 @@ async function speakBrowserUtterance(
       if (settled) return;
       settled = true;
       clearTimeout(startTimeoutId);
+      // Starting speech elsewhere intentionally interrupts the current
+      // utterance. Treat that as normal early completion so callers can clear
+      // their playback state without masking genuine synthesis failures.
+      if (event.error === "interrupted" || event.error === "canceled") {
+        resolve();
+        return;
+      }
       reject(new Error(`Browser speech synthesis failed: ${event.error}`, { cause: event }));
     };
-    // Note: .onerror can occur if user interrupts the utterance and requests TTS on another thing, which is quite common for LingoDex.
     speechSynthesis.speak(utterance);
   });
 }
