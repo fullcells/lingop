@@ -1,3 +1,5 @@
+"use client";
+
 import {
   type FormEvent,
   useEffect,
@@ -7,6 +9,7 @@ import {
 } from "react";
 
 import { useOAT } from "../../oat/react/index.js";
+import { useOptionalLingopClientData } from "./lingop-client-data-provider.js";
 
 const GOOGLE_IDENTITY_SCRIPT_ID = "lingop-google-identity-services";
 const GOOGLE_IDENTITY_SCRIPT_URL = "https://accounts.google.com/gsi/client";
@@ -119,7 +122,8 @@ export enum CampLingoAuthFormMode {
 }
 
 export type CampLingoAuthFormProps = {
-  supabaseClient: CampLingoAuthSupabaseClient;
+  /** @deprecated Configure this once on LingopClientDataProvider instead. */
+  supabaseClient?: CampLingoAuthSupabaseClient;
   guiLang: string;
   initialMode?: CampLingoAuthFormMode;
   onSuccessfulAuth?: (authMode: CampLingoAuthFormMode) => void;
@@ -134,6 +138,17 @@ export type CampLingoAuthFormProps = {
 function authErrorMessage(error: AuthErrorLike): string {
   if (typeof error === "string") return error;
   return error?.message || String(error || "Unknown error");
+}
+
+function requireAuthSupabaseClient(
+  client: unknown,
+): CampLingoAuthSupabaseClient {
+  if (!client) {
+    throw new Error(
+      "CampLingoAuthForm requires a Supabase client from LingopClientDataProvider",
+    );
+  }
+  return client as CampLingoAuthSupabaseClient;
 }
 
 function isClassicCampLingoLocation(): boolean {
@@ -173,9 +188,10 @@ function FieldIcon({ type }: { type: "email" | "password" }) {
 /**
  * Camp Lingo's shared browser login/signup form.
  *
- * The consumer supplies its browser-configured Supabase client and current GUI
- * language. Lingop owns the common Camp Lingo branding, auth behavior, OAT
- * source strings, and Google Identity Services integration.
+ * The consumer configures its browser Supabase client on
+ * LingopClientDataProvider and supplies the current GUI language. Lingop owns
+ * the common Camp Lingo branding, auth behavior, OAT source strings, and
+ * Google Identity Services integration.
  */
 export function CampLingoAuthForm({
   supabaseClient,
@@ -188,6 +204,10 @@ export function CampLingoAuthForm({
   className,
 }: CampLingoAuthFormProps) {
   const { OAT } = useOAT();
+  const providedClientData = useOptionalLingopClientData();
+  const authSupabaseClient = requireAuthSupabaseClient(
+    supabaseClient ?? providedClientData?.supabaseClient,
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -239,7 +259,7 @@ export function CampLingoAuthForm({
             if (!response.credential) return;
             setLoading(true);
             setErrorMessage("");
-            void supabaseClient.auth
+            void authSupabaseClient.auth
               .signInWithIdToken({
                 provider: "google",
                 token: response.credential,
@@ -277,7 +297,7 @@ export function CampLingoAuthForm({
       cancelled = true;
       button.replaceChildren();
     };
-  }, [googleButtonTheme, isGoogleAuthVisible, supabaseClient]);
+  }, [authSupabaseClient, googleButtonTheme, isGoogleAuthVisible]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -295,8 +315,8 @@ export function CampLingoAuthForm({
     try {
       const { error } =
         mode === CampLingoAuthFormMode.LOG_IN
-          ? await supabaseClient.auth.signInWithPassword({ email, password })
-          : await supabaseClient.auth.signUp({ email, password });
+          ? await authSupabaseClient.auth.signInWithPassword({ email, password })
+          : await authSupabaseClient.auth.signUp({ email, password });
 
       if (error) {
         let message = authErrorMessage(error);

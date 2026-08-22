@@ -1,9 +1,12 @@
+"use client";
+
 import { useEffect, useState } from "react";
 
 import {
   asSupabaseRuntimeClient,
   type SupabaseClientLike,
 } from "../../core/supabase.js";
+import { useOptionalLingopClientData } from "./lingop-client-data-provider.js";
 
 export type SupabaseSignedInStatus = boolean | null;
 
@@ -15,9 +18,15 @@ export type SupabaseSignedInStatusState = {
 };
 
 export function useSupabaseSignedInStatus(
-  supabaseClient: SupabaseClientLike | null | undefined,
+  supabaseClient?: SupabaseClientLike | null,
 ): SupabaseSignedInStatusState {
-  const runtimeSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
+  const providedClientData = useOptionalLingopClientData();
+  // An explicit null deliberately disables the provider's authenticated client.
+  const resolvedSupabaseClient =
+    supabaseClient !== undefined
+      ? supabaseClient
+      : providedClientData?.supabaseClient;
+  const runtimeSupabaseClient = asSupabaseRuntimeClient(resolvedSupabaseClient);
   const [signedInStatus, setSignedInStatus] =
     useState<SupabaseSignedInStatus>(null);
   const [supabaseUserID, setSupabaseUserID] = useState<string | null>(null);

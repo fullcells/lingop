@@ -1,13 +1,13 @@
+"use client";
+
 import React, { useEffect, useMemo, useState } from "react";
 
 import {
-  createLingoDataClient,
-  loadSBCacheWordListsForLang,
-  loadWordListMetaData,
   type SupabaseWordListsClient,
   type WordListMeta,
 } from "../../core/index.js";
 import { usePrebaked } from "../../prebake/react/index.js";
+import { useLingopClientDataOrCreate } from "./lingop-client-data-provider.js";
 import { useUserWordStreaksData } from "./user-word-streaks.js";
 
 export type WordListsSelectorMode =
@@ -18,7 +18,8 @@ export type WordListsSelectorMode =
 export type WordListTitlePriority = "GUI_LANG" | "FOCUS_LANG";
 
 export type WordListsSelectorProps = {
-  supabaseClient: SupabaseWordListsClient;
+  /** @deprecated Configure this once on LingopClientDataProvider instead. */
+  supabaseClient?: SupabaseWordListsClient;
   guiLang: string;
   focusLang: string;
   rootListPk: string;
@@ -45,7 +46,8 @@ export type WordListTreeNode = {
 };
 
 export type WordListVisualLeafNodeProps = {
-  supabaseClient: SupabaseWordListsClient;
+  /** @deprecated Configure this once on LingopClientDataProvider instead. */
+  supabaseClient?: SupabaseWordListsClient;
   guiLang: string;
   focusLang: string;
   node: WordListTreeNode;
@@ -131,8 +133,9 @@ function wordListHref(basePath: string, title: string): string {
  * Camp Lingo's shared word-list tree selector.
  *
  * Lingop owns the data/tree behavior and framework-free visual treatment. The
- * consumer supplies its existing browser Supabase client and current languages.
- * Translation and word-streak data come from Lingop's existing providers.
+ * shared client comes from LingopClientDataProvider; the consumer supplies the
+ * current languages. Translation and word-streak data come from Lingop's
+ * existing providers.
  */
 export function WordListsSelector({
   supabaseClient,
@@ -157,6 +160,9 @@ export function WordListsSelector({
   // This was originally a three-level renderer, e.g.
   // _public."First Words"."Color":[Color#1…5] (levels 0, 1 and 2).
   const { PrebakedT9n } = usePrebaked();
+  const lingopClient = useLingopClientDataOrCreate(
+    supabaseClient ? { supabaseClient } : {},
+  );
   const [wordListsMeta, setWordListsMeta] = useState<WordListMeta[] | null>(null);
   const [selectedWordListPks, setSelectedWordListPks] = useState<string[]>(
     initialSelectedWordListPks,
@@ -165,13 +171,13 @@ export function WordListsSelector({
   useEffect(() => {
     let active = true;
     setWordListsMeta(null);
-    void loadWordListMetaData({ supabaseClient }).then((metadata) => {
+    void lingopClient.loadWordListMetaData().then((metadata) => {
       if (active) setWordListsMeta(metadata);
     });
     return () => {
       active = false;
     };
-  }, [supabaseClient]);
+  }, [lingopClient]);
 
   const wordListTree = useMemo(
     () =>
@@ -208,7 +214,7 @@ export function WordListsSelector({
       return (
         <WordListVisualLeafNode
           key={title}
-          supabaseClient={supabaseClient}
+          {...(supabaseClient ? { supabaseClient } : {})}
           guiLang={guiLang}
           focusLang={focusLang}
           node={node}
@@ -330,9 +336,8 @@ export function WordListVisualLeafNode({
 }: WordListVisualLeafNodeProps) {
   const { PrebakedT9n } = usePrebaked();
   const { userWordStreaks } = useUserWordStreaksData();
-  const lingoDataClient = useMemo(
-    () => createLingoDataClient({ supabaseClient }),
-    [supabaseClient],
+  const lingopClient = useLingopClientDataOrCreate(
+    supabaseClient ? { supabaseClient } : {},
   );
   const title = node.meta.title;
   const { titleLabel, titleCounter } = segmentWordListTitle(title);
@@ -344,7 +349,7 @@ export function WordListVisualLeafNode({
   useEffect(() => {
     let active = true;
     setLoadingEmoji(true);
-    void lingoDataClient
+    void lingopClient
       .generateEmoji(PrebakedT9n(titleLabel, node.meta.lang, "en"))
       .then((emoji) => {
         if (!active) return;
@@ -356,7 +361,7 @@ export function WordListVisualLeafNode({
     return () => {
       active = false;
     };
-  }, [PrebakedT9n, lingoDataClient, node.meta.lang, titleCounter, titleLabel]);
+  }, [PrebakedT9n, lingopClient, node.meta.lang, titleCounter, titleLabel]);
 
   useEffect(() => {
     let active = true;
@@ -370,9 +375,7 @@ export function WordListVisualLeafNode({
     void (async () => {
       // Gather this list and its descendants, then count unique localized words.
       const listPks = new Set(getListPksInWordListsMetaTree(node));
-      const cacheRows = await loadSBCacheWordListsForLang(focusLang, {
-        supabaseClient,
-      });
+      const cacheRows = await lingopClient.loadSBCacheWordListsForLang(focusLang);
       const localizedWords = new Set(
         cacheRows
           .filter((row) => listPks.has(row.list_title))
@@ -391,7 +394,7 @@ export function WordListVisualLeafNode({
     return () => {
       active = false;
     };
-  }, [focusLang, node, showWordStreaks, supabaseClient, userWordStreaks]);
+  }, [focusLang, lingopClient, node, showWordStreaks, userWordStreaks]);
 
   const primaryLang =
     priorityDisplayLang === "FOCUS_LANG" ? focusLang : guiLang;

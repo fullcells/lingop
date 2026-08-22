@@ -117,11 +117,36 @@ function ContentLabel() {
 }
 ```
 
+## Shared Lingop client data in React
+
+`LingopClientDataProvider` creates one `LingoDataClient` for its React subtree. Configure the consumer's existing browser Supabase client and production/staging choice once; compatible Lingop UI components then share that client and its in-memory caches.
+
+```tsx
+import {
+  LingopClientDataProvider,
+  useLingopClientData,
+} from "lingop/ui/next";
+
+<LingopClientDataProvider
+  supabaseClient={supabaseClient}
+  useStagingBackend={process.env.NODE_ENV === "development"}
+>
+  <App />
+</LingopClientDataProvider>;
+
+function Example() {
+  const { lingopClient } = useLingopClientData();
+  // The same client instance is available to custom consumer components.
+}
+```
+
+`WordListsSelector`, `WordListVisualLeafNode`, `AnnotatedTextView`, `CampLingoAuthForm`, `UserWordStreaksDataProvider`, and `useSupabaseSignedInStatus()` use the provider when present. Their explicit Supabase-client inputs remain temporarily available for migration or intentional overrides. Non-React APIs, including `speechSynthTTS`, cannot read React context and retain explicit client options.
+
 ## Camp Lingo Auth Form in Next.js
 
 `CampLingoAuthForm` is the shared Camp Lingo browser login/signup UI. It owns the common Camp Lingo branding and labels, email/password flows, Google Identity Services integration, and forgot-password destination. It uses basic DOM elements and stable class names so consumers can override its appearance without taking on a UI-framework dependency.
 
-The consumer supplies its existing browser-configured Supabase client and current GUI language. Lingop does not create or configure Supabase, and the form is currently part of `lingop/ui/next`, not the React Native UI.
+The form uses the browser-configured Supabase client from `LingopClientDataProvider`; the consumer supplies its current GUI language. Lingop does not create or configure Supabase itself, and the form is currently part of `lingop/ui/next`, not the React Native UI.
 
 ```tsx
 import {
@@ -131,7 +156,6 @@ import {
 import "lingop/ui/next/camp-lingo-auth-form.css";
 
 <CampLingoAuthForm
-  supabaseClient={supabaseClient}
   guiLang={guiLang}
   initialMode={CampLingoAuthFormMode.LOG_IN}
   onSuccessfulAuth={(mode) => handleSuccessfulAuth(mode)}
@@ -142,14 +166,13 @@ The stylesheet provides the default Camp Lingo appearance. Consumers can overrid
 
 ## Word-list selector in Next.js
 
-`WordListsSelector` and its `WordListVisualLeafNode` use plain React and CSS, with no Chakra UI or other visual-framework dependency. They use the existing Prebake and user-word-streak providers; the consumer supplies its browser Supabase client and current language pair.
+`WordListsSelector` and its `WordListVisualLeafNode` use plain React and CSS, with no Chakra UI or other visual-framework dependency. They use `LingopClientDataProvider` together with the existing Prebake and user-word-streak providers; the consumer supplies the current language pair.
 
 ```tsx
 import { WordListsSelector } from "lingop/ui/next";
 import "lingop/ui/next/word-lists-selector.css";
 
 <WordListsSelector
-  supabaseClient={supabaseClient}
   guiLang={guiLang}
   focusLang={focusLang}
   rootListPk="_public"
@@ -239,14 +262,13 @@ const annotation = await lingoData.fetchAnnotation({ localization });
 
 User word streaks are exposed through the Next UI provider and hook, not through `lingop/core`. Consumers read and write one unified `userWordStreaks` value regardless of whether the backing store is currently localStorage or Supabase.
 
-Wrap the app with the provider and pass the same app Supabase client you use elsewhere. `focusLang` may be `null`; the provider waits to hydrate or sync until a language exists.
+Wrap the app with this provider beneath `LingopClientDataProvider`. `focusLang` may be `null`; the provider waits to hydrate or sync until a language exists.
 
 ```tsx
 import { UserWordStreaksDataProvider } from "lingop/ui/next";
 
 <UserWordStreaksDataProvider
   focusLang={focusLang}
-  supabaseClient={supabaseClient}
 >
   <Component {...pageProps} />
 </UserWordStreaksDataProvider>;

@@ -22,7 +22,6 @@ import {
   shouldBlackWhiteEmojiUseColorEmojiFont,
 } from "../../core/emojify.js";
 import {
-  createLingoDataClient,
   type LingoDataClient,
   type SupabaseLingoDataClient,
 } from "../../core/lingo-data-client.js";
@@ -32,6 +31,7 @@ import {
   downloadAnnotatedTextImage,
   type AnnotatedTextImageData,
 } from "./annotated-text-image.js";
+import { useLingopClientDataOrCreate } from "./lingop-client-data-provider.js";
 
 export type { AnnotatedTextImageData } from "./annotated-text-image.js";
 
@@ -135,10 +135,10 @@ export type AnnotatedTextViewProps = {
   astyle?: AnnotatedTextStyle;
   /** Whether English verb glosses retain their leading "TO " prefix. */
   showTokenGlossPrefix_TO__?: boolean;
-  /** Fades words identified as non-core; Supabase-backed checks require supabaseClient. */
+  /** Fades words identified as non-core; Supabase-backed checks require provider configuration. */
   localShouldFadeNonCoreWords?: boolean | null;
   nonCoreWordsFadeOpacity?: number;
-  /** A browser-safe public Supabase client. Never pass a service-role client here. */
+  /** @deprecated Configure this once on LingopClientDataProvider instead. */
   supabaseClient?: SupabaseLingoDataClient;
 };
 
@@ -629,12 +629,8 @@ function AnnotatedTextViewComponent({
 }: AnnotatedTextViewProps, ref: ForwardedRef<AnnotatedTextViewHandle>): ReactNode {
   const astyle = resolveAnnotatedTextStyle(astyleInput);
   const exportHTMLElementRef = useRef<HTMLSpanElement>(null);
-  const lingopClient = useMemo(
-    () =>
-      createLingoDataClient({
-        ...(supabaseClient ? { supabaseClient } : {}),
-      }),
-    [supabaseClient],
+  const lingopClient = useLingopClientDataOrCreate(
+    supabaseClient ? { supabaseClient } : {},
   );
   const [coreWordStatusResult, setCoreWordStatusResult] = useState<{
     annotatedText: AnnotatedText;

@@ -1,6 +1,12 @@
 export * from "./cookies.js";
 export * from "./annotated-text.js";
 export * from "./camp-lingo-auth-form.js";
+export {
+  LingopClientDataProvider,
+  useLingopClientData,
+  type LingopClientDataContextType,
+  type LingopClientDataProviderProps,
+} from "./lingop-client-data-provider.js";
 export * from "./speech-synth-tts.js";
 export * from "./supabase-auth.js";
 export * from "./user-word-streaks.js";

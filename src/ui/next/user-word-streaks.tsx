@@ -1,3 +1,5 @@
+"use client";
+
 import React, {
   createContext,
   useCallback,
@@ -21,6 +23,7 @@ import {
   upsertSBUserWordStreaksForLang,
 } from "../../core/user-word-streaks.js";
 import { asSupabaseRuntimeClient, type SupabaseClientLike } from "../../core/supabase.js";
+import { useOptionalLingopClientData } from "./lingop-client-data-provider.js";
 import { useSupabaseSignedInStatus } from "./supabase-auth.js";
 
 export type UserWordStreaksSupabaseClient = SupabaseClientLike;
@@ -48,6 +51,7 @@ export type UserWordStreaksDataContextType = {
 export type UserWordStreaksDataProviderProps = {
   children: ReactNode;
   focusLang: string | null;
+  /** Optional override; otherwise uses LingopClientDataProvider when present. */
   supabaseClient?: UserWordStreaksSupabaseClient | null;
   syncDelayMs?: number;
 };
@@ -108,9 +112,15 @@ export function UserWordStreaksDataProvider({
   supabaseClient,
   syncDelayMs = 30_000,
 }: UserWordStreaksDataProviderProps) {
-  const streaksSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
+  const providedClientData = useOptionalLingopClientData();
+  // An explicit null retains the existing signed-out/localStorage-only mode.
+  const resolvedSupabaseClient =
+    supabaseClient !== undefined
+      ? supabaseClient
+      : providedClientData?.supabaseClient;
+  const streaksSupabaseClient = asSupabaseRuntimeClient(resolvedSupabaseClient);
   const { signedInStatus, supabaseUserID, authChangeCount } =
-    useSupabaseSignedInStatus(supabaseClient);
+    useSupabaseSignedInStatus(resolvedSupabaseClient);
   const authStateKey =
     signedInStatus === true
       ? `signed-in:${supabaseUserID ?? "unknown"}`
