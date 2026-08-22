@@ -60,8 +60,14 @@ const no_emoji_words: { [study_lang: string]: string[] /*study_words*/ } = {
 };
 
 const EMOJI_BATCH_SIZE = 1000;
+const EMOJI_RESULT_CACHE_SIZE = 2000;
 
 let emojiDataPromise: Promise<EmojiRow[]> | undefined;
+const emojiRowIndexes = new WeakMap<EmojiRow[], ReadonlyMap<string, EmojiRow>>();
+const emojiResultCaches = new WeakMap<
+  EmojiRow[],
+  WeakMap<IsNotCoreWord, Map<string, Promise<string | null>>>
+>();
 
 async function defaultIsNotCoreWord(): Promise<boolean> {
   return false;
@@ -160,6 +166,51 @@ export async function generateEmojiFromRows(
     isNotCoreWord?: IsNotCoreWord | undefined;
   } = {},
 ): Promise<string | null> {
+  const resultCache = getEmojiResultCache(cachedEmojisData, isNotCoreWord);
+  const resultCacheKey = JSON.stringify([
+    en_gloss,
+    study_word ?? null,
+    study_lang ?? null,
+  ]);
+  const cachedResult = resultCache.get(resultCacheKey);
+  if (cachedResult) {
+    // Refresh recency so frequently used glosses survive bounded-cache eviction.
+    resultCache.delete(resultCacheKey);
+    resultCache.set(resultCacheKey, cachedResult);
+    return cachedResult;
+  }
+
+  const resultPromise = generateEmojiFromRowsUncached(
+    en_gloss,
+    cachedEmojisData,
+    { study_word, study_lang, isNotCoreWord },
+  );
+  resultCache.set(resultCacheKey, resultPromise);
+  trimOldestMapEntries(resultCache, EMOJI_RESULT_CACHE_SIZE);
+
+  try {
+    return await resultPromise;
+  } catch (error) {
+    if (resultCache.get(resultCacheKey) === resultPromise) {
+      resultCache.delete(resultCacheKey);
+    }
+    throw error;
+  }
+}
+
+async function generateEmojiFromRowsUncached(
+  en_gloss: string,
+  cachedEmojisData: EmojiRow[],
+  {
+    study_word,
+    study_lang,
+    isNotCoreWord,
+  }: {
+    study_word?: string | undefined;
+    study_lang?: string | undefined;
+    isNotCoreWord: IsNotCoreWord;
+  },
+): Promise<string | null> {
   // 0. IF FOUND IN NO_EMOJI_WORDS LIST, RETURN STUDY_WORD AS IS (e.g. "ja":"は")
   // - Note: no_emoji_words/study_word/study_lang should be moved higher upstream, in display-oriented code.
   if (study_word !== undefined && study_lang !== undefined) {
@@ -207,8 +258,9 @@ export async function generateEmojiFromRows(
     const explicitationsEmojis: string[] = [];
     for (const explicitation of explicitations) {
       // a. Look for Exact Match for Explicitation - with [Square Brackets notation]
-      const exactMatch = cachedEmojisData.find(
-        (row) => row.en_gloss === `[${explicitation.toUpperCase()}]`,
+      const exactMatch = findCaseInsensitiveEmojiRowMatch(
+        `[${explicitation}]`,
+        cachedEmojisData,
       );
       if (exactMatch) {
         explicitationsEmojis.push(exactMatch.emoji);
@@ -381,7 +433,8 @@ function generateEmoji_fromWord(
   // 2A. ["…ING"] AFFIX CATCHING
   if (enWord.toUpperCase().endsWith("ING")) {
     const enWordPrefix: string = enWord.toUpperCase().replace(/ING$/, ""); // HIDING→HID, SWIMMING→SWIMM
-    const _ingEmoji: string = cachedEmojisData.find((row) => row.en_gloss === "-ING")?.emoji ?? ""; // "-ing" emoji
+    const _ingEmoji: string =
+      findCaseInsensitiveEmojiRowMatch("-ING", cachedEmojisData)?.emoji ?? ""; // "-ing" emoji
     // A. Check for exact match with split 'prefix -suffix'
     const word__ing: string = enWordPrefix + " -ing";
     const exact_match = findCaseInsensitiveEmojiRowMatch(word__ing, cachedEmojisData);
@@ -414,7 +467,8 @@ function generateEmoji_fromWord(
   // 2B. ["…'S"] AFFIX CATCHING
   if (enWord.toUpperCase().endsWith("'S")) {
     const enWordPrefix: string = enWord.toUpperCase().replace(/\'S$/, ""); // ~
-    const __sEmoji: string = cachedEmojisData.find((row) => row.en_gloss === "'S")?.emoji ?? "";
+    const __sEmoji: string =
+      findCaseInsensitiveEmojiRowMatch("'S", cachedEmojisData)?.emoji ?? "";
     void __sEmoji;
     // A. Check for exact base match of prefix
     const exact_match = findCaseInsensitiveEmojiRowMatch(enWordPrefix, cachedEmojisData);
@@ -424,7 +478,7 @@ function generateEmoji_fromWord(
   if (enWord.toUpperCase().endsWith("SIDE")) {
     const enWordPrefix: string = enWord.toUpperCase().replace(/SIDE$/, "");
     const _suffixEmoji: string =
-      cachedEmojisData.find((row) => row.en_gloss === "-SIDE")?.emoji ?? "";
+      findCaseInsensitiveEmojiRowMatch("-SIDE", cachedEmojisData)?.emoji ?? "";
     // A. Check for exact match with split 'prefix -suffix'
     const exact_split_match = findCaseInsensitiveEmojiRowMatch(
       enWordPrefix + " -SIDE",
@@ -441,7 +495,8 @@ function generateEmoji_fromWord(
   // 2D. ["…?"]
   if (enWord.endsWith("?")) {
     const enWordPrefix: string = enWord.slice(0, -1); // Remove the "?"
-    const _suffixEmoji: string = cachedEmojisData.find((row) => row.en_gloss === "-?")?.emoji ?? "";
+    const _suffixEmoji: string =
+      findCaseInsensitiveEmojiRowMatch("-?", cachedEmojisData)?.emoji ?? "";
     // A. Check for exact match with split 'prefix -suffix'
     const exact_split_match = findCaseInsensitiveEmojiRowMatch(
       enWordPrefix + " ?",
@@ -512,17 +567,60 @@ function findCaseInsensitiveEmojiRowMatch(
   enGlossText: string,
   cachedEmojisData: EmojiRow[],
 ): EmojiRow | undefined {
+  const index = getEmojiRowIndex(cachedEmojisData);
+  const normalizedGloss = enGlossText.toUpperCase();
   // 1. Exact Match
-  let match = cachedEmojisData.find(
-    (row) => row.en_gloss === enGlossText.toUpperCase(),
-  ); // future: would be faster if emojisData was a dictionary. with en_gloss.upperCase as a key
+  let match = index.get(normalizedGloss);
   // 2. Attempt Match without trailing "s".
-  if (!match && enGlossText.toUpperCase().endsWith("S")) {
-    match = cachedEmojisData.find(
-      (row) => row.en_gloss === enGlossText.slice(0, -1).toUpperCase(),
-    );
+  if (!match && normalizedGloss.endsWith("S")) {
+    match = index.get(normalizedGloss.slice(0, -1));
   }
   return match;
+}
+
+function getEmojiRowIndex(
+  cachedEmojisData: EmojiRow[],
+): ReadonlyMap<string, EmojiRow> {
+  const cachedIndex = emojiRowIndexes.get(cachedEmojisData);
+  if (cachedIndex) return cachedIndex;
+
+  const index = new Map<string, EmojiRow>();
+  for (const row of cachedEmojisData) {
+    const key = row.en_gloss.toUpperCase();
+    // Match Array.find semantics when duplicate gloss rows exist.
+    if (!index.has(key)) index.set(key, row);
+  }
+  emojiRowIndexes.set(cachedEmojisData, index);
+  return index;
+}
+
+function getEmojiResultCache(
+  cachedEmojisData: EmojiRow[],
+  isNotCoreWord: IsNotCoreWord,
+): Map<string, Promise<string | null>> {
+  let cachesByCoreWordResolver = emojiResultCaches.get(cachedEmojisData);
+  if (!cachesByCoreWordResolver) {
+    cachesByCoreWordResolver = new WeakMap();
+    emojiResultCaches.set(cachedEmojisData, cachesByCoreWordResolver);
+  }
+
+  let resultCache = cachesByCoreWordResolver.get(isNotCoreWord);
+  if (!resultCache) {
+    resultCache = new Map();
+    cachesByCoreWordResolver.set(isNotCoreWord, resultCache);
+  }
+  return resultCache;
+}
+
+function trimOldestMapEntries<Key, Value>(
+  map: Map<Key, Value>,
+  maximumSize: number,
+): void {
+  while (map.size > maximumSize) {
+    const oldestKey = map.keys().next().value as Key | undefined;
+    if (oldestKey === undefined) return;
+    map.delete(oldestKey);
+  }
 }
 
 // -------------------------------------------------------------------------------------------------------------------------------

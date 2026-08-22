@@ -87,6 +87,44 @@ describe("emojify", () => {
     );
   });
 
+  it("indexes emoji rows instead of repeatedly scanning them", async () => {
+    const indexedRows = [...rows];
+    const find = vi.spyOn(indexedRows, "find");
+
+    await expect(generateEmojiFromRows("good", indexedRows)).resolves.toBe("👍");
+    await expect(generateEmojiFromRows("dogs", indexedRows)).resolves.toBe("🐕");
+
+    expect(find).not.toHaveBeenCalled();
+  });
+
+  it("shares concurrent work and caches generated emoji results", async () => {
+    const resultRows: EmojiRow[] = [{ emoji: "🐕", en_gloss: "DOG" }];
+    let releaseCoreWordLookup: (() => void) | undefined;
+    const coreWordLookupGate = new Promise<void>((resolve) => {
+      releaseCoreWordLookup = resolve;
+    });
+    const isNotCoreWord = vi.fn(async () => {
+      await coreWordLookupGate;
+      return false;
+    });
+
+    const first = generateEmojiFromRows("dog friend", resultRows, {
+      isNotCoreWord,
+    });
+    const second = generateEmojiFromRows("dog friend", resultRows, {
+      isNotCoreWord,
+    });
+    releaseCoreWordLookup?.();
+
+    await expect(Promise.all([first, second])).resolves.toEqual(["🐕", "🐕"]);
+    const callsAfterFirstGeneration = isNotCoreWord.mock.calls.length;
+
+    await expect(
+      generateEmojiFromRows("dog friend", resultRows, { isNotCoreWord }),
+    ).resolves.toBe("🐕");
+    expect(isNotCoreWord).toHaveBeenCalledTimes(callsAfterFirstGeneration);
+  });
+
   it("loads Supabase emoji data once", async () => {
     const { supabaseClient, select } = makeSupabaseClient(rows);
 

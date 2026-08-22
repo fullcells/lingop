@@ -31,6 +31,7 @@ import {
   generateEmoji,
   loadEmojiData,
   type EmojiRow,
+  type IsNotCoreWord,
 } from "./emojify.js";
 import {
   fetchAndGenGloss,
@@ -60,6 +61,20 @@ import {
   type SBWordListRow,
   type WordListMeta,
 } from "./word-lists.js";
+
+const emojiCoreWordResolvers = new WeakMap<object, IsNotCoreWord>();
+
+function getEmojiCoreWordResolver(
+  supabaseClient: NonNullable<ReturnType<typeof asSupabaseRuntimeClient>>,
+): IsNotCoreWord {
+  const cachedResolver = emojiCoreWordResolvers.get(supabaseClient);
+  if (cachedResolver) return cachedResolver;
+
+  const resolver: IsNotCoreWord = (word_lang, word, gloss) =>
+    isNotCoreWord(word_lang, word, gloss, { supabaseClient });
+  emojiCoreWordResolvers.set(supabaseClient, resolver);
+  return resolver;
+}
 
 export type { AnnotationCache, AnnotationCacheRef } from "./annotation/fetch-annotation.js";
 export type {
@@ -406,6 +421,9 @@ export function createLingoDataClient({
   useStagingBackend,
 }: CreateLingoDataClientOptions = {}): LingoDataClient {
   const runtimeSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
+  const emojiCoreWordResolver = runtimeSupabaseClient
+    ? getEmojiCoreWordResolver(runtimeSupabaseClient)
+    : undefined;
   const annotationsByLangNTextCache = createAnnotationCacheRef();
   const translationsCache = createTranslationCacheRef();
   const t9nCacheDatesBySC: Record<string, string> = {};
@@ -825,14 +843,9 @@ export function createLingoDataClient({
             supabaseClient: runtimeSupabaseClient,
           }
         : {}),
-      isNotCoreWord: (word_lang, word, gloss) =>
-        isNotCoreWord(word_lang, word, gloss, {
-          ...(runtimeSupabaseClient
-            ? {
-                supabaseClient: runtimeSupabaseClient,
-              }
-            : {}),
-        }),
+      ...(emojiCoreWordResolver
+        ? { isNotCoreWord: emojiCoreWordResolver }
+        : {}),
     });
   }
 
