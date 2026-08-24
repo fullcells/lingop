@@ -268,32 +268,14 @@ function phoneticPartToSpelling(
   return phoneticPartSpelling;
 }
 
-// 20260821: AnnotatedTextView is being ported gradually from OmniAccess.
-// The current port includes the basic render-component structure, visibility
-// and style inputs, optional UserLingoPrefsDataProvider visibility/fading
-// defaults, and spelling-system conversions.
-// 20260824: Spelling-system resolution, formatted-spelling export, local main-
-// script reading-guide conversions, non-core spelling visibility, punctuation
-// fallback, and spelling-system-specific fonts are now ported. Converter work
-// lives in core/language so consumers can reuse it outside this component.
-// 20260824: userWordStreaks, isWordUnfamiliar, l10nWordDetailHandler, and their
-// ON_HINT visibility and styling behavior are now ported. They activate only
-// when AnnotatedTextView is rendered within UserWordStreaksDataProvider;
-// otherwise streak-dependent behavior is disabled.
-// 20260824: The play-audio action, speech preloading, action placement, and
-// imperative speech handle are now ported. Other OmniAccess actions and ATV
-// behavior remain deferred; the current inputs intentionally retain their
-// OmniAccess names so consumers can switch implementations incrementally.
-// 20260821: Gloss emojis currently port basic color/black-and-white rendering
-// and visibility. Per-grapheme flipping, loading spinners, and non-core gloss
-// preferences remain deferred.
-// 20260822: The OmniAccess astyle shape, defaults, and current render behavior
-// are ported without its Chakra dependency. astyle.css applies to Lingop's
-// .annotated-text-view content root rather than the action-button wrapper, so
-// per-instance text/export styling does not unintentionally restyle controls.
-// 20260822: Download-image and image-data imperative handles are ported with a
-// lazy html2canvas import. HTML-table export and unrelated imperative handles
-// remain deferred.
+// Port status (20260824): Lingop ATV covers OmniAccess's core render/style
+// inputs, spelling systems and reading guides, preference/streak-driven hints,
+// non-core fading, audio actions/preloading, and image/spelling exports. It uses
+// optional Lingop providers and plain DOM/CSS; astyle.css targets the exported
+// content rather than its action wrapper. Remaining parity work is limited to
+// nullable/loading annotations, a few exact visibility/layout cases, Korean
+// affix-marker cleanup, richer emoji/non-core-gloss behavior, and HTML-table
+// export.
 type TokenSpellingAndMainViewProps = {
   _showSpelling: TripleDisplayState;
   _showMainText: boolean;
