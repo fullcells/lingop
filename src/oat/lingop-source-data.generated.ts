@@ -6,17 +6,27 @@ export const lingopOATSourceData: OATSourceData = {
   "guiTextsByScope": {
     "_": [
       "Already have an account?",
+      "Designed for English speakers",
       "Don't have an account?",
       "Email",
+      "For Advanced Users",
+      "For Beginners",
+      "For Practice",
       "Forgot Password",
+      "International Phonetic Alphabet",
       "Log in",
+      "Official Spelling",
       "or",
       "Password",
       "Password must be at least 6 characters.",
       "Passwords do not match.",
+      "Popular Spelling",
+      "Popular Spelling with diacritics",
       "Re-Type Password",
+      "Rule-Based Spelling Guide",
       "Sign up",
-      "Sorry, that email-password pair didn't match any of our records. Please try again with different details."
+      "Sorry, that email-password pair didn't match any of our records. Please try again with different details.",
+      "Tone Numbers"
     ]
   },
   "focusTextsByScope": {},

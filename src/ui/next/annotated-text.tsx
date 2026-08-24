@@ -30,12 +30,14 @@ import {
   type SupabaseLingoDataClient,
 } from "../../core/lingo-data-client.js";
 import { ilike, stripDisambiguatorFromToken } from "../../core/misc.js";
+import type { TripleDisplayState } from "../types.js";
 import {
   captureAnnotatedTextImage,
   downloadAnnotatedTextImage,
   type AnnotatedTextImageData,
 } from "./annotated-text-image.js";
 import { useLingopClientDataOrCreate } from "./lingop-client-data-provider.js";
+import { useOptionalUserLingoPrefsData } from "./user-lingo-prefs.js";
 import { useOptionalUserWordStreaksData } from "./user-word-streaks.js";
 
 export type { AnnotatedTextImageData } from "./annotated-text-image.js";
@@ -129,10 +131,10 @@ function resolveAnnotatedTextStyle(
 
 export type AnnotatedTextViewProps = {
   annotatedText: AnnotatedText;
-  showSpelling?: "NEVER" | "ON_HINT" | "ALWAYS";
+  showSpelling?: TripleDisplayState;
   showMainText?: boolean;
-  showGlossText?: "NEVER" | "ON_HINT" | "ALWAYS";
-  showGlossEmoji?: "NEVER" | "ON_HINT" | "ALWAYS";
+  showGlossText?: TripleDisplayState;
+  showGlossEmoji?: TripleDisplayState;
   isEmojiBlackWhite?: boolean;
   /** Language used for the displayed gloss text. */
   glossTextTipLang?: string;
@@ -195,9 +197,10 @@ function tokenToPhoneticParts(token: AnnotatedToken): PhoneticPart[] {
 }
 
 // 20260821: AnnotatedTextView is being ported gradually from OmniAccess.
-// The current port only includes the basic render-component structure and
-// visibility and style inputs. Action Buttons, TTS, useUserLingoPrefsData, and
-// the other OmniAccess behavior are intentionally not ported yet.
+// The current port includes the basic render-component structure, visibility
+// and style inputs, and optional UserLingoPrefsDataProvider visibility/fading
+// defaults. Action Buttons, TTS, spelling-system conversions, and the other
+// OmniAccess behavior are intentionally not ported yet.
 // 20260824: userWordStreaks, isWordUnfamiliar, l10nWordDetailHandler, and their
 // ON_HINT visibility and styling behavior are now ported. They activate only
 // when AnnotatedTextView is rendered within UserWordStreaksDataProvider;
@@ -213,7 +216,7 @@ function tokenToPhoneticParts(token: AnnotatedToken): PhoneticPart[] {
 // lazy html2canvas import. HTML-table export and unrelated imperative handles
 // remain deferred.
 type TokenSpellingAndMainViewProps = {
-  _showSpelling: "NEVER" | "ON_HINT" | "ALWAYS";
+  _showSpelling: TripleDisplayState;
   _showMainText: boolean;
   annotatedText: AnnotatedText;
   astyle: ResolvedAnnotatedTextStyle;
@@ -403,8 +406,8 @@ type TokenGlossViewProps = {
   l10nWordDetailHandler?: AnnotatedTextViewProps["l10nWordDetailHandler"];
   token: AnnotatedToken;
   wordSubMorphemes: ATokenSubMorphemes;
-  showGlossText: "NEVER" | "ON_HINT" | "ALWAYS";
-  showGlossEmoji: "NEVER" | "ON_HINT" | "ALWAYS";
+  showGlossText: TripleDisplayState;
+  showGlossEmoji: TripleDisplayState;
   showTokenGlossPrefix_TO__: boolean;
 };
 
@@ -693,20 +696,35 @@ function TokenGlossView({
  */
 function AnnotatedTextViewComponent({
   annotatedText,
-  showSpelling = "ALWAYS",
-  showMainText = true,
-  showGlossText = "ALWAYS",
-  showGlossEmoji = "ON_HINT",
+  showSpelling,
+  showMainText,
+  showGlossText,
+  showGlossEmoji,
   astyle: astyleInput = DEFAULT_ANNOTATED_TEXT_STYLE,
   isEmojiBlackWhite = false,
   glossTextTipLang = "en",
   showTokenGlossPrefix_TO__ = true,
-  localShouldFadeNonCoreWords = false,
+  localShouldFadeNonCoreWords,
   nonCoreWordsFadeOpacity = 0.5,
   l10nWordDetailHandler,
   supabaseClient,
 }: AnnotatedTextViewProps, ref: ForwardedRef<AnnotatedTextViewHandle>): ReactNode {
   const astyle = resolveAnnotatedTextStyle(astyleInput);
+  const userLingoPrefsData = useOptionalUserLingoPrefsData();
+  // Explicit per-instance inputs take precedence over shared user preferences.
+  // Existing standalone defaults remain when no preferences provider is used.
+  const resolvedShowSpelling =
+    showSpelling ?? userLingoPrefsData?.prefShowSpelling ?? "ALWAYS";
+  const resolvedShowMainText =
+    showMainText ?? userLingoPrefsData?.prefShowMainText ?? true;
+  const resolvedShowGlossText =
+    showGlossText ?? userLingoPrefsData?.prefShowGlossText ?? "ALWAYS";
+  const resolvedShowGlossEmoji =
+    showGlossEmoji ?? userLingoPrefsData?.prefShowGlossEmoji ?? "ON_HINT";
+  const resolvedShouldFadeNonCoreWords =
+    localShouldFadeNonCoreWords ??
+    userLingoPrefsData?.fadeNonCoreWords ??
+    false;
   // Render root-and-pattern languages linearly while retaining each surface
   // token's source morphemes for word-streak hinting.
   const { linearizedAText, morphemesPerLinearToken } = useMemo(
@@ -773,7 +791,7 @@ function AnnotatedTextViewComponent({
     let cancelled = false;
     setCoreWordStatusResult(null);
 
-    if (!localShouldFadeNonCoreWords) return;
+    if (!resolvedShouldFadeNonCoreWords) return;
 
     void Promise.all(
       linearizedAText.tokens.map(async (token) => {
@@ -805,7 +823,7 @@ function AnnotatedTextViewComponent({
     return () => {
       cancelled = true;
     };
-  }, [linearizedAText, lingopClient, localShouldFadeNonCoreWords]);
+  }, [linearizedAText, lingopClient, resolvedShouldFadeNonCoreWords]);
 
   return (
     <div
@@ -843,7 +861,7 @@ function AnnotatedTextViewComponent({
           const wordIsCoreOrUnknown =
             tokensCoreWordOrUnknownStatus?.[index] ?? true;
           const opacity =
-            localShouldFadeNonCoreWords &&
+            resolvedShouldFadeNonCoreWords &&
             !wordIsCoreOrUnknown &&
             !isWordUnfamiliar
               ? nonCoreWordsFadeOpacity
@@ -913,8 +931,8 @@ function AnnotatedTextViewComponent({
               }
             >
               <TokenSpellingAndMainView
-                _showSpelling={showSpelling}
-                _showMainText={showMainText}
+                _showSpelling={resolvedShowSpelling}
+                _showMainText={resolvedShowMainText}
                 annotatedText={linearizedAText}
                 astyle={astyle}
                 l10nWordDetailHandler={streakWordDetailHandler}
@@ -929,8 +947,8 @@ function AnnotatedTextViewComponent({
                 l10nWordDetailHandler={streakWordDetailHandler}
                 token={token}
                 wordSubMorphemes={wordSubMorphemes}
-                showGlossText={showGlossText}
-                showGlossEmoji={showGlossEmoji}
+                showGlossText={resolvedShowGlossText}
+                showGlossEmoji={resolvedShowGlossEmoji}
                 showTokenGlossPrefix_TO__={showTokenGlossPrefix_TO__}
               />
             </div>

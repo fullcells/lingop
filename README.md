@@ -142,6 +142,38 @@ function Example() {
 
 `WordListsSelector`, `WordListVisualLeafNode`, `AnnotatedTextView`, `CampLingoAuthForm`, `UserWordStreaksDataProvider`, and `useSupabaseSignedInStatus()` use the provider when present. Their explicit Supabase-client inputs remain temporarily available for migration or intentional overrides. Non-React APIs, including `speechSynthTTS`, cannot read React context and retain explicit client options.
 
+## Shared user language-display preferences
+
+`UserLingoPrefsDataProvider` persists the browser user's spelling, main-text,
+gloss, reading-guide, and non-core display preferences. It must be rendered
+within `OATDataProvider` because its spelling-system labels are localized.
+Consumers retain ownership of route/site defaults and pass only the resolved
+defaults plus the optional current focus language:
+
+```tsx
+import {
+  UserLingoPrefsDataProvider,
+  type UserLingoPrefsDefaults,
+} from "lingop/ui/next";
+
+const defaultPrefs: Partial<UserLingoPrefsDefaults> = {
+  prefShowGlossEmoji: "NEVER",
+  prefShowGlossText: "ON_HINT",
+};
+
+<UserLingoPrefsDataProvider
+  defaultPrefs={defaultPrefs}
+  focusLang={focusLang}
+>
+  <App />
+</UserLingoPrefsDataProvider>;
+```
+
+`AnnotatedTextView` uses these preferences when the provider is present.
+Explicit `showSpelling`, `showMainText`, `showGlossText`, `showGlossEmoji`, and
+`localShouldFadeNonCoreWords` props take precedence for an individual view.
+Without the provider, its existing standalone defaults remain unchanged.
+
 ## Camp Lingo Auth Form in Next.js
 
 `CampLingoAuthForm` is the shared Camp Lingo browser login/signup UI. It owns the common Camp Lingo branding and labels, email/password flows, Google Identity Services integration, and forgot-password destination. It uses basic DOM elements and stable class names so consumers can override its appearance without taking on a UI-framework dependency.
