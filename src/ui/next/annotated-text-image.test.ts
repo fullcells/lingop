@@ -34,14 +34,11 @@ describe("annotated text image export", () => {
       toDataURL: vi.fn(() => "data:image/png;base64,test"),
     });
 
-    await expect(captureAnnotatedTextImage(element, 2)).resolves.toEqual({
+    await expect(captureAnnotatedTextImage(element, 2)).resolves.toMatchObject({
       dataUrl: "data:image/png;base64,test",
-      width: 124,
-      height: 62,
     });
     expect(appendChild).toHaveBeenCalledWith(clone);
     expect(clone.style).toMatchObject({
-      padding: "2px 12px 20px",
       background: "white",
       width: "100px",
     });

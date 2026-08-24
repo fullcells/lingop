@@ -10,6 +10,21 @@
   text-align: center;
 }
 
+.annotated-text-view .token-word-detail {
+  border-radius: 0.375rem;
+  /* Old cursor states used context-menu/help, but those defaults did not
+   * indicate clearly that words could be tapped. */
+  cursor: pointer;
+}
+
+.annotated-text-view .token-word-detail:hover {
+  background-color: #f6e05e; /* Chakra yellow.300 */
+}
+
+.annotated-text-view .token-word-unfamiliar {
+  background-color: #fefcbf; /* Chakra yellow.100 */
+}
+
 /*
  * 20260821: Noto Color Emoji's CBDT/CBLC format can be slow or unreliable in
  * Safari/WebKit, so retain system-font default there. Consumers

@@ -9,29 +9,34 @@ import {
   useState,
   type CSSProperties,
   type ForwardedRef,
+  type MouseEvent,
   type ReactNode,
 } from "react";
 
+import { linearizeTemplaticAText } from "../../core/annotation/converters.js";
 import type {
   AnnotatedText,
   AnnotatedToken,
+  ATokenSubMorphemes,
   PhoneticPart,
 } from "../../core/annotation/types.js";
 import {
   convertEmojiTextToBlackWhiteCompatibleEmojiText,
   shouldBlackWhiteEmojiUseColorEmojiFont,
 } from "../../core/emojify.js";
+import { getWordExplanationsForWord } from "../../core/language/index.js";
 import {
   type LingoDataClient,
   type SupabaseLingoDataClient,
 } from "../../core/lingo-data-client.js";
-import { ilike } from "../../core/misc.js";
+import { ilike, stripDisambiguatorFromToken } from "../../core/misc.js";
 import {
   captureAnnotatedTextImage,
   downloadAnnotatedTextImage,
   type AnnotatedTextImageData,
 } from "./annotated-text-image.js";
 import { useLingopClientDataOrCreate } from "./lingop-client-data-provider.js";
+import { useUserWordStreaksData } from "./user-word-streaks.js";
 
 export type { AnnotatedTextImageData } from "./annotated-text-image.js";
 
@@ -124,10 +129,10 @@ function resolveAnnotatedTextStyle(
 
 export type AnnotatedTextViewProps = {
   annotatedText: AnnotatedText;
-  showSpelling?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
+  showSpelling?: "NEVER" | "ON_HINT" | "ALWAYS";
   showMainText?: boolean;
-  showGlossText?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
-  showGlossEmoji?: "NEVER" | "ALWAYS"; // ON_HINT state is not ported yet.
+  showGlossText?: "NEVER" | "ON_HINT" | "ALWAYS";
+  showGlossEmoji?: "NEVER" | "ON_HINT" | "ALWAYS";
   isEmojiBlackWhite?: boolean;
   /** Language used for the displayed gloss text. */
   glossTextTipLang?: string;
@@ -138,11 +143,19 @@ export type AnnotatedTextViewProps = {
   /** Fades words identified as non-core; Supabase-backed checks require provider configuration. */
   localShouldFadeNonCoreWords?: boolean | null;
   nonCoreWordsFadeOpacity?: number;
+  l10nWordDetailHandler?: (
+    l10nAText: AnnotatedText,
+    l10nATextTokenIdx: number,
+    eventWithCurrentTarget: MouseEvent<HTMLDivElement>,
+    wordSubMorphemes: ATokenSubMorphemes,
+  ) => void;
   /** @deprecated Configure this once on LingopClientDataProvider instead. */
   supabaseClient?: SupabaseLingoDataClient;
 };
 
 const visuallyEmpty = "\u00a0";
+
+const WORD_STREAK_LIMIT_FOR_AUTO_HINT = 3;
 
 const glossPlacementFlexDirections = {
   bottom: "column",
@@ -183,13 +196,14 @@ function tokenToPhoneticParts(token: AnnotatedToken): PhoneticPart[] {
 
 // 20260821: AnnotatedTextView is being ported gradually from OmniAccess.
 // The current port only includes the basic render-component structure and
-// visibility and style inputs. Action Buttons, TTS, ON_HINT state (including
-// l10nWordDetailHandler, isWordUnfamiliar, and userWordStreaks),
-// useUserLingoPrefsData, and the other OmniAccess behavior are intentionally
-// not ported yet.
+// visibility and style inputs. Action Buttons, TTS, useUserLingoPrefsData, and
+// the other OmniAccess behavior are intentionally not ported yet.
+// 20260824: userWordStreaks, isWordUnfamiliar, l10nWordDetailHandler, and their
+// ON_HINT visibility and styling behavior are now ported. As in OmniAccess,
+// AnnotatedTextView must be rendered within UserWordStreaksDataProvider.
 // 20260821: Gloss emojis currently port basic color/black-and-white rendering
-// and NEVER/ALWAYS visibility. ON_HINT, per-grapheme flipping, loading spinners,
-// and non-core gloss preferences remain deferred.
+// and visibility. Per-grapheme flipping, loading spinners, and non-core gloss
+// preferences remain deferred.
 // 20260822: The OmniAccess astyle shape, defaults, and current render behavior
 // are ported without its Chakra dependency. astyle.css applies to Lingop's
 // .annotated-text-view root because the future action-button wrapper is not
@@ -198,10 +212,11 @@ function tokenToPhoneticParts(token: AnnotatedToken): PhoneticPart[] {
 // lazy html2canvas import. HTML-table export and unrelated imperative handles
 // remain deferred.
 type TokenSpellingAndMainViewProps = {
-  _showSpelling: "NEVER" | "ALWAYS";
+  _showSpelling: "NEVER" | "ON_HINT" | "ALWAYS";
   _showMainText: boolean;
   annotatedText: AnnotatedText;
   astyle: ResolvedAnnotatedTextStyle;
+  l10nWordDetailHandler?: AnnotatedTextViewProps["l10nWordDetailHandler"];
   token: AnnotatedToken;
 };
 
@@ -210,8 +225,15 @@ function TokenSpellingAndMainView({
   _showMainText,
   annotatedText,
   astyle,
+  l10nWordDetailHandler,
   token,
 }: TokenSpellingAndMainViewProps): ReactNode {
+  const { userWordStreaks } = useUserWordStreaksData();
+  const wordStreak =
+    userWordStreaks[annotatedText.lang]?.[token.text.toUpperCase()] ?? null;
+  const isWordUnfamiliar =
+    wordStreak == null || wordStreak < WORD_STREAK_LIMIT_FOR_AUTO_HINT;
+
   if (!_showMainText && _showSpelling === "NEVER") return null;
 
   if (!isWordToken(token)) {
@@ -255,7 +277,12 @@ function TokenSpellingAndMainView({
     >
       {tokenToPhoneticParts(token).map((part, partIndex) => {
         const [chars] = part;
-        const partSpelling = _showSpelling === "ALWAYS"
+        const shouldShowPartSpelling =
+          _showSpelling === "ALWAYS" ||
+          (_showSpelling === "ON_HINT" &&
+            !!l10nWordDetailHandler &&
+            isWordUnfamiliar);
+        const partSpelling = shouldShowPartSpelling
           ? phoneticPartToSpelling(part, annotatedText.lang, _showMainText)
           : visuallyEmpty;
 
@@ -370,9 +397,11 @@ type TokenGlossViewProps = {
   glossTextTipLang: string;
   lang: string;
   lingopClient: LingoDataClient;
+  l10nWordDetailHandler?: AnnotatedTextViewProps["l10nWordDetailHandler"];
   token: AnnotatedToken;
-  showGlossText: "NEVER" | "ALWAYS";
-  showGlossEmoji: "NEVER" | "ALWAYS";
+  wordSubMorphemes: ATokenSubMorphemes;
+  showGlossText: "NEVER" | "ON_HINT" | "ALWAYS";
+  showGlossEmoji: "NEVER" | "ON_HINT" | "ALWAYS";
   showTokenGlossPrefix_TO__: boolean;
 };
 
@@ -382,11 +411,14 @@ function TokenGlossView({
   glossTextTipLang,
   lang,
   lingopClient,
+  l10nWordDetailHandler,
   token,
+  wordSubMorphemes,
   showGlossText,
   showGlossEmoji,
   showTokenGlossPrefix_TO__,
 }: TokenGlossViewProps): ReactNode {
+  const { userWordStreaks } = useUserWordStreaksData(); // 20260223 Note: Future: As userWordStreaks is updated, especially if modularized to not apply to every site, then a useOptionalUserWordStreaksDataContext() can be added that just returns null instead of throwing an error.
   const enGloss = useMemo(() => {
     // Format the gloss to strip out the "TO " prefix if specified.
     let gloss = isWordToken(token) ? token.gloss ?? null : null;
@@ -435,6 +467,11 @@ function TokenGlossView({
     generatedEmoji && isEmojiBlackWhite
       ? convertEmojiTextToBlackWhiteCompatibleEmojiText(generatedEmoji)
       : generatedEmoji;
+  const isWordUnfamiliar = (wordSubMorphemes ?? []).some(({ morpheme }) => {
+    const morphemeStreak =
+      userWordStreaks[lang]?.[morpheme.toUpperCase()] ?? 0;
+    return morphemeStreak < WORD_STREAK_LIMIT_FOR_AUTO_HINT;
+  });
 
   // GlossTextTipLang
   useEffect(() => {
@@ -485,7 +522,9 @@ function TokenGlossView({
     let cancelled = false;
     setEmojiResult(null);
 
-    if (showGlossEmoji === "NEVER" || !enGloss) return;
+    if (!enGloss) return;
+    if (showGlossEmoji === "NEVER" && !l10nWordDetailHandler) return;
+    if (showGlossEmoji === "ON_HINT" && !l10nWordDetailHandler) return;
 
     void lingopClient
       .generateEmoji(enGloss)
@@ -509,11 +548,27 @@ function TokenGlossView({
     return () => {
       cancelled = true;
     };
-  }, [enGloss, lang, lingopClient, showGlossEmoji, token]);
+  }, [
+    enGloss,
+    lang,
+    lingopClient,
+    l10nWordDetailHandler,
+    showGlossEmoji,
+    token,
+  ]);
 
-  const shouldDisplayGloss =
-    !!enGloss &&
-    (showGlossText === "ALWAYS" || showGlossEmoji === "ALWAYS");
+  let shouldDisplayGloss = false;
+  if (enGloss) {
+    if (showGlossEmoji === "ALWAYS" || showGlossText === "ALWAYS") {
+      shouldDisplayGloss = true; // Right now, these override any hint displays.
+    } else if (showGlossEmoji === "NEVER" && showGlossText === "NEVER") {
+      shouldDisplayGloss = false; // This is prioritized after the full-hint display.
+    } else if (!l10nWordDetailHandler) {
+      shouldDisplayGloss = true;
+    } else {
+      shouldDisplayGloss = isWordUnfamiliar;
+    }
+  }
 
   if (!shouldDisplayGloss) {
     return (
@@ -556,7 +611,11 @@ function TokenGlossView({
       }}
     >
       {/* GLOSS EMOJI */}
-      {showGlossEmoji === "ALWAYS" && (
+      {/* 20260223: ON_HINT visibility can currently be applied directly here. */}
+      {(showGlossEmoji === "ALWAYS" ||
+        (l10nWordDetailHandler &&
+          isWordUnfamiliar &&
+          showGlossEmoji === "ON_HINT")) && (
         <span
           className={`gloss-emoji ${emojiFont}`}
           style={{
@@ -574,7 +633,10 @@ function TokenGlossView({
       )}
 
       {/* GLOSS TEXT */}
-      {showGlossText === "ALWAYS" && (
+      {(showGlossText === "ALWAYS" ||
+        (l10nWordDetailHandler &&
+          isWordUnfamiliar &&
+          showGlossText === "ON_HINT")) && (
         <span
           className="gloss-text-wrapper"
           style={{
@@ -599,6 +661,13 @@ function TokenGlossView({
               tipLangGloss
             )}
           </span>
+          {l10nWordDetailHandler &&
+            getWordExplanationsForWord(lang, token.text).length > 0 &&
+            isWordUnfamiliar && (
+              <span className="explanation-asterisk" style={{ opacity: 0.3 }}>
+                *
+              </span>
+            )}
         </span>
       )}
     </span>
@@ -618,17 +687,29 @@ function AnnotatedTextViewComponent({
   showSpelling = "ALWAYS",
   showMainText = true,
   showGlossText = "ALWAYS",
-  showGlossEmoji = "NEVER",
+  showGlossEmoji = "ON_HINT",
   astyle: astyleInput = DEFAULT_ANNOTATED_TEXT_STYLE,
   isEmojiBlackWhite = false,
   glossTextTipLang = "en",
   showTokenGlossPrefix_TO__ = true,
   localShouldFadeNonCoreWords = false,
   nonCoreWordsFadeOpacity = 0.5,
+  l10nWordDetailHandler,
   supabaseClient,
 }: AnnotatedTextViewProps, ref: ForwardedRef<AnnotatedTextViewHandle>): ReactNode {
   const astyle = resolveAnnotatedTextStyle(astyleInput);
-  const exportHTMLElementRef = useRef<HTMLSpanElement>(null);
+  // Render root-and-pattern languages linearly while retaining each surface
+  // token's source morphemes for word-streak hinting.
+  const { linearizedAText, morphemesPerLinearToken } = useMemo(
+    () => linearizeTemplaticAText(annotatedText),
+    [annotatedText],
+  );
+  const exportHTMLElementRef = useRef<HTMLDivElement>(null);
+  const {
+    userWordStreaks,
+    ensureUserWordStreaksForLang,
+    setUserWordStreaksToValue,
+  } = useUserWordStreaksData();
   const lingopClient = useLingopClientDataOrCreate(
     supabaseClient ? { supabaseClient } : {},
   );
@@ -637,9 +718,22 @@ function AnnotatedTextViewComponent({
     statuses: (boolean | null)[]; // boolean if it's a word, null if it's not
   } | null>(null);
   const tokensCoreWordOrUnknownStatus =
-    coreWordStatusResult?.annotatedText === annotatedText
+    coreWordStatusResult?.annotatedText === linearizedAText
       ? coreWordStatusResult.statuses
       : null;
+
+  // Word Streaks
+  useEffect(() => {
+    if (!userWordStreaks[linearizedAText.lang]) {
+      // This starts adding the language to userWordStreaks, whose update calls
+      // this effect again.
+      void ensureUserWordStreaksForLang(linearizedAText.lang);
+    }
+  }, [
+    ensureUserWordStreaksForLang,
+    linearizedAText.lang,
+    userWordStreaks,
+  ]);
 
   // EXPORTS: IMPERATIVE HANDLES (For Exports)
   useImperativeHandle(ref, () => ({
@@ -665,11 +759,11 @@ function AnnotatedTextViewComponent({
     if (!localShouldFadeNonCoreWords) return;
 
     void Promise.all(
-      annotatedText.tokens.map(async (token) => {
+      linearizedAText.tokens.map(async (token) => {
         if (!isWordToken(token)) return null;
         // Await the async function, then negate its result.
         const isNotCoreWord = await lingopClient.isNotCoreWord(
-          annotatedText.lang,
+          linearizedAText.lang,
           token.text,
           token.gloss ?? undefined,
         );
@@ -679,7 +773,7 @@ function AnnotatedTextViewComponent({
       .then((coreWordStatuses) => {
         if (!cancelled) {
           setCoreWordStatusResult({
-            annotatedText,
+            annotatedText: linearizedAText,
             statuses: coreWordStatuses,
           });
         }
@@ -694,13 +788,13 @@ function AnnotatedTextViewComponent({
     return () => {
       cancelled = true;
     };
-  }, [annotatedText, lingopClient, localShouldFadeNonCoreWords]);
+  }, [linearizedAText, lingopClient, localShouldFadeNonCoreWords]);
 
   return (
-    <span
+    <div
       ref={exportHTMLElementRef}
       className="annotated-text-view"
-      lang={annotatedText.lang}
+      lang={linearizedAText.lang}
       style={{
         display: "flex",
         flexWrap: "wrap",
@@ -710,28 +804,53 @@ function AnnotatedTextViewComponent({
         ...astyle.css,
       }}
     >
-      <span className="tokens" style={{ display: "contents" }}>
-        {annotatedText.tokens.map((token, index) => {
+      <div className="tokens" style={{ display: "contents" }}>
+        {linearizedAText.tokens.map((_token, index) => {
+          const token = stripDisambiguatorFromToken(_token);
+          const wordSubMorphemes = morphemesPerLinearToken[index] ?? [];
           const key = `${index}-${token.text}`;
+          // Word is "unfamiliar" if ANY of its sub-morphemes is unfamiliar
+          // (only root-and-pattern languages like mt have more than one
+          // submorpheme).
+          const isWordUnfamiliar = wordSubMorphemes.some(({ morpheme }) => {
+            const morphemeStreak =
+              userWordStreaks[linearizedAText.lang]?.[
+                morpheme.toUpperCase()
+              ] ?? 0;
+            return morphemeStreak < WORD_STREAK_LIMIT_FOR_AUTO_HINT;
+          });
           // Non-Core - Fade
           const wordIsCoreOrUnknown =
             tokensCoreWordOrUnknownStatus?.[index] ?? true;
           const opacity =
-            localShouldFadeNonCoreWords && !wordIsCoreOrUnknown
+            localShouldFadeNonCoreWords &&
+            !wordIsCoreOrUnknown &&
+            !isWordUnfamiliar
               ? nonCoreWordsFadeOpacity
               : 1;
-          const tokenInlinePadding = index === annotatedText.tokens.length - 1
-            ? "0"
-            : `${(
-              (astyle.mainTextSize / 5.0) *
-              astyle.wordSpacing /
-              2.0
-            ).toFixed(2)}px`;
+          const tokenInlinePadding =
+            index === linearizedAText.tokens.length - 1
+              ? "0"
+              : `${(
+                (astyle.mainTextSize / 5.0) *
+                astyle.wordSpacing /
+                2.0
+              ).toFixed(2)}px`;
 
           return (
-            <span
+            <div
               key={key}
-              className="token"
+              className={`token${
+                l10nWordDetailHandler && isWordToken(token)
+                  ? " token-word-detail"
+                  : ""
+              }${
+                l10nWordDetailHandler &&
+                isWordToken(token) &&
+                isWordUnfamiliar
+                  ? " token-word-unfamiliar"
+                  : ""
+              }`}
               aria-hidden={
                 !isWordToken(token) && token.text.trim() === ""
                   ? true
@@ -746,32 +865,59 @@ function AnnotatedTextViewComponent({
                 minWidth: "max-content",
                 paddingInline: tokenInlinePadding,
                 opacity,
-                transition: "opacity 0.1s ease-in-out",
+                transition: "all 0.1s ease-in-out",
               }}
+              onClick={
+                l10nWordDetailHandler && isWordToken(token)
+                  ? (event) => {
+                    event.stopPropagation();
+                    if (!isWordUnfamiliar) {
+                      // A 1-way hint-toggle (l10nWordDetailHandler's overlay
+                      // itself handles de-hinting).
+                      void setUserWordStreaksToValue(
+                        linearizedAText.lang,
+                        wordSubMorphemes.map(({ morpheme }) => morpheme),
+                        1,
+                      );
+                    }
+                    if (isWordUnfamiliar) {
+                      l10nWordDetailHandler(
+                        linearizedAText,
+                        index,
+                        event,
+                        wordSubMorphemes,
+                      );
+                    }
+                  }
+                  : undefined
+              }
             >
               <TokenSpellingAndMainView
                 _showSpelling={showSpelling}
                 _showMainText={showMainText}
-                annotatedText={annotatedText}
+                annotatedText={linearizedAText}
                 astyle={astyle}
+                l10nWordDetailHandler={l10nWordDetailHandler}
                 token={token}
               />
               <TokenGlossView
                 astyle={astyle}
                 isEmojiBlackWhite={isEmojiBlackWhite}
                 glossTextTipLang={glossTextTipLang}
-                lang={annotatedText.lang}
+                lang={linearizedAText.lang}
                 lingopClient={lingopClient}
+                l10nWordDetailHandler={l10nWordDetailHandler}
                 token={token}
+                wordSubMorphemes={wordSubMorphemes}
                 showGlossText={showGlossText}
                 showGlossEmoji={showGlossEmoji}
                 showTokenGlossPrefix_TO__={showTokenGlossPrefix_TO__}
               />
-            </span>
+            </div>
           );
         })}
-      </span>
-    </span>
+      </div>
+    </div>
   );
 }
 

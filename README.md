@@ -380,6 +380,11 @@ import "lingop/ui/next/annotated-text.css";
 <AnnotatedTextView annotatedText={annotatedText} />;
 ```
 
+`AnnotatedTextView` consumes user word streaks for unfamiliar-word hints, so
+render it beneath the `UserWordStreaksDataProvider` described above. Its
+`showSpelling`, `showGlossText`, and `showGlossEmoji` inputs accept `ON_HINT` in
+addition to `NEVER` and `ALWAYS`.
+
 Use the OmniAccess-compatible `astyle` input for per-instance typography,
 colours, spacing, and annotation placement. Inputs are merged with the exported
 defaults:
