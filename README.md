@@ -529,6 +529,32 @@ Consumers can override its font stacks with CSS custom properties:
 }
 ```
 
+## Spelling-system picker in Next.js
+
+`SpellingSystemPicker` is the reusable picker content without a dialog or
+dialog trigger. Consumers remain responsible for placing it in their own page,
+sheet, or dialog and closing that surface from `onDone`:
+
+```tsx
+import { SpellingSystemPicker } from "lingop/ui/next";
+import "lingop/ui/next/annotated-text.css";
+import "lingop/ui/next/spelling-system-picker.css";
+
+<SpellingSystemPicker
+  lang={focusLang}
+  guiLang={guiLang}
+  onDone={() => setPickerOpen(false)}
+  showPreviewAudio
+/>;
+```
+
+Render it beneath `OATDataProvider` and `UserLingoPrefsDataProvider`. OAT
+provides localized interface text and the static example annotation; the
+preferences provider supplies and persists the selected system. The preview
+uses Lingop's `AnnotatedTextView`, so its browser/cloud voice configuration is
+the same as any other Lingop ATV. `SpellingSystemPickerAsSegment` provides the
+existing compact three-option variant.
+
 ## Speech/TTS in Next.js
 
 ```ts
@@ -583,6 +609,7 @@ For `MEMBER_CONTENT`, pass the app's Supabase client: `speak({ ..., contentConte
 - `src/core/word-lists.ts` loads public Supabase word-list source and localization rows through shared module caches.
 - `src/ui/next/cookies.ts` contains browser cookie helpers separated from platform-neutral core utilities.
 - `src/ui/next/annotated-text-image.ts` lazily loads `html2canvas` for the annotated-text ref's image-data and download methods.
+- `src/ui/next/spelling-system-picker.tsx` contains the dialog-agnostic full and compact spelling-system pickers. Consumers own dialog presentation and lifecycle.
 - `src/ui/next/speech-synth-tts.ts` contains browser/Next speech synthesis helpers exported from `lingop/ui/next`.
 - `src/ui/next/user-word-streaks.tsx` contains the Next user-word-streaks provider and hook exported from `lingop/ui/next`.
 - `src/ui/react-native/` is reserved for React Native-specific UI helpers.

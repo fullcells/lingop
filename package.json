@@ -90,6 +90,7 @@
     },
     "./ui/next/annotated-text.css": "./src/ui/next/annotated-text.css",
     "./ui/next/camp-lingo-auth-form.css": "./src/ui/next/camp-lingo-auth-form.css",
+    "./ui/next/spelling-system-picker.css": "./src/ui/next/spelling-system-picker.css",
     "./ui/next/word-lists-selector.css": "./src/ui/next/word-lists-selector.css",
     "./ui/react-native": {
       "types": "./dist/ui/react-native/index.d.ts",
@@ -102,6 +103,7 @@
     "src/ui/next/annotated-text.css",
     "src/ui/next/fonts",
     "src/ui/next/camp-lingo-auth-form.css",
+    "src/ui/next/spelling-system-picker.css",
     "src/ui/next/word-lists-selector.css"
   ],
   "bin": {

@@ -8,6 +8,7 @@ export const lingopOATSourceData: OATSourceData = {
       "Already have an account?",
       "Designed for English speakers",
       "Don't have an account?",
+      "Done",
       "Email",
       "For Advanced Users",
       "For Beginners",
@@ -15,6 +16,7 @@ export const lingopOATSourceData: OATSourceData = {
       "Forgot Password",
       "International Phonetic Alphabet",
       "Log in",
+      "None",
       "Official Spelling",
       "or",
       "Password",
@@ -26,9 +28,14 @@ export const lingopOATSourceData: OATSourceData = {
       "Rule-Based Spelling Guide",
       "Sign up",
       "Sorry, that email-password pair didn't match any of our records. Please try again with different details.",
+      "Spelling",
       "Tone Numbers"
     ]
   },
   "focusTextsByScope": {},
-  "staticFocusTextsByScope": {}
+  "staticFocusTextsByScope": {
+    "_": [
+      "Where is the toilet?"
+    ]
+  }
 };
