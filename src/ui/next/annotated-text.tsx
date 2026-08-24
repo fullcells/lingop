@@ -27,6 +27,8 @@ import {
 } from "../../core/emojify.js";
 import {
   doesLangMainScriptHaveReadingGuide,
+  getLang,
+  getLangScript,
   getMainScriptReadingGuidePart,
   getSpellingContent,
   getWordExplanationsForWord,
@@ -37,14 +39,28 @@ import {
   type LingoDataClient,
   type SupabaseLingoDataClient,
 } from "../../core/lingo-data-client.js";
-import { ilike, stripDisambiguatorFromToken } from "../../core/misc.js";
+import {
+  ilike,
+  stripDisambiguatorFromToken,
+  type ContentReference,
+} from "../../core/misc.js";
 import type { TripleDisplayState } from "../types.js";
 import {
   captureAnnotatedTextImage,
   downloadAnnotatedTextImage,
   type AnnotatedTextImageData,
 } from "./annotated-text-image.js";
-import { useLingopClientDataOrCreate } from "./lingop-client-data-provider.js";
+import {
+  useLingopClientDataOrCreate,
+  useOptionalLingopClientData,
+} from "./lingop-client-data-provider.js";
+import * as speechSynthTTS from "./speech-synth-tts.js";
+import type {
+  APIVoiceAccessProfile,
+  ContentContext,
+  SpeechSynthTTSOptions,
+  SpeechSynthTTSVoice,
+} from "./speech-synth-tts.js";
 import { useOptionalUserLingoPrefsData } from "./user-lingo-prefs.js";
 import { useOptionalUserWordStreaksData } from "./user-word-streaks.js";
 
@@ -55,10 +71,17 @@ export type AnnotatedTextViewHandle = {
   requestImageData: (
     scale?: number,
   ) => Promise<AnnotatedTextImageData | undefined>;
+  triggerSpeechSynthesis: () => Promise<void>;
   getSpelling: () => string | null;
 };
 
 export type GlossPlacement = "bottom" | "left" | "top" | "right";
+
+export type AnnotatedTextActionsPlacement =
+  | "LEFT_RIGHT"
+  | "TOP"
+  | "BOTTOM"
+  | "RIGHT_LEFT";
 
 export type TextTransformType =
   | "capitalize"
@@ -156,6 +179,19 @@ export type AnnotatedTextViewProps = {
   /** Fades words identified as non-core; Supabase-backed checks require provider configuration. */
   localShouldFadeNonCoreWords?: boolean | null;
   nonCoreWordsFadeOpacity?: number;
+
+  // 20260118: Replace showAction* with
+  // actionsVisible: ("PLAY_AUDIO" | "TOGGLE_GLOSS_EMOJI")[]. Retain the
+  // current OmniAccess input during the ATV migration.
+  showActionPlayAudio?: boolean;
+  actionsPlacement?: AnnotatedTextActionsPlacement;
+
+  apiVoiceAccessProfile?: APIVoiceAccessProfile; // TTS
+  contentContext_forAPISpeech?: ContentContext;
+  // contentRef may be usable for other things in future.
+  contentRef_forAPISpeech?: ContentReference;
+  shouldPreloadSpeech?: boolean;
+
   l10nWordDetailHandler?: (
     l10nAText: AnnotatedText,
     l10nATextTokenIdx: number,
@@ -191,6 +227,30 @@ function isWordToken(token: AnnotatedToken): boolean {
   return token.isWord === 1;
 }
 
+function canResolveSpeechForVoice({
+  contentContext,
+  hasSupabaseClient,
+  ref,
+  voice,
+}: {
+  contentContext: ContentContext | undefined;
+  hasSupabaseClient: boolean;
+  ref: ContentReference | undefined;
+  voice: SpeechSynthTTSVoice | null;
+}): boolean {
+  if (!voice) return false;
+  if (voice.service === "BROWSER") return true;
+
+  // Browser voices synthesize locally. Cloud voices play a stored/generated
+  // audio file, so speechSynthTTS needs a contentContext to choose the correct
+  // lookup/creation path. PUBLIC_CONTENT is keyed by ref; MEMBER_CONTENT uses
+  // the signed-in Supabase client. LIMITED_TEMP_ANON needs neither.
+  if (!contentContext) return false;
+  if (contentContext === "PUBLIC_CONTENT") return ref !== undefined;
+  if (contentContext === "MEMBER_CONTENT") return hasSupabaseClient;
+  return true;
+}
+
 function phoneticPartToSpelling(
   [chars, spelling]: PhoneticPart,
   lang: string,
@@ -211,8 +271,7 @@ function phoneticPartToSpelling(
 // 20260821: AnnotatedTextView is being ported gradually from OmniAccess.
 // The current port includes the basic render-component structure, visibility
 // and style inputs, optional UserLingoPrefsDataProvider visibility/fading
-// defaults, and spelling-system conversions. Action Buttons, TTS, and the
-// other OmniAccess behavior are intentionally not ported yet.
+// defaults, and spelling-system conversions.
 // 20260824: Spelling-system resolution, formatted-spelling export, local main-
 // script reading-guide conversions, non-core spelling visibility, punctuation
 // fallback, and spelling-system-specific fonts are now ported. Converter work
@@ -221,13 +280,17 @@ function phoneticPartToSpelling(
 // ON_HINT visibility and styling behavior are now ported. They activate only
 // when AnnotatedTextView is rendered within UserWordStreaksDataProvider;
 // otherwise streak-dependent behavior is disabled.
+// 20260824: The play-audio action, speech preloading, action placement, and
+// imperative speech handle are now ported. Other OmniAccess actions and ATV
+// behavior remain deferred; the current inputs intentionally retain their
+// OmniAccess names so consumers can switch implementations incrementally.
 // 20260821: Gloss emojis currently port basic color/black-and-white rendering
 // and visibility. Per-grapheme flipping, loading spinners, and non-core gloss
 // preferences remain deferred.
 // 20260822: The OmniAccess astyle shape, defaults, and current render behavior
 // are ported without its Chakra dependency. astyle.css applies to Lingop's
-// .annotated-text-view root because the future action-button wrapper is not
-// present yet.
+// .annotated-text-view content root rather than the action-button wrapper, so
+// per-instance text/export styling does not unintentionally restyle controls.
 // 20260822: Download-image and image-data imperative handles are ported with a
 // lazy html2canvas import. HTML-table export and unrelated imperative handles
 // remain deferred.
@@ -909,6 +972,46 @@ function TokenGlossView({
   );
 }
 
+function ActionButtonSpeak({
+  isSpeaking,
+  triggerSpeechSynthesis,
+}: {
+  isSpeaking: boolean;
+  triggerSpeechSynthesis: () => Promise<void>;
+}): ReactNode {
+  return (
+    <button
+      type="button"
+      className="annotated-text-action-button annotated-text-action-speak"
+      aria-label="Play audio"
+      aria-busy={isSpeaking}
+      disabled={isSpeaking}
+      onClick={(event) => {
+        event.stopPropagation();
+        void triggerSpeechSynthesis();
+      }}
+    >
+      {isSpeaking ? (
+        <span className="annotated-text-action-spinner" aria-hidden="true" />
+      ) : (
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M11 5 6 9H2v6h4l5 4V5Z" />
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 /**
  * Renders annotated text as horizontally wrapping token blocks.
  *
@@ -930,6 +1033,12 @@ function AnnotatedTextViewComponent({
   showLocalMainTextReadingGuide,
   localShouldFadeNonCoreWords,
   nonCoreWordsFadeOpacity = 0.5,
+  showActionPlayAudio = false,
+  actionsPlacement = "LEFT_RIGHT",
+  apiVoiceAccessProfile,
+  contentContext_forAPISpeech,
+  contentRef_forAPISpeech,
+  shouldPreloadSpeech = false,
   l10nWordDetailHandler,
   supabaseClient,
 }: AnnotatedTextViewProps, ref: ForwardedRef<AnnotatedTextViewHandle>): ReactNode {
@@ -981,9 +1090,31 @@ function AnnotatedTextViewComponent({
   const streakWordDetailHandler = userWordStreaksData
     ? l10nWordDetailHandler
     : undefined;
+  const providedClientData = useOptionalLingopClientData();
   const lingopClient = useLingopClientDataOrCreate(
     supabaseClient ? { supabaseClient } : {},
   );
+  const speechSupabaseClient =
+    supabaseClient ?? providedClientData?.supabaseClient;
+  const resolvedAPIVoiceAccessProfile =
+    apiVoiceAccessProfile ??
+    providedClientData?.apiVoiceAccessProfile ??
+    "NONE";
+  const speechOptions = useMemo<SpeechSynthTTSOptions>(
+    () => ({
+      ...(speechSupabaseClient
+        ? { supabaseClient: speechSupabaseClient }
+        : {}),
+      ...(providedClientData
+        ? { useStagingBackend: providedClientData.useStagingBackend }
+        : {}),
+    }),
+    [providedClientData, speechSupabaseClient],
+  );
+  // ACTION: AUDIO
+  const [langIsSpeakable, setLangIsSpeakable] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const speechInFlightRef = useRef<Promise<void> | null>(null);
   const [coreWordStatusResult, setCoreWordStatusResult] = useState<{
     annotatedText: AnnotatedText;
     statuses: (boolean | null)[]; // boolean if it's a word, null if it's not
@@ -1077,6 +1208,130 @@ function AnnotatedTextViewComponent({
     spellingFormatSignature,
   ]);
 
+  const getResolvableActiveSpeechVoice = useCallback(async () => {
+    const voice = await speechSynthTTS.getActiveVoiceForLang(
+      linearizedAText.lang,
+      resolvedAPIVoiceAccessProfile,
+      speechOptions,
+    );
+    return canResolveSpeechForVoice({
+      contentContext: contentContext_forAPISpeech,
+      hasSupabaseClient: speechSupabaseClient !== undefined,
+      ref: contentRef_forAPISpeech,
+      voice,
+    })
+      ? voice
+      : null;
+  }, [
+    contentContext_forAPISpeech,
+    contentRef_forAPISpeech,
+    linearizedAText.lang,
+    resolvedAPIVoiceAccessProfile,
+    speechOptions,
+    speechSupabaseClient,
+  ]);
+
+  // ACTION: AUDIO - Re-check when browser voices arrive/change, the language
+  // changes, or a consumer changes its cloud-speech access/configuration.
+  useEffect(() => {
+    let cancelled = false;
+    setLangIsSpeakable(false);
+
+    void getResolvableActiveSpeechVoice()
+      .then((voice) => {
+        if (!cancelled) setLangIsSpeakable(voice !== null);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          console.error(
+            "Error determining whether language is speakable:",
+            error,
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getResolvableActiveSpeechVoice]);
+
+  const triggerSpeechSynthesis = useCallback((): Promise<void> => {
+    // One ATV should not start overlapping playback when its button or
+    // imperative handle is triggered repeatedly.
+    if (speechInFlightRef.current) return speechInFlightRef.current;
+
+    let request!: Promise<void>;
+    request = (async () => {
+      setIsSpeaking(true);
+      try {
+        const voice = await getResolvableActiveSpeechVoice();
+        if (!voice) return;
+        await speechSynthTTS.speak({
+          text: linearizedAText.lang_text,
+          lang: linearizedAText.lang,
+          apiVoiceAccessProfile: resolvedAPIVoiceAccessProfile,
+          ...(contentContext_forAPISpeech
+            ? { contentContext: contentContext_forAPISpeech }
+            : {}),
+          ...(contentRef_forAPISpeech ? { ref: contentRef_forAPISpeech } : {}),
+          ...speechOptions,
+        });
+      } catch (error: unknown) {
+        console.error("Could not play annotated-text speech:", error);
+      } finally {
+        if (speechInFlightRef.current === request) {
+          speechInFlightRef.current = null;
+        }
+        setIsSpeaking(false);
+      }
+    })();
+    speechInFlightRef.current = request;
+    return request;
+  }, [
+    contentContext_forAPISpeech,
+    contentRef_forAPISpeech,
+    getResolvableActiveSpeechVoice,
+    linearizedAText.lang,
+    linearizedAText.lang_text,
+    resolvedAPIVoiceAccessProfile,
+    speechOptions,
+  ]);
+
+  useEffect(() => {
+    if (!shouldPreloadSpeech) return;
+
+    // Fine to call for any voice: browser speech is a no-op here. For a cloud
+    // voice this follows the same metadata lookup/creation path as playback,
+    // then buffers the resulting file. Keep it behind this explicit input so
+    // consumers decide when that backend work should happen.
+    void getResolvableActiveSpeechVoice()
+      .then((voice) => {
+        if (!voice) return;
+        return speechSynthTTS.preloadSpeech({
+          text: linearizedAText.lang_text,
+          lang: linearizedAText.lang,
+          apiVoiceAccessProfile: resolvedAPIVoiceAccessProfile,
+          ...(contentContext_forAPISpeech
+            ? { contentContext: contentContext_forAPISpeech }
+            : {}),
+          ...(contentRef_forAPISpeech ? { ref: contentRef_forAPISpeech } : {}),
+          ...speechOptions,
+        });
+      })
+      .catch((error: unknown) => {
+        console.error("Could not preload annotated-text speech:", error);
+      });
+  }, [
+    contentContext_forAPISpeech,
+    contentRef_forAPISpeech,
+    getResolvableActiveSpeechVoice,
+    linearizedAText.lang,
+    linearizedAText.lang_text,
+    resolvedAPIVoiceAccessProfile,
+    shouldPreloadSpeech,
+    speechOptions,
+  ]);
+
   // Word Streaks
   useEffect(() => {
     if (
@@ -1110,9 +1365,10 @@ function AnnotatedTextViewComponent({
         if (!element) return undefined;
         return captureAnnotatedTextImage(element, scale);
       },
+      triggerSpeechSynthesis,
       getSpelling,
     }),
-    [getSpelling],
+    [getSpelling, triggerSpeechSynthesis],
   );
 
   // DISPLAY: CORE WORD STATUSES
@@ -1154,22 +1410,67 @@ function AnnotatedTextViewComponent({
     };
   }, [linearizedAText, lingopClient, resolvedShouldFadeNonCoreWords]);
 
+  const actionsAreVertical =
+    actionsPlacement === "TOP" || actionsPlacement === "BOTTOM";
+  const actionsAtStart = actionsPlacement !== "LEFT_RIGHT";
+  const mainLang = getLang(linearizedAText.lang);
+  const mainScript = mainLang ? getLangScript(mainLang.g_script) : undefined;
+  const actionButton = showActionPlayAudio && langIsSpeakable ? (
+    <ActionButtonSpeak
+      isSpeaking={isSpeaking}
+      triggerSpeechSynthesis={triggerSpeechSynthesis}
+    />
+  ) : null;
+
   return (
     <div
-      ref={exportHTMLElementRef}
-      className="annotated-text-view"
-      lang={linearizedAText.lang}
+      className="annotated-text-view-wrapper"
+      dir={mainScript?.is_ltr === false ? "rtl" : undefined}
+      data-actions-placement={actionsPlacement}
       style={{
         display: "flex",
-        flexWrap: "wrap",
-        alignItems: "flex-end",
-        rowGap: "0.25em",
-        lineHeight: 1.2,
-        ...astyle.css,
+        width: "100%",
+        alignItems: "stretch",
+        flexDirection:
+          actionsPlacement === "TOP"
+            ? "column"
+            : actionsPlacement === "BOTTOM"
+              ? "column-reverse"
+              : "row",
       }}
     >
-      <div className="tokens" style={{ display: "contents" }}>
-        {linearizedAText.tokens.map((_token, index) => {
+      {/* ACTION BUTTONS: START (LEFT) */}
+      {/* Future: Smarter "splitting" of Action Buttons (on LEFT_RIGHT vs TOP),
+          as actions increase. They may move into their own wrapper; now that
+          Hint is deprecated, Speak is the only action button. - 20260621 */}
+      {actionsAtStart && actionButton && (
+        <div
+          className="annotated-text-actions"
+          style={actionsAreVertical ? { width: "100%", minHeight: 28 } : {}}
+        >
+          {actionButton}
+        </div>
+      )}
+
+      {/* ANNOTATED TEXT VIEW */}
+      <div
+        ref={exportHTMLElementRef}
+        className="annotated-text-view"
+        lang={linearizedAText.lang}
+        aria-label={linearizedAText.lang_text}
+        style={{
+          display: "flex",
+          flex: 1,
+          flexWrap: "wrap",
+          alignContent: "center",
+          alignItems: "flex-end",
+          rowGap: "0.25em",
+          lineHeight: 1.2,
+          ...astyle.css,
+        }}
+      >
+        <div className="tokens" style={{ display: "contents" }}>
+          {linearizedAText.tokens.map((_token, index) => {
           const token = stripDisambiguatorFromToken(_token);
           const wordSubMorphemes = morphemesPerLinearToken[index] ?? [];
           const key = `${index}-${token.text}`;
@@ -1288,8 +1589,14 @@ function AnnotatedTextViewComponent({
               />
             </div>
           );
-        })}
+          })}
+        </div>
       </div>
+
+      {/* ACTION BUTTONS: END (RIGHT) */}
+      {!actionsAtStart && actionButton && (
+        <div className="annotated-text-actions">{actionButton}</div>
+      )}
     </div>
   );
 }

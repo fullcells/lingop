@@ -13,15 +13,23 @@ import {
   type LingoDataClient,
   type SupabaseLingoDataClient,
 } from "../../core/lingo-data-client.js";
+import type { APIVoiceAccessProfile } from "./speech-synth-tts.js";
 
 export type LingopClientDataContextType = {
   lingopClient: LingoDataClient;
   supabaseClient: SupabaseLingoDataClient | undefined;
   useStagingBackend: boolean;
+  /** Consumer-owned entitlement policy for cloud speech voices. */
+  apiVoiceAccessProfile: APIVoiceAccessProfile;
 };
 
 export type LingopClientDataProviderProps = CreateLingoDataClientOptions & {
   children: ReactNode;
+  /**
+   * Consumers determine this from their own site/account policy. Lingop
+   * defaults to browser-only speech and does not infer subscriptions or hosts.
+   */
+  apiVoiceAccessProfile?: APIVoiceAccessProfile;
 };
 
 const LingopClientDataContext = createContext<
@@ -36,6 +44,7 @@ const LingopClientDataContext = createContext<
  * client, including its in-memory annotation and translation caches.
  */
 export function LingopClientDataProvider({
+  apiVoiceAccessProfile = "NONE",
   children,
   supabaseClient,
   useStagingBackend = false,
@@ -45,8 +54,13 @@ export function LingopClientDataProvider({
       ...(supabaseClient ? { supabaseClient } : {}),
       useStagingBackend,
     });
-    return { lingopClient, supabaseClient, useStagingBackend };
-  }, [supabaseClient, useStagingBackend]);
+    return {
+      apiVoiceAccessProfile,
+      lingopClient,
+      supabaseClient,
+      useStagingBackend,
+    };
+  }, [apiVoiceAccessProfile, supabaseClient, useStagingBackend]);
 
   return (
     <LingopClientDataContext.Provider value={value}>

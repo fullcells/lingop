@@ -119,7 +119,12 @@ function ContentLabel() {
 
 ## Shared Lingop client data in React
 
-`LingopClientDataProvider` creates one `LingoDataClient` for its React subtree. Configure the consumer's existing browser Supabase client and production/staging choice once; compatible Lingop UI components then share that client and its in-memory caches.
+`LingopClientDataProvider` creates one `LingoDataClient` for its React subtree.
+Configure the consumer's existing browser Supabase client, production/staging
+choice, and optional cloud-voice access profile once; compatible Lingop UI
+components then share that configuration and the client's in-memory caches.
+The consumer still owns entitlement/account policy—Lingop does not infer it
+from a host or route.
 
 ```tsx
 import {
@@ -130,6 +135,7 @@ import {
 <LingopClientDataProvider
   supabaseClient={supabaseClient}
   useStagingBackend={process.env.NODE_ENV === "development"}
+  apiVoiceAccessProfile="ONE_PER_LANG"
 >
   <App />
 </LingopClientDataProvider>;
@@ -453,6 +459,23 @@ interaction, and unfamiliar-word styling are disabled. Its `showSpelling`,
 `showGlossText`, and `showGlossEmoji` inputs accept `ON_HINT` in addition to
 `NEVER` and `ALWAYS`.
 
+The OmniAccess-compatible play action is enabled with
+`showActionPlayAudio`. `actionsPlacement` accepts `LEFT_RIGHT`, `RIGHT_LEFT`,
+`TOP`, or `BOTTOM`; the wrapper also respects the main language's writing
+direction. A per-ATV `apiVoiceAccessProfile` overrides the value from
+`LingopClientDataProvider`. The default profile is `NONE`, which permits
+browser voices only.
+
+Browser voices need no content metadata. If the selected voice is a cloud
+voice, `contentContext_forAPISpeech` tells the speech layer which lookup and
+creation path applies. `PUBLIC_CONTENT` additionally needs
+`contentRef_forAPISpeech`, while `MEMBER_CONTENT` needs the configured
+Supabase client. `LIMITED_TEMP_ANON` needs neither of those extra values.
+
+`shouldPreloadSpeech` remains explicitly opt-in. It is a no-op for a browser
+voice; for a cloud voice it resolves (and, when absent, may create/cache) the
+same audio that playback would use, then asks the browser to buffer its file.
+
 Use the OmniAccess-compatible `astyle` input for per-instance typography,
 colours, spacing, and annotation placement. Inputs are merged with the exported
 defaults:
@@ -491,6 +514,7 @@ const annotatedTextRef = useRef<AnnotatedTextViewHandle>(null);
 await annotatedTextRef.current?.requestDownloadImage(0);
 const image = await annotatedTextRef.current?.requestImageData(2);
 const spelling = annotatedTextRef.current?.getSpelling();
+await annotatedTextRef.current?.triggerSpeechSynthesis();
 ```
 
 The optional stylesheet supplies the default color and monochrome emoji font

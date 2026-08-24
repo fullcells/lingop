@@ -25,6 +25,76 @@
   src: url("./fonts/linja_laso_regular.otf") format("opentype");
 }
 
+.annotated-text-view-wrapper .annotated-text-actions {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.annotated-text-view-wrapper[data-actions-placement="LEFT_RIGHT"]
+  .annotated-text-actions,
+.annotated-text-view-wrapper[data-actions-placement="RIGHT_LEFT"]
+  .annotated-text-actions {
+  margin-inline: 0.25rem;
+}
+
+.annotated-text-view-wrapper .annotated-text-action-button {
+  display: inline-flex;
+  min-width: 2rem;
+  min-height: 2rem;
+  padding: 0.25rem 0.375rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0.375rem;
+  background: rgb(255 255 255 / 50%);
+  color: #718096;
+  cursor: pointer;
+}
+
+.annotated-text-view-wrapper .annotated-text-action-button:hover:not(:disabled) {
+  background: #ebf8ff;
+  color: #00b5d8;
+}
+
+.annotated-text-view-wrapper .annotated-text-action-button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.annotated-text-view-wrapper .annotated-text-action-button:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.annotated-text-view-wrapper .annotated-text-action-button svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.annotated-text-view-wrapper .annotated-text-action-spinner {
+  width: 1rem;
+  height: 1rem;
+  box-sizing: border-box;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: lingop-atv-action-spin 0.7s linear infinite;
+}
+
+@keyframes lingop-atv-action-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .annotated-text-view-wrapper .annotated-text-action-spinner {
+    animation-duration: 1.5s;
+  }
+}
+
 .annotated-text-view .gloss {
   user-select: none;
   text-align: center;
