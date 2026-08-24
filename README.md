@@ -262,7 +262,10 @@ const annotation = await lingoData.fetchAnnotation({ localization });
 
 User word streaks are exposed through the Next UI provider and hook, not through `lingop/core`. Consumers read and write one unified `userWordStreaks` value regardless of whether the backing store is currently localStorage or Supabase.
 
-Wrap the app with this provider beneath `LingopClientDataProvider`. `focusLang` may be `null`; the provider waits to hydrate or sync until a language exists.
+Wrap streak-aware parts of the app with this provider beneath
+`LingopClientDataProvider`. `focusLang` may be `null`; the provider waits to
+hydrate or sync until a language exists. Components that do not use word-streak
+state do not need this provider.
 
 ```tsx
 import { UserWordStreaksDataProvider } from "lingop/ui/next";
@@ -380,10 +383,12 @@ import "lingop/ui/next/annotated-text.css";
 <AnnotatedTextView annotatedText={annotatedText} />;
 ```
 
-`AnnotatedTextView` consumes user word streaks for unfamiliar-word hints, so
-render it beneath the `UserWordStreaksDataProvider` described above. Its
-`showSpelling`, `showGlossText`, and `showGlossEmoji` inputs accept `ON_HINT` in
-addition to `NEVER` and `ALWAYS`.
+`AnnotatedTextView` works with or without the `UserWordStreaksDataProvider`
+described above. When the provider is present, ATV consumes word streaks for
+unfamiliar-word hints. Without it, streak-dependent hinting, word-detail
+interaction, and unfamiliar-word styling are disabled. Its `showSpelling`,
+`showGlossText`, and `showGlossEmoji` inputs accept `ON_HINT` in addition to
+`NEVER` and `ALWAYS`.
 
 Use the OmniAccess-compatible `astyle` input for per-instance typography,
 colours, spacing, and annotation placement. Inputs are merged with the exported

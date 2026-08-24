@@ -462,9 +462,16 @@ export function UserWordStreaksDataProvider({
 }
 
 export function useUserWordStreaksData() {
-  const context = useContext(UserWordStreaksDataContext);
+  const context = useOptionalUserWordStreaksData();
   if (context === undefined) {
     throw new Error("This use... function must be used within its related ....Provider.");
   }
   return context;
+}
+
+/** Returns undefined when word-streak behavior is not enabled for this subtree. */
+export function useOptionalUserWordStreaksData():
+  | UserWordStreaksDataContextType
+  | undefined {
+  return useContext(UserWordStreaksDataContext);
 }

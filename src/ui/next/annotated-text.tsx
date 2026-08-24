@@ -36,7 +36,7 @@ import {
   type AnnotatedTextImageData,
 } from "./annotated-text-image.js";
 import { useLingopClientDataOrCreate } from "./lingop-client-data-provider.js";
-import { useUserWordStreaksData } from "./user-word-streaks.js";
+import { useOptionalUserWordStreaksData } from "./user-word-streaks.js";
 
 export type { AnnotatedTextImageData } from "./annotated-text-image.js";
 
@@ -199,8 +199,9 @@ function tokenToPhoneticParts(token: AnnotatedToken): PhoneticPart[] {
 // visibility and style inputs. Action Buttons, TTS, useUserLingoPrefsData, and
 // the other OmniAccess behavior are intentionally not ported yet.
 // 20260824: userWordStreaks, isWordUnfamiliar, l10nWordDetailHandler, and their
-// ON_HINT visibility and styling behavior are now ported. As in OmniAccess,
-// AnnotatedTextView must be rendered within UserWordStreaksDataProvider.
+// ON_HINT visibility and styling behavior are now ported. They activate only
+// when AnnotatedTextView is rendered within UserWordStreaksDataProvider;
+// otherwise streak-dependent behavior is disabled.
 // 20260821: Gloss emojis currently port basic color/black-and-white rendering
 // and visibility. Per-grapheme flipping, loading spinners, and non-core gloss
 // preferences remain deferred.
@@ -228,11 +229,13 @@ function TokenSpellingAndMainView({
   l10nWordDetailHandler,
   token,
 }: TokenSpellingAndMainViewProps): ReactNode {
-  const { userWordStreaks } = useUserWordStreaksData();
+  const userWordStreaksData = useOptionalUserWordStreaksData();
+  const userWordStreaks = userWordStreaksData?.userWordStreaks;
   const wordStreak =
-    userWordStreaks[annotatedText.lang]?.[token.text.toUpperCase()] ?? null;
+    userWordStreaks?.[annotatedText.lang]?.[token.text.toUpperCase()] ?? null;
   const isWordUnfamiliar =
-    wordStreak == null || wordStreak < WORD_STREAK_LIMIT_FOR_AUTO_HINT;
+    !!userWordStreaksData &&
+    (wordStreak == null || wordStreak < WORD_STREAK_LIMIT_FOR_AUTO_HINT);
 
   if (!_showMainText && _showSpelling === "NEVER") return null;
 
@@ -418,7 +421,10 @@ function TokenGlossView({
   showGlossEmoji,
   showTokenGlossPrefix_TO__,
 }: TokenGlossViewProps): ReactNode {
-  const { userWordStreaks } = useUserWordStreaksData(); // 20260223 Note: Future: As userWordStreaks is updated, especially if modularized to not apply to every site, then a useOptionalUserWordStreaksDataContext() can be added that just returns null instead of throwing an error.
+  // 20260223 Note, updated 20260824: userWordStreaks is optional so ATV
+  // consumers without streak-driven behavior do not need the provider.
+  const userWordStreaksData = useOptionalUserWordStreaksData();
+  const userWordStreaks = userWordStreaksData?.userWordStreaks;
   const enGloss = useMemo(() => {
     // Format the gloss to strip out the "TO " prefix if specified.
     let gloss = isWordToken(token) ? token.gloss ?? null : null;
@@ -469,8 +475,11 @@ function TokenGlossView({
       : generatedEmoji;
   const isWordUnfamiliar = (wordSubMorphemes ?? []).some(({ morpheme }) => {
     const morphemeStreak =
-      userWordStreaks[lang]?.[morpheme.toUpperCase()] ?? 0;
-    return morphemeStreak < WORD_STREAK_LIMIT_FOR_AUTO_HINT;
+      userWordStreaks?.[lang]?.[morpheme.toUpperCase()] ?? 0;
+    return (
+      !!userWordStreaksData &&
+      morphemeStreak < WORD_STREAK_LIMIT_FOR_AUTO_HINT
+    );
   });
 
   // GlossTextTipLang
@@ -705,11 +714,15 @@ function AnnotatedTextViewComponent({
     [annotatedText],
   );
   const exportHTMLElementRef = useRef<HTMLDivElement>(null);
-  const {
-    userWordStreaks,
-    ensureUserWordStreaksForLang,
-    setUserWordStreaksToValue,
-  } = useUserWordStreaksData();
+  const userWordStreaksData = useOptionalUserWordStreaksData();
+  const userWordStreaks = userWordStreaksData?.userWordStreaks;
+  const ensureUserWordStreaksForLang =
+    userWordStreaksData?.ensureUserWordStreaksForLang;
+  const setUserWordStreaksToValue =
+    userWordStreaksData?.setUserWordStreaksToValue;
+  const streakWordDetailHandler = userWordStreaksData
+    ? l10nWordDetailHandler
+    : undefined;
   const lingopClient = useLingopClientDataOrCreate(
     supabaseClient ? { supabaseClient } : {},
   );
@@ -724,7 +737,11 @@ function AnnotatedTextViewComponent({
 
   // Word Streaks
   useEffect(() => {
-    if (!userWordStreaks[linearizedAText.lang]) {
+    if (
+      userWordStreaks &&
+      ensureUserWordStreaksForLang &&
+      !userWordStreaks[linearizedAText.lang]
+    ) {
       // This starts adding the language to userWordStreaks, whose update calls
       // this effect again.
       void ensureUserWordStreaksForLang(linearizedAText.lang);
@@ -814,10 +831,13 @@ function AnnotatedTextViewComponent({
           // submorpheme).
           const isWordUnfamiliar = wordSubMorphemes.some(({ morpheme }) => {
             const morphemeStreak =
-              userWordStreaks[linearizedAText.lang]?.[
+              userWordStreaks?.[linearizedAText.lang]?.[
                 morpheme.toUpperCase()
               ] ?? 0;
-            return morphemeStreak < WORD_STREAK_LIMIT_FOR_AUTO_HINT;
+            return (
+              !!userWordStreaksData &&
+              morphemeStreak < WORD_STREAK_LIMIT_FOR_AUTO_HINT
+            );
           });
           // Non-Core - Fade
           const wordIsCoreOrUnknown =
@@ -841,11 +861,11 @@ function AnnotatedTextViewComponent({
             <div
               key={key}
               className={`token${
-                l10nWordDetailHandler && isWordToken(token)
+                streakWordDetailHandler && isWordToken(token)
                   ? " token-word-detail"
                   : ""
               }${
-                l10nWordDetailHandler &&
+                streakWordDetailHandler &&
                 isWordToken(token) &&
                 isWordUnfamiliar
                   ? " token-word-unfamiliar"
@@ -868,10 +888,10 @@ function AnnotatedTextViewComponent({
                 transition: "all 0.1s ease-in-out",
               }}
               onClick={
-                l10nWordDetailHandler && isWordToken(token)
+                streakWordDetailHandler && isWordToken(token)
                   ? (event) => {
                     event.stopPropagation();
-                    if (!isWordUnfamiliar) {
+                    if (!isWordUnfamiliar && setUserWordStreaksToValue) {
                       // A 1-way hint-toggle (l10nWordDetailHandler's overlay
                       // itself handles de-hinting).
                       void setUserWordStreaksToValue(
@@ -881,7 +901,7 @@ function AnnotatedTextViewComponent({
                       );
                     }
                     if (isWordUnfamiliar) {
-                      l10nWordDetailHandler(
+                      streakWordDetailHandler(
                         linearizedAText,
                         index,
                         event,
@@ -897,7 +917,7 @@ function AnnotatedTextViewComponent({
                 _showMainText={showMainText}
                 annotatedText={linearizedAText}
                 astyle={astyle}
-                l10nWordDetailHandler={l10nWordDetailHandler}
+                l10nWordDetailHandler={streakWordDetailHandler}
                 token={token}
               />
               <TokenGlossView
@@ -906,7 +926,7 @@ function AnnotatedTextViewComponent({
                 glossTextTipLang={glossTextTipLang}
                 lang={linearizedAText.lang}
                 lingopClient={lingopClient}
-                l10nWordDetailHandler={l10nWordDetailHandler}
+                l10nWordDetailHandler={streakWordDetailHandler}
                 token={token}
                 wordSubMorphemes={wordSubMorphemes}
                 showGlossText={showGlossText}
