@@ -24,7 +24,12 @@ import {
   convertEmojiTextToBlackWhiteCompatibleEmojiText,
   shouldBlackWhiteEmojiUseColorEmojiFont,
 } from "../../core/emojify.js";
-import { getWordExplanationsForWord } from "../../core/language/index.js";
+import {
+  getSpellingContent,
+  getWordExplanationsForWord,
+  SpellingSystemsByLang,
+  type SpellingSystem,
+} from "../../core/language/index.js";
 import {
   type LingoDataClient,
   type SupabaseLingoDataClient,
@@ -198,9 +203,9 @@ function tokenToPhoneticParts(token: AnnotatedToken): PhoneticPart[] {
 
 // 20260821: AnnotatedTextView is being ported gradually from OmniAccess.
 // The current port includes the basic render-component structure, visibility
-// and style inputs, and optional UserLingoPrefsDataProvider visibility/fading
-// defaults. Action Buttons, TTS, spelling-system conversions, and the other
-// OmniAccess behavior are intentionally not ported yet.
+// and style inputs, optional UserLingoPrefsDataProvider visibility/fading
+// defaults, and spelling-system conversions. Action Buttons, TTS, and the
+// other OmniAccess behavior are intentionally not ported yet.
 // 20260824: userWordStreaks, isWordUnfamiliar, l10nWordDetailHandler, and their
 // ON_HINT visibility and styling behavior are now ported. They activate only
 // when AnnotatedTextView is rendered within UserWordStreaksDataProvider;
@@ -233,6 +238,15 @@ function TokenSpellingAndMainView({
   token,
 }: TokenSpellingAndMainViewProps): ReactNode {
   const userWordStreaksData = useOptionalUserWordStreaksData();
+  const userLingoPrefsData = useOptionalUserLingoPrefsData();
+  // `undefined` deliberately means that no provider exists, preserving the
+  // component's original standalone/backend-spelling behavior. Within the
+  // provider, a language's first configured system remains its default.
+  const spellingSystem: SpellingSystem | null | undefined = userLingoPrefsData
+    ? (userLingoPrefsData.userPreferredSpellingSystems[annotatedText.lang] ??
+      SpellingSystemsByLang[annotatedText.lang]?.[0] ??
+      null)
+    : undefined;
   const userWordStreaks = userWordStreaksData?.userWordStreaks;
   const wordStreak =
     userWordStreaks?.[annotatedText.lang]?.[token.text.toUpperCase()] ?? null;
@@ -281,45 +295,121 @@ function TokenSpellingAndMainView({
           : {}),
       }}
     >
-      {tokenToPhoneticParts(token).map((part, partIndex) => {
-        const [chars] = part;
-        const shouldShowPartSpelling =
-          _showSpelling === "ALWAYS" ||
-          (_showSpelling === "ON_HINT" &&
-            !!l10nWordDetailHandler &&
-            isWordUnfamiliar);
-        const partSpelling = shouldShowPartSpelling
-          ? phoneticPartToSpelling(part, annotatedText.lang, _showMainText)
-          : visuallyEmpty;
+      {tokenToPhoneticParts(token).map((part, partIndex) => (
+        <TokenPhoneticPartView
+          key={`${partIndex}-${part[0]}`}
+          astyle={astyle}
+          lang={annotatedText.lang}
+          part={part}
+          shouldShowSpelling={
+            _showSpelling === "ALWAYS" ||
+            (_showSpelling === "ON_HINT" &&
+              !!l10nWordDetailHandler &&
+              isWordUnfamiliar)
+          }
+          showMainText={_showMainText}
+          spellingSystem={spellingSystem}
+        />
+      ))}
+    </span>
+  );
+}
 
-        return (
-          <span
-            key={`${partIndex}-${chars}`}
-            className="phonic"
-            style={{
-              display: "inline-flex",
-              flexDirection: astyle.spellingOnBottom
-                ? "column-reverse"
-                : "column",
-              alignItems: "center",
-              minWidth: "max-content",
-            }}
-          >
-            <TokenSpellingTextSpan
-              astyle={astyle}
-              lang={annotatedText.lang}
-              showMainText={_showMainText}
-            >
-              {partSpelling}
-            </TokenSpellingTextSpan>
-            {_showMainText && (
-              <TokenMainTextSpan astyle={astyle} isWord>
-                {chars}
-              </TokenMainTextSpan>
-            )}
-          </span>
-        );
-      })}
+function TokenPhoneticPartView({
+  astyle,
+  lang,
+  part,
+  shouldShowSpelling,
+  showMainText,
+  spellingSystem,
+}: {
+  astyle: ResolvedAnnotatedTextStyle;
+  lang: string;
+  part: PhoneticPart;
+  shouldShowSpelling: boolean;
+  showMainText: boolean;
+  /** `undefined` means no preferences provider is present. */
+  spellingSystem: SpellingSystem | null | undefined;
+}): ReactNode {
+  const [chars, backendSpelling] = part;
+  const formatSignature = [
+    lang,
+    chars,
+    backendSpelling ?? "",
+    spellingSystem ?? "",
+    showMainText ? "1" : "0",
+  ].join("\u0000");
+  const [formatResult, setFormatResult] = useState<{
+    signature: string;
+    value: string;
+  } | null>(null);
+  const standaloneSpelling = phoneticPartToSpelling(part, lang, showMainText);
+
+  useEffect(() => {
+    if (spellingSystem === undefined) return;
+    let cancelled = false;
+    const currentPart: PhoneticPart =
+      backendSpelling === undefined
+        ? [chars]
+        : [chars, backendSpelling];
+    void getSpellingContent(
+      lang,
+      currentPart,
+      spellingSystem,
+      showMainText,
+    )
+      .then((value) => {
+        if (!cancelled) setFormatResult({ signature: formatSignature, value });
+      })
+      .catch(() => {
+        // Retain backend spelling if an optional runtime converter fails.
+        if (!cancelled) {
+          setFormatResult({
+            signature: formatSignature,
+            value: standaloneSpelling,
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    backendSpelling,
+    chars,
+    formatSignature,
+    lang,
+    showMainText,
+    spellingSystem,
+    standaloneSpelling,
+  ]);
+
+  const formattedSpelling =
+    formatResult?.signature === formatSignature
+      ? formatResult.value
+      : standaloneSpelling;
+
+  return (
+    <span
+      className="phonic"
+      style={{
+        display: "inline-flex",
+        flexDirection: astyle.spellingOnBottom ? "column-reverse" : "column",
+        alignItems: "center",
+        minWidth: "max-content",
+      }}
+    >
+      <TokenSpellingTextSpan
+        astyle={astyle}
+        lang={lang}
+        showMainText={showMainText}
+      >
+        {shouldShowSpelling ? formattedSpelling : visuallyEmpty}
+      </TokenSpellingTextSpan>
+      {showMainText && (
+        <TokenMainTextSpan astyle={astyle} isWord>
+          {chars}
+        </TokenMainTextSpan>
+      )}
     </span>
   );
 }

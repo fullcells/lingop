@@ -131,6 +131,9 @@
     "dotenv": "^17.3.1",
     "html2canvas": "^1.4.1",
     "jiti": "^2.5.1",
+    "phonemizer": "^1.2.1",
+    "pinyin-zhuyin": "^1.0.4",
+    "wanakana": "^5.3.1",
     "wink-lemmatizer": "^3.0.4"
   }
 }

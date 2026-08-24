@@ -174,6 +174,24 @@ Explicit `showSpelling`, `showMainText`, `showGlossText`, `showGlossEmoji`, and
 `localShouldFadeNonCoreWords` props take precedence for an individual view.
 Without the provider, its existing standalone defaults remain unchanged.
 
+The corresponding shared phonetic-part formatter can be used by Lingop or
+consumer-owned annotated-text views:
+
+```ts
+import {
+  getSpellingContent,
+  SpellingSystem,
+} from "lingop/core/language";
+
+const spelling = await getSpellingContent(
+  "en",
+  ["cat", "K AE1 T"],
+  SpellingSystem.EN_IPA,
+  true,
+);
+// "ˈkæt"
+```
+
 ## Camp Lingo Auth Form in Next.js
 
 `CampLingoAuthForm` is the shared Camp Lingo browser login/signup UI. It owns the common Camp Lingo branding and labels, email/password flows, Google Identity Services integration, and forgot-password destination. It uses basic DOM elements and stable class names so consumers can override its appearance without taking on a UI-framework dependency.
