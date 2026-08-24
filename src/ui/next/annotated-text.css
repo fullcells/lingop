@@ -1,3 +1,30 @@
+/* Fonts used directly by Lingop's AnnotatedTextView. Relative URLs allow the
+ * package stylesheet to provide the same typography to every consumer. */
+@font-face {
+  font-family: "Noto Sans JP";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./fonts/NotoSansJP-VariableFont_wght.ttf") format("truetype");
+  /* WOFF2 would reduce transfer size; retain OmniAccess's source font for now. */
+}
+
+@font-face {
+  font-family: "LS Jyutping";
+  font-style: normal;
+  font-weight: normal;
+  font-display: swap;
+  src: url("./fonts/LS_Jyutping.ttf") format("truetype");
+}
+
+@font-face {
+  font-family: "Linja Laso";
+  font-style: normal;
+  font-weight: normal;
+  font-display: swap;
+  src: url("./fonts/linja_laso_regular.otf") format("opentype");
+}
+
 .annotated-text-view .gloss {
   user-select: none;
   text-align: center;
@@ -30,6 +57,26 @@
  * Safari/WebKit, so retain system-font default there. Consumers
  * can override either font stack through the custom properties below without
  * replacing Lingop's selectors.
+ *
+ * 20260824: OmniAccess also has a local NotoColorEmoji-Regular.ttf file, but it
+ * is approximately 24 MB and is intentionally not bundled with Lingop's ATV.
+ * Besides the package-size cost, loading this CBDT/CBLC font can significantly
+ * slow Safari/WebKit and has previously made iOS Safari unstable. A consumer
+ * that accepts those tradeoffs can host the file itself and opt in with code
+ * like the following:
+ *
+ * @font-face {
+ *   font-family: "Consumer Noto Color Emoji";
+ *   font-style: normal;
+ *   font-weight: 400;
+ *   font-display: swap;
+ *   src: url("/fonts/NotoColorEmoji-Regular.ttf") format("truetype");
+ * }
+ *
+ * .annotated-text-view {
+ *   --lingop-atv-color-emoji-font-family:
+ *     "Consumer Noto Color Emoji", "Apple Color Emoji", sans-serif;
+ * }
  */
 .annotated-text-view .emoji-color-font {
   font-family: var(--lingop-atv-color-emoji-font-family, initial);

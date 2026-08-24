@@ -438,6 +438,14 @@ import "lingop/ui/next/annotated-text.css";
 <AnnotatedTextView annotatedText={annotatedText} />;
 ```
 
+The ATV stylesheet includes its LS Jyutping, Noto Sans JP, and Linja Laso font
+assets, so consumers do not need to copy OmniAccess's `/public/fonts` files.
+OmniAccess's approximately 24 MB `NotoColorEmoji-Regular.ttf` is deliberately
+not bundled: its CBDT/CBLC format carries a substantial download cost and can
+be slow or unstable in Safari/WebKit. The exported stylesheet contains a
+commented `@font-face` and CSS-variable example for consumers that intentionally
+choose to host and enable it themselves.
+
 `AnnotatedTextView` works with or without the `UserWordStreaksDataProvider`
 described above. When the provider is present, ATV consumes word streaks for
 unfamiliar-word hints. Without it, streak-dependent hinting, word-detail

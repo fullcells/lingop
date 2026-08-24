@@ -182,6 +182,11 @@ const emptyAnnotationSlotStyle: CSSProperties = {
   lineHeight: 1,
 };
 
+const mainTextFontFamiliesByLang: Partial<Record<string, string>> = {
+  ja: "Noto Sans JP",
+  tok: "Linja Laso",
+};
+
 function isWordToken(token: AnnotatedToken): boolean {
   return token.isWord === 1;
 }
@@ -232,6 +237,7 @@ type TokenSpellingAndMainViewProps = {
   annotatedText: AnnotatedText;
   astyle: ResolvedAnnotatedTextStyle;
   l10nWordDetailHandler?: AnnotatedTextViewProps["l10nWordDetailHandler"];
+  mainLangFont: string | undefined;
   showMainTextReadingGuide: boolean;
   spellingSystem: SpellingSystem | null | undefined;
   token: AnnotatedToken;
@@ -244,6 +250,7 @@ function TokenSpellingAndMainView({
   annotatedText,
   astyle,
   l10nWordDetailHandler,
+  mainLangFont,
   showMainTextReadingGuide,
   spellingSystem,
   token,
@@ -322,7 +329,11 @@ function TokenSpellingAndMainView({
     // Match OmniAccess's content-preserving fallback: if neither a spelling
     // row nor backend/local phonetics can render, keep the token's base text.
     return (
-      <TokenMainTextSpan astyle={astyle} isWord={isWordToken(token)}>
+      <TokenMainTextSpan
+        astyle={astyle}
+        isWord={isWordToken(token)}
+        mainLangFont={mainLangFont}
+      >
         {token.text}
       </TokenMainTextSpan>
     );
@@ -347,7 +358,11 @@ function TokenSpellingAndMainView({
           {!_showMainText ? token.text : visuallyEmpty}
         </TokenSpellingTextSpan>
         {_showMainText && (
-          <TokenMainTextSpan astyle={astyle} isWord={false}>
+          <TokenMainTextSpan
+            astyle={astyle}
+            isWord={false}
+            mainLangFont={mainLangFont}
+          >
             {token.text}
           </TokenMainTextSpan>
         )}
@@ -386,6 +401,7 @@ function TokenSpellingAndMainView({
           showMainText={_showMainText}
           spellingSystem={spellingSystem}
           tokenText={token.text}
+          mainLangFont={mainLangFont}
         />
       ))}
     </span>
@@ -400,6 +416,7 @@ function TokenPhoneticPartView({
   showMainText,
   spellingSystem,
   tokenText,
+  mainLangFont,
 }: {
   astyle: ResolvedAnnotatedTextStyle;
   lang: string;
@@ -409,6 +426,7 @@ function TokenPhoneticPartView({
   /** `undefined` means no preferences provider is present. */
   spellingSystem: SpellingSystem | null | undefined;
   tokenText: string;
+  mainLangFont: string | undefined;
 }): ReactNode {
   const chars = part?.[0] ?? tokenText;
   const backendSpelling = part?.[1];
@@ -501,7 +519,11 @@ function TokenPhoneticPartView({
         {shouldShowSpelling ? formattedSpelling : visuallyEmpty}
       </TokenSpellingTextSpan>
       {showMainText && (
-        <TokenMainTextSpan astyle={astyle} isWord>
+        <TokenMainTextSpan
+          astyle={astyle}
+          isWord
+          mainLangFont={mainLangFont}
+        >
           {chars}
         </TokenMainTextSpan>
       )}
@@ -569,10 +591,12 @@ function TokenMainTextSpan({
   astyle,
   children,
   isWord,
+  mainLangFont,
 }: {
   astyle: ResolvedAnnotatedTextStyle;
   children: ReactNode;
   isWord: boolean;
+  mainLangFont: string | undefined;
 }): ReactNode {
   return (
     <span
@@ -588,6 +612,7 @@ function TokenMainTextSpan({
         ...(astyle.mainTextFontWeight
           ? { fontWeight: astyle.mainTextFontWeight }
           : {}),
+        ...(mainLangFont ? { fontFamily: mainLangFont } : {}),
       }}
     >
       {children}
@@ -951,6 +976,8 @@ function AnnotatedTextViewComponent({
       SpellingSystemsByLang[linearizedAText.lang]?.[0] ??
       null)
     : undefined;
+  // DISPLAY: FONTS (also used by image exports).
+  const mainLangFont = mainTextFontFamiliesByLang[linearizedAText.lang];
   const streakWordDetailHandler = userWordStreaksData
     ? l10nWordDetailHandler
     : undefined;
@@ -1238,6 +1265,7 @@ function AnnotatedTextViewComponent({
                 annotatedText={linearizedAText}
                 astyle={astyle}
                 l10nWordDetailHandler={streakWordDetailHandler}
+                mainLangFont={mainLangFont}
                 showMainTextReadingGuide={resolvedShowMainTextReadingGuide}
                 spellingSystem={spellingSystem}
                 token={token}

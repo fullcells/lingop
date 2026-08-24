@@ -100,6 +100,7 @@
     "bin",
     "dist",
     "src/ui/next/annotated-text.css",
+    "src/ui/next/fonts",
     "src/ui/next/camp-lingo-auth-form.css",
     "src/ui/next/word-lists-selector.css"
   ],
