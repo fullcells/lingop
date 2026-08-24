@@ -2,6 +2,7 @@
 
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -25,6 +26,8 @@ import {
   shouldBlackWhiteEmojiUseColorEmojiFont,
 } from "../../core/emojify.js";
 import {
+  doesLangMainScriptHaveReadingGuide,
+  getMainScriptReadingGuidePart,
   getSpellingContent,
   getWordExplanationsForWord,
   SpellingSystemsByLang,
@@ -52,6 +55,7 @@ export type AnnotatedTextViewHandle = {
   requestImageData: (
     scale?: number,
   ) => Promise<AnnotatedTextImageData | undefined>;
+  getSpelling: () => string | null;
 };
 
 export type GlossPlacement = "bottom" | "left" | "top" | "right";
@@ -147,6 +151,8 @@ export type AnnotatedTextViewProps = {
   astyle?: AnnotatedTextStyle;
   /** Whether English verb glosses retain their leading "TO " prefix. */
   showTokenGlossPrefix_TO__?: boolean;
+  /** Overrides the shared preference for locally generated script guides. */
+  showLocalMainTextReadingGuide?: boolean | null;
   /** Fades words identified as non-core; Supabase-backed checks require provider configuration. */
   localShouldFadeNonCoreWords?: boolean | null;
   nonCoreWordsFadeOpacity?: number;
@@ -197,15 +203,15 @@ function phoneticPartToSpelling(
   return phoneticPartSpelling;
 }
 
-function tokenToPhoneticParts(token: AnnotatedToken): PhoneticPart[] {
-  return token.phoneticToken?.length ? token.phoneticToken : [[token.text]];
-}
-
 // 20260821: AnnotatedTextView is being ported gradually from OmniAccess.
 // The current port includes the basic render-component structure, visibility
 // and style inputs, optional UserLingoPrefsDataProvider visibility/fading
 // defaults, and spelling-system conversions. Action Buttons, TTS, and the
 // other OmniAccess behavior are intentionally not ported yet.
+// 20260824: Spelling-system resolution, formatted-spelling export, local main-
+// script reading-guide conversions, non-core spelling visibility, punctuation
+// fallback, and spelling-system-specific fonts are now ported. Converter work
+// lives in core/language so consumers can reuse it outside this component.
 // 20260824: userWordStreaks, isWordUnfamiliar, l10nWordDetailHandler, and their
 // ON_HINT visibility and styling behavior are now ported. They activate only
 // when AnnotatedTextView is rendered within UserWordStreaksDataProvider;
@@ -226,7 +232,10 @@ type TokenSpellingAndMainViewProps = {
   annotatedText: AnnotatedText;
   astyle: ResolvedAnnotatedTextStyle;
   l10nWordDetailHandler?: AnnotatedTextViewProps["l10nWordDetailHandler"];
+  showMainTextReadingGuide: boolean;
+  spellingSystem: SpellingSystem | null | undefined;
   token: AnnotatedToken;
+  tokenCoreWordOrUnknownStatus: boolean | null;
 };
 
 function TokenSpellingAndMainView({
@@ -235,26 +244,89 @@ function TokenSpellingAndMainView({
   annotatedText,
   astyle,
   l10nWordDetailHandler,
+  showMainTextReadingGuide,
+  spellingSystem,
   token,
+  tokenCoreWordOrUnknownStatus,
 }: TokenSpellingAndMainViewProps): ReactNode {
   const userWordStreaksData = useOptionalUserWordStreaksData();
   const userLingoPrefsData = useOptionalUserLingoPrefsData();
-  // `undefined` deliberately means that no provider exists, preserving the
-  // component's original standalone/backend-spelling behavior. Within the
-  // provider, a language's first configured system remains its default.
-  const spellingSystem: SpellingSystem | null | undefined = userLingoPrefsData
-    ? (userLingoPrefsData.userPreferredSpellingSystems[annotatedText.lang] ??
-      SpellingSystemsByLang[annotatedText.lang]?.[0] ??
-      null)
-    : undefined;
+  const showNonCoreSpelling =
+    userLingoPrefsData?.showNonCoreSpelling ?? "ALWAYS";
   const userWordStreaks = userWordStreaksData?.userWordStreaks;
   const wordStreak =
     userWordStreaks?.[annotatedText.lang]?.[token.text.toUpperCase()] ?? null;
   const isWordUnfamiliar =
     !!userWordStreaksData &&
     (wordStreak == null || wordStreak < WORD_STREAK_LIMIT_FOR_AUTO_HINT);
+  const mainScriptHasReadingGuide = doesLangMainScriptHaveReadingGuide(
+    annotatedText.lang,
+  );
+  const atextHasPhonetics =
+    annotatedText.containsPhonetics ||
+    (mainScriptHasReadingGuide && showMainTextReadingGuide);
+  const readingGuideSignature = `${annotatedText.lang}\u0000${token.text}`;
+  const [localReadingGuideResult, setLocalReadingGuideResult] = useState<{
+    signature: string;
+    part: PhoneticPart | null;
+  } | null>(null);
 
-  if (!_showMainText && _showSpelling === "NEVER") return null;
+  // Local Main Script Reading Guide Part.
+  useEffect(() => {
+    if (
+      token.phoneticToken?.length ||
+      !mainScriptHasReadingGuide ||
+      !showMainTextReadingGuide
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    void getMainScriptReadingGuidePart(annotatedText.lang, token.text)
+      .then((part) => {
+        if (!cancelled) {
+          setLocalReadingGuideResult({
+            signature: readingGuideSignature,
+            part,
+          });
+        }
+      })
+      .catch(() => {
+        // Fail open: retain the main text if an optional converter fails.
+        if (!cancelled) {
+          setLocalReadingGuideResult({
+            signature: readingGuideSignature,
+            part: null,
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    annotatedText.lang,
+    mainScriptHasReadingGuide,
+    readingGuideSignature,
+    showMainTextReadingGuide,
+    token.phoneticToken,
+    token.text,
+  ]);
+
+  const localMainScriptReadingGuidePart =
+    localReadingGuideResult?.signature === readingGuideSignature
+      ? localReadingGuideResult.part
+      : null;
+
+  // BASE TEXT: WHEN ATEXT HAS NO PHONETICS.
+  if (_showSpelling === "NEVER" || !atextHasPhonetics) {
+    // Match OmniAccess's content-preserving fallback: if neither a spelling
+    // row nor backend/local phonetics can render, keep the token's base text.
+    return (
+      <TokenMainTextSpan astyle={astyle} isWord={isWordToken(token)}>
+        {token.text}
+      </TokenMainTextSpan>
+    );
+  }
 
   if (!isWordToken(token)) {
     return (
@@ -270,10 +342,9 @@ function TokenSpellingAndMainView({
           astyle={astyle}
           lang={annotatedText.lang}
           showMainText={_showMainText}
+          spellingSystem={spellingSystem}
         >
-          {_showSpelling === "ALWAYS" && !_showMainText
-            ? token.text
-            : visuallyEmpty}
+          {!_showMainText ? token.text : visuallyEmpty}
         </TokenSpellingTextSpan>
         {_showMainText && (
           <TokenMainTextSpan astyle={astyle} isWord={false}>
@@ -295,20 +366,26 @@ function TokenSpellingAndMainView({
           : {}),
       }}
     >
-      {tokenToPhoneticParts(token).map((part, partIndex) => (
+      {(token.phoneticToken?.length
+        ? token.phoneticToken
+        : [localMainScriptReadingGuidePart]
+      ).map((part, partIndex) => (
         <TokenPhoneticPartView
-          key={`${partIndex}-${part[0]}`}
+          key={`${partIndex}-${part?.[0] ?? token.text}`}
           astyle={astyle}
           lang={annotatedText.lang}
           part={part}
           shouldShowSpelling={
-            _showSpelling === "ALWAYS" ||
+            (_showSpelling === "ALWAYS" &&
+              (tokenCoreWordOrUnknownStatus !== false ||
+                showNonCoreSpelling === "ALWAYS")) ||
             (_showSpelling === "ON_HINT" &&
               !!l10nWordDetailHandler &&
               isWordUnfamiliar)
           }
           showMainText={_showMainText}
           spellingSystem={spellingSystem}
+          tokenText={token.text}
         />
       ))}
     </span>
@@ -322,16 +399,19 @@ function TokenPhoneticPartView({
   shouldShowSpelling,
   showMainText,
   spellingSystem,
+  tokenText,
 }: {
   astyle: ResolvedAnnotatedTextStyle;
   lang: string;
-  part: PhoneticPart;
+  part: PhoneticPart | null;
   shouldShowSpelling: boolean;
   showMainText: boolean;
   /** `undefined` means no preferences provider is present. */
   spellingSystem: SpellingSystem | null | undefined;
+  tokenText: string;
 }): ReactNode {
-  const [chars, backendSpelling] = part;
+  const chars = part?.[0] ?? tokenText;
+  const backendSpelling = part?.[1];
   const formatSignature = [
     lang,
     chars,
@@ -343,15 +423,18 @@ function TokenPhoneticPartView({
     signature: string;
     value: string;
   } | null>(null);
-  const standaloneSpelling = phoneticPartToSpelling(part, lang, showMainText);
+  const standaloneSpelling = part
+    ? phoneticPartToSpelling(part, lang, showMainText)
+    : visuallyEmpty;
 
   useEffect(() => {
     if (spellingSystem === undefined) return;
     let cancelled = false;
-    const currentPart: PhoneticPart =
-      backendSpelling === undefined
+    const currentPart: PhoneticPart | null = part
+      ? backendSpelling === undefined
         ? [chars]
-        : [chars, backendSpelling];
+        : [chars, backendSpelling]
+      : null;
     void getSpellingContent(
       lang,
       currentPart,
@@ -359,7 +442,16 @@ function TokenPhoneticPartView({
       showMainText,
     )
       .then((value) => {
-        if (!cancelled) setFormatResult({ signature: formatSignature, value });
+        // If text is punctuation, use it instead. If spacing regresses, check
+        // whether this is overriding getSpellingContent's EMPTY_SPACE value.
+        // Ported from OmniAccess's 20260618 behavior.
+        const spelling =
+          !showMainText && !part && tokenText.trim().length !== 0
+            ? tokenText
+            : value;
+        if (!cancelled) {
+          setFormatResult({ signature: formatSignature, value: spelling });
+        }
       })
       .catch(() => {
         // Retain backend spelling if an optional runtime converter fails.
@@ -378,9 +470,11 @@ function TokenPhoneticPartView({
     chars,
     formatSignature,
     lang,
+    part,
     showMainText,
     spellingSystem,
     standaloneSpelling,
+    tokenText,
   ]);
 
   const formattedSpelling =
@@ -402,6 +496,7 @@ function TokenPhoneticPartView({
         astyle={astyle}
         lang={lang}
         showMainText={showMainText}
+        spellingSystem={spellingSystem}
       >
         {shouldShowSpelling ? formattedSpelling : visuallyEmpty}
       </TokenSpellingTextSpan>
@@ -419,11 +514,13 @@ function TokenSpellingTextSpan({
   children,
   lang,
   showMainText,
+  spellingSystem,
 }: {
   astyle: ResolvedAnnotatedTextStyle;
   children: ReactNode;
   lang: string;
   showMainText: boolean;
+  spellingSystem: SpellingSystem | null | undefined;
 }): ReactNode {
   const spellingSize = showMainText ? astyle.spellingSize : astyle.mainTextSize;
   const localSpellingSize = ilike(lang, "yue")
@@ -450,6 +547,17 @@ function TokenSpellingTextSpan({
         ...(astyle.tokenPhonicSpellingLineHeight
           ? { lineHeight: astyle.tokenPhonicSpellingLineHeight }
           : {}),
+        ...(lang === "yue" && spellingSystem?.startsWith("YUE_JYUTPING")
+          ? { fontFamily: "LS Jyutping" }
+          : {}),
+        ...(spellingSystem?.includes("IPA")
+          ? { fontFamily: "Arial" }
+          : {}), // Dedicated IPA fonts can be finicky (e.g. Noto Sans italic); default fonts such as Arial render them reliably.
+        ...(spellingSystem?.startsWith("EN_CL_DIACRITICS")
+          ? { fontFamily: "Noto Sans, sans-serif" }
+          : {}),
+        // A future RTL reading-guide mode could flip horizontally based on the
+        // main script direction, as considered in OmniAccess.
       }}
     >
       {children}
@@ -794,6 +902,7 @@ function AnnotatedTextViewComponent({
   isEmojiBlackWhite = false,
   glossTextTipLang = "en",
   showTokenGlossPrefix_TO__ = true,
+  showLocalMainTextReadingGuide,
   localShouldFadeNonCoreWords,
   nonCoreWordsFadeOpacity = 0.5,
   l10nWordDetailHandler,
@@ -811,6 +920,10 @@ function AnnotatedTextViewComponent({
     showGlossText ?? userLingoPrefsData?.prefShowGlossText ?? "ALWAYS";
   const resolvedShowGlossEmoji =
     showGlossEmoji ?? userLingoPrefsData?.prefShowGlossEmoji ?? "ON_HINT";
+  const resolvedShowMainTextReadingGuide =
+    showLocalMainTextReadingGuide ??
+    userLingoPrefsData?.showMainTextReadingGuide ??
+    false;
   const resolvedShouldFadeNonCoreWords =
     localShouldFadeNonCoreWords ??
     userLingoPrefsData?.fadeNonCoreWords ??
@@ -828,6 +941,16 @@ function AnnotatedTextViewComponent({
     userWordStreaksData?.ensureUserWordStreaksForLang;
   const setUserWordStreaksToValue =
     userWordStreaksData?.setUserWordStreaksToValue;
+  // `undefined` deliberately means that no provider exists, preserving the
+  // component's standalone/backend-spelling behavior. Within the provider, a
+  // language's first configured spelling system remains its default.
+  const spellingSystem: SpellingSystem | null | undefined = userLingoPrefsData
+    ? (userLingoPrefsData.userPreferredSpellingSystems[
+        linearizedAText.lang
+      ] ??
+      SpellingSystemsByLang[linearizedAText.lang]?.[0] ??
+      null)
+    : undefined;
   const streakWordDetailHandler = userWordStreaksData
     ? l10nWordDetailHandler
     : undefined;
@@ -842,6 +965,90 @@ function AnnotatedTextViewComponent({
     coreWordStatusResult?.annotatedText === linearizedAText
       ? coreWordStatusResult.statuses
       : null;
+  const spellingFormatSignature = [
+    linearizedAText.lang,
+    spellingSystem ?? "",
+    resolvedShowMainText ? "1" : "0",
+  ].join("\u0000");
+  const [formattedPhoneticPartsResult, setFormattedPhoneticPartsResult] =
+    useState<{
+      annotatedText: AnnotatedText;
+      signature: string;
+      parts: string[][];
+    } | null>(null);
+
+  // SPELLING-CONTENT: Pre-format the full annotation for getSpelling(). Token
+  // rendering remains local so async conversion cannot delay the whole ATV.
+  useEffect(() => {
+    let cancelled = false;
+    setFormattedPhoneticPartsResult(null);
+
+    if (!linearizedAText.containsPhonetics) return;
+
+    void Promise.all(
+      linearizedAText.tokens.map((token) =>
+        Promise.all(
+          (token.phoneticToken ?? []).map((phoneticPart) =>
+            getSpellingContent(
+              linearizedAText.lang,
+              phoneticPart,
+              spellingSystem ?? null,
+              resolvedShowMainText,
+            ),
+          ),
+        ),
+      ),
+    )
+      .then((parts) => {
+        if (!cancelled) {
+          setFormattedPhoneticPartsResult({
+            annotatedText: linearizedAText,
+            signature: spellingFormatSignature,
+            parts,
+          });
+        }
+      })
+      .catch(() => {
+        // A failed optional converter leaves getSpelling unavailable while the
+        // rendered ATV retains each backend spelling as its fallback.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    linearizedAText,
+    resolvedShowMainText,
+    spellingFormatSignature,
+    spellingSystem,
+  ]);
+
+  const getSpelling = useCallback((): string | null => {
+    const formattedResult = formattedPhoneticPartsResult;
+    if (
+      !formattedResult ||
+      formattedResult.annotatedText !== linearizedAText ||
+      formattedResult.signature !== spellingFormatSignature ||
+      !linearizedAText.containsPhonetics
+    ) {
+      return null;
+    }
+
+    const tokenSpellings: string[] = [];
+    for (const [index, token] of linearizedAText.tokens.entries()) {
+      const tokenFormattedParts = formattedResult.parts[index] ?? [];
+      tokenSpellings.push(
+        tokenFormattedParts.length
+          ? tokenFormattedParts.join(" ")
+          : token.text,
+      );
+    }
+    return tokenSpellings.join(" ");
+  }, [
+    formattedPhoneticPartsResult,
+    linearizedAText,
+    spellingFormatSignature,
+  ]);
 
   // Word Streaks
   useEffect(() => {
@@ -861,20 +1068,25 @@ function AnnotatedTextViewComponent({
   ]);
 
   // EXPORTS: IMPERATIVE HANDLES (For Exports)
-  useImperativeHandle(ref, () => ({
-    requestDownloadImage: async (index: number) => {
-      const element = exportHTMLElementRef.current;
-      if (!element) return;
-      const scale = 4;
-      const { dataUrl } = await captureAnnotatedTextImage(element, scale);
-      downloadAnnotatedTextImage(dataUrl, index, scale);
-    },
-    requestImageData: async (scale?: number) => {
-      const element = exportHTMLElementRef.current;
-      if (!element) return undefined;
-      return captureAnnotatedTextImage(element, scale);
-    },
-  }), []);
+  useImperativeHandle(
+    ref,
+    () => ({
+      requestDownloadImage: async (index: number) => {
+        const element = exportHTMLElementRef.current;
+        if (!element) return;
+        const scale = 4;
+        const { dataUrl } = await captureAnnotatedTextImage(element, scale);
+        downloadAnnotatedTextImage(dataUrl, index, scale);
+      },
+      requestImageData: async (scale?: number) => {
+        const element = exportHTMLElementRef.current;
+        if (!element) return undefined;
+        return captureAnnotatedTextImage(element, scale);
+      },
+      getSpelling,
+    }),
+    [getSpelling],
+  );
 
   // DISPLAY: CORE WORD STATUSES
   useEffect(() => {
@@ -1026,7 +1238,12 @@ function AnnotatedTextViewComponent({
                 annotatedText={linearizedAText}
                 astyle={astyle}
                 l10nWordDetailHandler={streakWordDetailHandler}
+                showMainTextReadingGuide={resolvedShowMainTextReadingGuide}
+                spellingSystem={spellingSystem}
                 token={token}
+                tokenCoreWordOrUnknownStatus={
+                  tokensCoreWordOrUnknownStatus?.[index] ?? null
+                }
               />
               <TokenGlossView
                 astyle={astyle}

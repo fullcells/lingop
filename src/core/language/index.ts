@@ -6,6 +6,7 @@ export * from "./data/word-explanations.js";
 export * from "./arpabet-to-ipa.js";
 export * from "./canto-jyutping-to-ipa.js";
 export * from "./ipa-to-en-wiki.js";
+export * from "./main-script-reading-guide.js";
 export * from "./spelling-content.js";
 export * from "./spelling-systems.js";
 export * from "./types.js";

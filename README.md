@@ -170,8 +170,9 @@ const defaultPrefs: Partial<UserLingoPrefsDefaults> = {
 ```
 
 `AnnotatedTextView` uses these preferences when the provider is present.
-Explicit `showSpelling`, `showMainText`, `showGlossText`, `showGlossEmoji`, and
-`localShouldFadeNonCoreWords` props take precedence for an individual view.
+Explicit `showSpelling`, `showMainText`, `showGlossText`, `showGlossEmoji`,
+`showLocalMainTextReadingGuide`, and `localShouldFadeNonCoreWords` props take
+precedence for an individual view.
 Without the provider, its existing standalone defaults remain unchanged.
 
 The corresponding shared phonetic-part formatter can be used by Lingop or
@@ -191,6 +192,10 @@ const spelling = await getSpellingContent(
 );
 // "ˈkæt"
 ```
+
+`getMainScriptReadingGuidePart(lang, text)` provides the same locally generated
+Sinhala, Greek, Korean, Thai, Egyptian Arabic, and Toki Pona reading guides used
+by `AnnotatedTextView` when backend phonetics are unavailable.
 
 ## Camp Lingo Auth Form in Next.js
 
@@ -477,6 +482,7 @@ const annotatedTextRef = useRef<AnnotatedTextViewHandle>(null);
 
 await annotatedTextRef.current?.requestDownloadImage(0);
 const image = await annotatedTextRef.current?.requestImageData(2);
+const spelling = annotatedTextRef.current?.getSpelling();
 ```
 
 The optional stylesheet supplies the default color and monochrome emoji font
