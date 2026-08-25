@@ -18,5 +18,6 @@ describe("SettingsVoicesNAnnotationsUI ownership boundary", () => {
     expect(source).toContain('type: "BACKGROUND_WORDS"');
     expect(source).toContain("useL10nWordDetailPopover");
     expect(source).toContain("showNonCoreWordOptions");
+    expect(source).toContain("<SettingsSubpage");
   });
 });

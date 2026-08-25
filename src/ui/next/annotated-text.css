@@ -1,6 +1,16 @@
 /* Fonts used directly by Lingop's AnnotatedTextView. Relative URLs allow the
  * package stylesheet to provide the same typography to every consumer. */
 @font-face {
+  font-family: "Noto Emoji";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/NotoEmoji-Regular.ttf") format("truetype");
+  /* Monochrome Noto Emoji is under 1 MB. This is distinct from the deferred
+   * approximately 24 MB Noto Color Emoji font documented below. */
+}
+
+@font-face {
   font-family: "Noto Sans JP";
   font-style: normal;
   font-weight: 100 900;

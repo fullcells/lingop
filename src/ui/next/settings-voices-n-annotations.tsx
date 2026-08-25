@@ -217,35 +217,42 @@ export function SettingsVoicesNAnnotationsUI({
   if (screen.type === "VOICE") {
     const voiceState = getVoiceState(screen.lang);
     page = (
-      <SpeechSynthLangVoicePicker
-        lang={screen.lang}
-        guiLang={guiLang}
-        {...(screen.lang === focusLang
-          ? {
-              previewText: OAT2(
-                "There is a small cat at my door. It wants to drink some water.",
-              ),
-            }
-          : screen.lang === guiLang
+      <SettingsSubpage
+        title={getLang(screen.lang)?.name_natural ?? OAT("Audio")}
+        onBack={navigateBack}
+      >
+        <SpeechSynthLangVoicePicker
+          lang={screen.lang}
+          guiLang={guiLang}
+          {...(screen.lang === focusLang
             ? {
-                previewText: OAT(
+                previewText: OAT2(
                   "There is a small cat at my door. It wants to drink some water.",
                 ),
               }
-            : {})}
-        previewContentContext="PUBLIC_CONTENT"
-        previewContentRef={{ file: "OAT" }}
-        onVoiceChange={voiceState.setVoice}
-        onDone={navigateBack}
-      />
+            : screen.lang === guiLang
+              ? {
+                  previewText: OAT(
+                    "There is a small cat at my door. It wants to drink some water.",
+                  ),
+                }
+              : {})}
+          previewContentContext="PUBLIC_CONTENT"
+          previewContentRef={{ file: "OAT" }}
+          onVoiceChange={voiceState.setVoice}
+          onDone={navigateBack}
+        />
+      </SettingsSubpage>
     );
   } else if (screen.type === "SPELLING" && focusLang) {
     page = (
-      <SpellingSystemPicker
-        lang={focusLang}
-        guiLang={guiLang}
-        onDone={navigateBack}
-      />
+      <SettingsSubpage title={OAT("Spelling")} onBack={navigateBack}>
+        <SpellingSystemPicker
+          lang={focusLang}
+          guiLang={guiLang}
+          onDone={navigateBack}
+        />
+      </SettingsSubpage>
     );
   } else if (screen.type === "BACKGROUND_WORDS") {
     page = (
@@ -364,7 +371,11 @@ export function SettingsVoicesNAnnotationsUI({
         </SettingsSection>
 
         {/* GLOSS */}
-        <SettingsSection icon="文" title={OAT("Word Translations")}>
+        <SettingsSection
+          icon="文"
+          title={OAT("Word Translations")}
+          isEmojiIcon={false}
+        >
           <TripleVisibilityToggleRow
             label={OAT("Emoji")}
             value={prefShowGlossEmoji}
@@ -558,7 +569,9 @@ function SpeechSpeedControlUI({ focusLang }: { focusLang: string | null }) {
           onBlur={persistSliderValue}
         />
         <div className="lingop-settings-speed__marks" aria-hidden="true">
-          <span>🐢</span><span>⚖</span><span>🐇</span>
+          <span className="lingop-settings-emoji-bw">🐢</span>
+          <span className="lingop-settings-emoji-bw">⚖</span>
+          <span className="lingop-settings-emoji-bw">🐇</span>
         </div>
       </div>
       <button
@@ -579,15 +592,25 @@ function SettingsSection({
   title,
   children,
   isPreview = false,
+  isEmojiIcon = true,
 }: {
   icon: string;
   title: string;
   children: React.ReactNode;
   isPreview?: boolean;
+  isEmojiIcon?: boolean;
 }) {
   return (
     <section className="lingop-settings-section">
-      <h2><span aria-hidden="true">{icon}</span><span>{title}</span></h2>
+      <h2>
+        <span
+          aria-hidden="true"
+          className={isEmojiIcon ? "lingop-settings-emoji-bw" : undefined}
+        >
+          {icon}
+        </span>
+        <span>{title}</span>
+      </h2>
       <div
         className="lingop-settings-card"
         data-preview={isPreview || undefined}

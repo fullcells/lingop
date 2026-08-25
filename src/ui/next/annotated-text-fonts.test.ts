@@ -13,6 +13,7 @@ describe("AnnotatedTextView fonts", () => {
     );
     const fontFiles = [
       "LS_Jyutping.ttf",
+      "NotoEmoji-Regular.ttf",
       "NotoSansJP-VariableFont_wght.ttf",
       "linja_laso_regular.otf",
     ];
