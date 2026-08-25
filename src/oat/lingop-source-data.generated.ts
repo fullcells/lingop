@@ -6,6 +6,9 @@ export const lingopOATSourceData: OATSourceData = {
   "guiTextsByScope": {
     "_": [
       "Already have an account?",
+      "Browser Voices",
+      "Browser Voices load faster. Cloud Voices are usually higher quality.",
+      "Cloud Voices",
       "Designed for English speakers",
       "Don't have an account?",
       "Done",
@@ -15,6 +18,7 @@ export const lingopOATSourceData: OATSourceData = {
       "For Practice",
       "Forgot Password",
       "International Phonetic Alphabet",
+      "Language Speaker",
       "Log in",
       "None",
       "Official Spelling",
@@ -27,6 +31,7 @@ export const lingopOATSourceData: OATSourceData = {
       "Re-Type Password",
       "Rule-Based Spelling Guide",
       "Sign up",
+      "Slow speech sounds better with Browser Voices.",
       "Sorry, that email-password pair didn't match any of our records. Please try again with different details.",
       "Spelling",
       "Tone Numbers"

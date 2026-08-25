@@ -9,6 +9,7 @@ export {
   type LingopClientDataProviderProps,
 } from "./lingop-client-data-provider.js";
 export * from "./speech-synth-tts.js";
+export * from "./speech-synth-lang-voice-picker.js";
 export * from "./spelling-system-picker.js";
 export * from "./supabase-auth.js";
 export * from "./user-lingo-prefs.js";

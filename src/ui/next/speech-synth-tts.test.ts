@@ -395,6 +395,71 @@ describe("speech synth TTS", () => {
     vi.unstubAllGlobals();
   });
 
+  it("speaks with an available voice override without changing the active preference", async () => {
+    vi.resetModules();
+    const defaultVoice = {
+      default: true,
+      lang: "en-US",
+      localService: true,
+      name: "Default English",
+      voiceURI: "default-english",
+    } as SpeechSynthesisVoice;
+    const previewVoice = {
+      default: false,
+      lang: "en-AU",
+      localService: true,
+      name: "Preview English",
+      voiceURI: "preview-english",
+    } as SpeechSynthesisVoice;
+
+    class FakeSpeechSynthesisUtterance {
+      voice: SpeechSynthesisVoice | null = null;
+      rate = 1;
+      onstart: (() => void) | null = null;
+      onend: (() => void) | null = null;
+      onerror: ((event: SpeechSynthesisErrorEvent) => void) | null = null;
+
+      constructor(public text: string) {}
+    }
+
+    let spokenVoice: SpeechSynthesisVoice | null = null;
+    const speechSynthesis = {
+      cancel: vi.fn(),
+      getVoices: vi.fn(() => [defaultVoice, previewVoice]),
+      onvoiceschanged: null,
+      resume: vi.fn(),
+      speak: vi.fn((utterance: FakeSpeechSynthesisUtterance) => {
+        spokenVoice = utterance.voice;
+        utterance.onstart?.();
+        utterance.onend?.();
+      }),
+    };
+    vi.stubGlobal("window", { speechSynthesis });
+    vi.stubGlobal("speechSynthesis", speechSynthesis);
+    vi.stubGlobal("SpeechSynthesisUtterance", FakeSpeechSynthesisUtterance);
+
+    const { getActiveVoiceForLang, speak } = await import(
+      "./speech-synth-tts.js"
+    );
+    await speak({
+      text: "preview",
+      lang: "en",
+      apiVoiceAccessProfile: "NONE",
+      voiceOverride: {
+        service: "BROWSER",
+        voice_id: "preview-english",
+        voice_lang: "en-AU",
+      },
+    });
+
+    expect(spokenVoice).toBe(previewVoice);
+    await expect(
+      getActiveVoiceForLang("en", "NONE"),
+    ).resolves.toMatchObject({ voice_id: "default-english" });
+
+    vi.unstubAllGlobals();
+  });
+
   it("invalidates cached browser voices when the page regains focus", async () => {
     vi.resetModules();
     const oldVoice = {

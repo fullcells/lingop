@@ -85,8 +85,24 @@ export type SpeechSynthTTSOptions = {
 };
 
 let userPreferredVoices: Record<string, SpeechSynthTTSVoice> = {};
-if (typeof window !== "undefined" && window.localStorage) {
-  userPreferredVoices = JSON.parse(localStorage.getItem(LOCALSTORE_PREF_VOICES) ?? "{}") ?? {};
+if (typeof window !== "undefined") {
+  try {
+    const storedVoices = JSON.parse(
+      window.localStorage.getItem(LOCALSTORE_PREF_VOICES) ?? "{}",
+    ) as unknown;
+    if (
+      storedVoices &&
+      typeof storedVoices === "object" &&
+      !Array.isArray(storedVoices)
+    ) {
+      userPreferredVoices = storedVoices as Record<
+        string,
+        SpeechSynthTTSVoice
+      >;
+    }
+  } catch {
+    // Ignore malformed or unavailable storage and retain runtime defaults.
+  }
 }
 
 // ----------------------------------------------------
@@ -541,7 +557,15 @@ export async function getVoiceOptionsForLang(
 // - ~ SideNote: In the past: USER_PREFERRED_VOICES was stored as localStorage.getItem("_KEY_FAV_WEB_VOICES").
 export function updateUserPreferredVoice(lang: string, voice: SpeechSynthTTSVoice): void {
   userPreferredVoices[lang] = voice;
-  localStorage.setItem(LOCALSTORE_PREF_VOICES, JSON.stringify(userPreferredVoices));
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      LOCALSTORE_PREF_VOICES,
+      JSON.stringify(userPreferredVoices),
+    );
+  } catch {
+    // Keep the in-memory preference when browser storage is unavailable.
+  }
 }
 
 // ----------------------------------------------------
@@ -647,6 +671,7 @@ export async function speak({
   apiVoiceAccessProfile,
   contentContext,
   ref,
+  voiceOverride,
   ...options
 }: {
   text: string;
@@ -654,15 +679,41 @@ export async function speak({
   apiVoiceAccessProfile: APIVoiceAccessProfile;
   contentContext?: ContentContext | undefined;
   ref?: ContentReference | undefined;
+  /**
+   * Plays one currently available voice without changing the user's saved
+   * preference. The access profile still governs whether the voice is usable.
+   */
+  voiceOverride?: SpeechSynthTTSVoice | undefined;
 } & SpeechSynthTTSOptions): Promise<void> {
-  const voice = await getActiveVoiceForLang(lang, apiVoiceAccessProfile, options);
+  let voice: SpeechSynthTTSVoice | null = null;
+  if (voiceOverride) {
+    const voiceOptions = await getVoiceOptionsForLang(
+      lang,
+      apiVoiceAccessProfile,
+      options,
+    );
+    voice = voiceOptions.available.voices.find(
+      (candidate) =>
+        candidate.service === voiceOverride.service &&
+        candidate.voice_id === voiceOverride.voice_id &&
+        candidate.voice_lang === voiceOverride.voice_lang,
+    ) ?? null;
+    if (!voice) {
+      console.error(
+        `Voice override '${voiceOverride.voice_id}' is not available for lang '${lang}' under the active voice-access profile.`,
+      );
+      return;
+    }
+  } else {
+    voice = await getActiveVoiceForLang(lang, apiVoiceAccessProfile, options);
+  }
   if (!voice) {
     console.error(`Lang '${lang}' does not have an available voice.`);
     return;
   }
 
   // YUE OVERRIDE TO USE API VOICE IF AVAILABLE FOR PROBLEMATIC TEXTS // Potential Future: Browser Voices Improvement: 1. Brute forces-replace characters that should almost always be pronounced a certain way but are currently pronounced incorrectly [彈,近,抹]. 2. We feed in an optional AText - and use the 'spelling' there.
-  if (ilike(lang, "yue")) {
+  if (!voiceOverride && ilike(lang, "yue")) {
     if (["覺", "彈", "近", "坐", "抹", "畫", "偈", "頂", "訂", "定", "正"].some((word) => text.includes(word))) {
       const voiceOptions = await getVoiceOptionsForLang(lang, apiVoiceAccessProfile, options);
       const cloudVoice = voiceOptions.available.voices.find((v) => v.service !== "BROWSER");
@@ -683,7 +734,8 @@ export async function speak({
       // NONE is a browser-only access contract, so recovery must not trigger a remote request.
       if (
         error instanceof BrowserSpeechStartTimeoutError &&
-        apiVoiceAccessProfile !== "NONE"
+        apiVoiceAccessProfile !== "NONE" &&
+        !voiceOverride
       ) {
         const voiceOptions = await getVoiceOptionsForLang(lang, apiVoiceAccessProfile, options);
         const fallbackVoice = voiceOptions.available.voices.find((v) => v.service !== "BROWSER");

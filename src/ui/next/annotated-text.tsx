@@ -708,9 +708,7 @@ function TokenSpellingTextSpan({
         // main script direction, as considered in OmniAccess.
       }}
     >
-      {/* Korean glossers can retain the internal affix-join marker. It is
-          meaningful to annotation processing, but must not reach display. */}
-      {typeof children === "string" ? children.replaceAll("‿", "") : children}
+      {children}
     </span>
   );
 }
@@ -743,7 +741,10 @@ function TokenMainTextSpan({
         ...(mainLangFont ? { fontFamily: mainLangFont } : {}),
       }}
     >
-      {children}
+      {/* Korean glossers can retain the internal affix-join marker. It is
+          meaningful to annotation processing, but must not reach main-text
+          display. Match OmniAccess by leaving spelling content unchanged. */}
+      {typeof children === "string" ? children.replaceAll("‿", "") : children}
     </span>
   );
 }
