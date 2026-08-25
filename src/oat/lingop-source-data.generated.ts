@@ -4,7 +4,7 @@ import type { OATSourceData } from "./types.js";
 
 export const lingopOATSourceData: OATSourceData = {
   "guiTextsByScope": {
-    "__lingop_package__": [
+    "_": [
       "Already have an account?",
       "Audio",
       "Back",
@@ -61,12 +61,12 @@ export const lingopOATSourceData: OATSourceData = {
     ]
   },
   "focusTextsByScope": {
-    "__lingop_package__": [
+    "_": [
       "There is a small cat at my door. It wants to drink some water."
     ]
   },
   "staticFocusTextsByScope": {
-    "__lingop_package__": [
+    "_": [
       "There is a small cat at my door. It wants to drink some water.",
       "Where is the toilet?"
     ]
