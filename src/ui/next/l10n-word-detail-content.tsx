@@ -8,7 +8,6 @@ import {
   getWordExplanationsForWord,
   traditionalToSimplifiedChinese,
 } from "../../core/language/index.js";
-import type { LingoDataClient } from "../../core/lingo-data-client.js";
 import { WORD_STREAKS_MASTERY_THRESHOLD } from "../../core/word-lists.js";
 import { ilike } from "../../utils/string.js";
 import { useOAT } from "../../oat/react/index.js";
@@ -32,20 +31,13 @@ export type L10nWordDetailContentProps = {
   guiLang: string;
   /** Used when a direct raw-word caller does not include l10nLang. */
   focusLang?: string;
-  /** Existing consumers may inject their legacy records implementation. */
-  fetchLocalization: LingoDataClient["fetchLocalization"];
-  fetchAnnotation: LingoDataClient["fetchAnnotation"];
   onClose?: () => void;
   className?: string;
 };
 
 type UseL10nWordDetailInput = Pick<
   L10nWordDetailContentProps,
-  | "l10nWordDetailData"
-  | "guiLang"
-  | "focusLang"
-  | "fetchLocalization"
-  | "fetchAnnotation"
+  "l10nWordDetailData" | "guiLang" | "focusLang"
 >;
 
 // This hook has no idea it is ever displayed inside a popover: it turns
@@ -54,8 +46,6 @@ export function useL10nWordDetail({
   l10nWordDetailData,
   guiLang,
   focusLang,
-  fetchLocalization,
-  fetchAnnotation,
 }: UseL10nWordDetailInput) {
   const { lingopClient } = useLingopClientData();
   const wordStreaksData = useOptionalUserWordStreaksData();
@@ -92,7 +82,7 @@ export function useL10nWordDetail({
     (async () => {
       // Word details are a shared public WORDS resource. This policy is part of
       // the component rather than something every consumer must reproduce.
-      const localization = await fetchLocalization({
+      const localization = await lingopClient.fetchLocalization({
         l10n_lang: l10nLang,
         isPublic: true,
         sourceContent: {
@@ -103,7 +93,7 @@ export function useL10nWordDetail({
         },
       });
       if (!localization) throw new Error("Word localization was not resolved.");
-      const annotation = await fetchAnnotation({ localization });
+      const annotation = await lingopClient.fetchAnnotation({ localization });
       if (!annotation) throw new Error("Word annotation was not resolved.");
       const formatted = formatL10nWordAsAnnotatedText(annotation);
       if (!formatted) throw new Error("Word annotation contained no token.");
@@ -122,8 +112,7 @@ export function useL10nWordDetail({
       cancelled = true;
     };
   }, [
-    fetchAnnotation,
-    fetchLocalization,
+    lingopClient,
     l10nLang,
     l10nWordDetailData?.l10nWord,
     providedWordDetail,
@@ -211,8 +200,6 @@ export function L10nWordDetailContent({
   l10nWordDetailData,
   guiLang,
   focusLang,
-  fetchLocalization,
-  fetchAnnotation,
   onClose,
   className,
 }: L10nWordDetailContentProps) {
@@ -231,8 +218,6 @@ export function L10nWordDetailContent({
     l10nWordDetailData,
     guiLang,
     ...(focusLang ? { focusLang } : {}),
-    fetchLocalization,
-    fetchAnnotation,
   });
 
   if (!l10nWordDetailData) return null;
