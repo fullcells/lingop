@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { createJiti } from "jiti";
+import { getPrivateOverrideKey } from "../../build/private-override-key.js";
 import type { PrebakeConfig } from "./config.js";
 import { runPrebakePreflight } from "./preflight.js";
 
@@ -50,9 +51,12 @@ async function loadConsumerConfig(): Promise<PrebakeConfig> {
 }
 
 async function main(): Promise<void> {
-  const privateOverrideKey = process.env._H_PERSONAL_OVERRIDE_KEY;
+  const privateOverrideKey = getPrivateOverrideKey();
   if (!privateOverrideKey) {
-    throw new Error("prebake-preflight requires _H_PERSONAL_OVERRIDE_KEY.");
+    throw new Error(
+      "prebake-preflight requires H_PERSONAL_OVERRIDE_KEY " +
+        "(legacy: _H_PERSONAL_OVERRIDE_KEY).",
+    );
   }
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabasePublicKey =

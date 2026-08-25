@@ -53,7 +53,7 @@ Make the override key available to the build environment, and include the compil
 }
 ```
 
-`oat-preflight` loads the consumer's `.env`, reads `_H_PERSONAL_OVERRIDE_KEY`, loads the root `oat.config.ts`, generates translations, then generates static annotations. Variables already supplied by the process environment are preserved.
+`oat-preflight` loads the consumer's `.env`, reads `H_PERSONAL_OVERRIDE_KEY`, loads the root `oat.config.ts`, generates translations, then generates static annotations. The legacy `_H_PERSONAL_OVERRIDE_KEY` name remains supported during migration. Variables already supplied by the process environment are preserved.
 
 OAT and Prebake use Lingop's shared backend selection. Production is the default; set `LINGOP_USE_STAGING_BACKEND=true` for both build CLIs to use Lingop's staging backend.
 
@@ -92,7 +92,7 @@ Add the CLI to predevelopment and prebuild workflows:
 }
 ```
 
-`prebake-preflight` loads the consumer's `.env`. It reads the public word-list tables directly using `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (or the legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY`), so consumers do not construct or inject a Supabase client and no user authentication is involved. `_H_PERSONAL_OVERRIDE_KEY` remains required for the backend translation and annotation generation calls. Variables already supplied by the process environment are preserved.
+`prebake-preflight` loads the consumer's `.env`. It reads the public word-list tables directly using `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (or the legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY`), so consumers do not construct or inject a Supabase client and no user authentication is involved. `H_PERSONAL_OVERRIDE_KEY` remains required for the backend translation and annotation generation calls; the legacy `_H_PERSONAL_OVERRIDE_KEY` name is also accepted. Variables already supplied by the process environment are preserved.
 
 Translations fully refresh every three days. Annotations fully refresh every seven days and whenever translations receive a full refresh; otherwise both stages generate only missing values. Annotation requests retain OmniAccess's batches of ten and reset each language's backend core-word cache before generation.
 

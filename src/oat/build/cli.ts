@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { createJiti } from "jiti";
+import { getPrivateOverrideKey } from "../../build/private-override-key.js";
 import type { OATConfig } from "./config.js";
 import { runOATPreflight } from "./preflight.js";
 
@@ -52,9 +53,12 @@ async function loadConsumerConfig(): Promise<OATConfig> {
 }
 
 async function main(): Promise<void> {
-  const privateOverrideKey = process.env._H_PERSONAL_OVERRIDE_KEY;
+  const privateOverrideKey = getPrivateOverrideKey();
   if (!privateOverrideKey) {
-    throw new Error("oat-preflight requires _H_PERSONAL_OVERRIDE_KEY.");
+    throw new Error(
+      "oat-preflight requires H_PERSONAL_OVERRIDE_KEY " +
+        "(legacy: _H_PERSONAL_OVERRIDE_KEY).",
+    );
   }
   await runOATPreflight(await loadConsumerConfig(), {
     privateOverrideKey,
