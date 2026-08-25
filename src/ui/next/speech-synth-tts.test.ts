@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  DEFAULT_USER_PREFERRED_VOICE_SPEED,
   fetchSpeech,
+  getUserPreferredVoiceSpeed,
+  MAX_USER_PREFERRED_VOICE_SPEED,
+  MIN_USER_PREFERRED_VOICE_SPEED,
   preloadSpeech,
   prettifyVoiceId,
+  setUserPreferredVoiceSpeed,
   speakableTextFromDisplayText,
   type AudioMetaRow,
   type SpeechSynthSupabaseClient,
@@ -76,6 +81,27 @@ function makeSupabaseClient(rows: AudioMetaRow[]): SpeechSynthSupabaseClient {
 }
 
 describe("speech synth TTS", () => {
+  it("owns validated user-preferred voice-speed persistence", () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+      },
+    });
+
+    expect(getUserPreferredVoiceSpeed()).toBe(DEFAULT_USER_PREFERRED_VOICE_SPEED);
+    expect(setUserPreferredVoiceSpeed(1.4)).toBe(1.4);
+    expect(getUserPreferredVoiceSpeed()).toBe(1.4);
+    expect(setUserPreferredVoiceSpeed(99)).toBe(MAX_USER_PREFERRED_VOICE_SPEED);
+    expect(setUserPreferredVoiceSpeed(-1)).toBe(MIN_USER_PREFERRED_VOICE_SPEED);
+    expect(setUserPreferredVoiceSpeed(Number.NaN)).toBe(
+      DEFAULT_USER_PREFERRED_VOICE_SPEED,
+    );
+
+    vi.unstubAllGlobals();
+  });
+
   it("makes display text speakable for underscore blanks", () => {
     expect(speakableTextFromDisplayText({ lang: "en", text: "I ___ know" })).toBe(
       "I hmm know",

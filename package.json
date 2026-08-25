@@ -91,6 +91,7 @@
     "./ui/next/annotated-text.css": "./src/ui/next/annotated-text.css",
     "./ui/next/camp-lingo-auth-form.css": "./src/ui/next/camp-lingo-auth-form.css",
     "./ui/next/l10n-word-detail-content.css": "./src/ui/next/l10n-word-detail-content.css",
+    "./ui/next/l10n-word-detail-popover.css": "./src/ui/next/l10n-word-detail-popover.css",
     "./ui/next/speech-synth-lang-voice-picker.css": "./src/ui/next/speech-synth-lang-voice-picker.css",
     "./ui/next/spelling-system-picker.css": "./src/ui/next/spelling-system-picker.css",
     "./ui/next/word-lists-selector.css": "./src/ui/next/word-lists-selector.css",
@@ -106,6 +107,7 @@
     "src/ui/next/fonts",
     "src/ui/next/camp-lingo-auth-form.css",
     "src/ui/next/l10n-word-detail-content.css",
+    "src/ui/next/l10n-word-detail-popover.css",
     "src/ui/next/speech-synth-lang-voice-picker.css",
     "src/ui/next/spelling-system-picker.css",
     "src/ui/next/word-lists-selector.css"
@@ -123,12 +125,15 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "react": ">=18"
+    "react": ">=18",
+    "react-dom": ">=18"
   },
   "devDependencies": {
     "@types/babel__traverse": "^7.20.7",
     "@types/node": "^22.13.11",
     "@types/react": "^19",
+    "@types/react-dom": "^19.2.5",
+    "react-dom": "^19.2.8",
     "typescript": "^5.5.0",
     "vitest": "^3.2.6"
   },

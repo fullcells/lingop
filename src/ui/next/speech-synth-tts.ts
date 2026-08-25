@@ -10,6 +10,10 @@ import {
 
 export const LOCALSTORE_PREF_VOICE_SPEED = "UI_PREF_VOICE_SPEED";
 const LOCALSTORE_PREF_VOICES = "UI_PREF_VOICES";
+export const DEFAULT_USER_PREFERRED_VOICE_SPEED = 1.0;
+export const MIN_USER_PREFERRED_VOICE_SPEED = 0.5;
+export const MAX_USER_PREFERRED_VOICE_SPEED = 2.0;
+let runtimeUserPreferredVoiceSpeed = DEFAULT_USER_PREFERRED_VOICE_SPEED;
 
 export type SpeechSynthTTSVoice = {
   service: "BROWSER" | "MICROSOFT" | "GOOGLE" | "OPENAI";
@@ -117,8 +121,48 @@ function getFetch(fetchImpl?: SpeechFetch): SpeechFetch {
 }
 
 function getLocalStorageItem(key: string): string | null {
-  if (typeof window === "undefined" || !window.localStorage) return null;
-  return localStorage.getItem(key);
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage?.getItem(key) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Reads Lingop's persisted speech speed, falling back safely on the server. */
+export function getUserPreferredVoiceSpeed(): number {
+  const storedSpeed = Number(getLocalStorageItem(LOCALSTORE_PREF_VOICE_SPEED));
+  if (!Number.isFinite(storedSpeed) || storedSpeed <= 0) {
+    return runtimeUserPreferredVoiceSpeed;
+  }
+  runtimeUserPreferredVoiceSpeed = Math.min(
+    MAX_USER_PREFERRED_VOICE_SPEED,
+    Math.max(MIN_USER_PREFERRED_VOICE_SPEED, storedSpeed),
+  );
+  return runtimeUserPreferredVoiceSpeed;
+}
+
+/** Validates and persists the speech speed used by browser and cloud playback. */
+export function setUserPreferredVoiceSpeed(speed: number): number {
+  const normalizedSpeed = Number.isFinite(speed)
+    ? Math.min(
+        MAX_USER_PREFERRED_VOICE_SPEED,
+        Math.max(MIN_USER_PREFERRED_VOICE_SPEED, speed),
+      )
+    : DEFAULT_USER_PREFERRED_VOICE_SPEED;
+  runtimeUserPreferredVoiceSpeed = normalizedSpeed;
+
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage?.setItem(
+        LOCALSTORE_PREF_VOICE_SPEED,
+        String(normalizedSpeed),
+      );
+    } catch {
+      // Storage may be unavailable in privacy modes; retain safe playback.
+    }
+  }
+  return normalizedSpeed;
 }
 
 // BROWSER VOICES - ORDERED with DEFAULT FIRST (DEV-DESIRE)
@@ -843,7 +887,7 @@ async function playSpeechFile(fileURL: string): Promise<void> {
   // If this same element was played before, reset it
   audio.currentTime = 0;
   // Speed
-  audio.playbackRate = Number(getLocalStorageItem(LOCALSTORE_PREF_VOICE_SPEED)) || 1.0;
+  audio.playbackRate = getUserPreferredVoiceSpeed();
   // Play
   await new Promise<void>((resolve) => {
     const cleanup = () => {
@@ -1265,7 +1309,7 @@ async function speakBrowserVoice(
     }
   }
 
-  const speed = Number(getLocalStorageItem(LOCALSTORE_PREF_VOICE_SPEED)) || 1.0;
+  const speed = getUserPreferredVoiceSpeed();
 
   // Clear the queue before the first attempt. If Chrome accepts the utterance but
   // never starts it, discard cached voice objects and retry once with a fresh one.

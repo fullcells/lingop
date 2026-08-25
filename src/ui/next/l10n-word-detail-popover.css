@@ -1,0 +1,48 @@
+.lingop-word-detail-popover {
+  position: fixed;
+  z-index: 1100;
+  width: min(24rem, calc(100vw - 1rem));
+  max-height: calc(100vh - 1rem);
+  overflow: auto;
+  padding: 0.75rem;
+  border: 1px solid rgb(0 0 0 / 12%);
+  border-radius: 0.75rem;
+  background: #fff;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 20%);
+  color: #111827;
+}
+
+.lingop-word-detail-popover__close {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  display: flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin: 0 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 6%);
+  color: inherit;
+  cursor: pointer;
+}
+
+.lingop-word-detail-popover__close:hover {
+  background: rgb(0 0 0 / 12%);
+}
+
+.lingop-word-detail-popover__close:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.lingop-word-detail-popover__close svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
