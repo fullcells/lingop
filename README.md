@@ -57,7 +57,7 @@ Make the override key available to the build environment, and include the compil
 
 OAT and Prebake use Lingop's shared backend selection. Production is the default; set `LINGOP_USE_STAGING_BACKEND=true` for both build CLIs to use Lingop's staging backend.
 
-Lingop developers write normal `OAT("source text")`, `OAT2("source text")`, and `getStaticFocusLangAText("source text")` calls directly in shared components. Lingop's build scans those calls and generates `lingopOATSourceData`; the packaged `oat-preflight` inherently combines it with the consumer's locally scanned calls. Consumers do not maintain a separate string list or configure shared source data.
+Lingop developers write normal `OAT("source text")`, `OAT2("source text")`, and `getStaticFocusLangAText("source text")` calls directly in shared components. Lingop's build scans those calls and generates `lingopOATSourceData` under a reserved package scope; the packaged `oat-preflight` inherently combines it with the consumer's locally scanned calls and generates it for all consumer-configured languages. Consumers do not maintain a separate string list or configure shared source data. This includes static annotations used by packaged settings previews.
 
 At runtime, import `OATDataProvider` and `useOAT` from `lingop/oat/react`. The provider receives `guiLang` and `focusLang` read-only plus consumer-provided `loadTranslations` and `loadStaticAnnotations` functions. Web consumers can load the generated files with `fetch`; React Native consumers can use an asset manifest or another native-compatible loader.
 

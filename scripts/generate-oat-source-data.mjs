@@ -3,6 +3,10 @@ import path from "node:path";
 import { createJiti } from "jiti";
 
 const projectRoot = process.cwd();
+// This scope must not overlap a consumer's path scopes. OAT generation then
+// applies Lingop-owned strings to every GUI/focus language in that consumer's
+// config, including strings used only inside packaged UI components.
+const lingopPackageScope = "__lingop_package__";
 const jiti = createJiti(import.meta.url);
 const {
   extractOATCalleeStringsFromFile,
@@ -24,7 +28,7 @@ function collectTexts(calleeName) {
 }
 
 function textsByGlobalScope(texts) {
-  return texts.length > 0 ? { _: texts } : {};
+  return texts.length > 0 ? { [lingopPackageScope]: texts } : {};
 }
 
 const sourceData = {
