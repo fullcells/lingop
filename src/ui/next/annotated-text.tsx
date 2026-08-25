@@ -24,6 +24,7 @@ import type {
 import {
   convertEmojiTextToBlackWhiteCompatibleEmojiText,
   shouldBlackWhiteEmojiUseColorEmojiFont,
+  shouldFlipEmoji,
 } from "../../core/emojify.js";
 import {
   doesLangMainScriptHaveReadingGuide,
@@ -71,6 +72,7 @@ export type AnnotatedTextViewHandle = {
   requestImageData: (
     scale?: number,
   ) => Promise<AnnotatedTextImageData | undefined>;
+  requestHTMLTableExport: () => Promise<string>;
   triggerSpeechSynthesis: () => Promise<void>;
   getSpelling: () => string | null;
 };
@@ -162,7 +164,8 @@ function resolveAnnotatedTextStyle(
 }
 
 export type AnnotatedTextViewProps = {
-  annotatedText: AnnotatedText;
+  /** A null annotation renders Lingop's loading-annotations indicator. */
+  annotatedText: AnnotatedText | null;
   showSpelling?: TripleDisplayState;
   showMainText?: boolean;
   showGlossText?: TripleDisplayState;
@@ -213,11 +216,6 @@ const glossPlacementFlexDirections = {
   right: "row",
 } satisfies Record<GlossPlacement, CSSProperties["flexDirection"]>;
 
-const emptyAnnotationSlotStyle: CSSProperties = {
-  minHeight: "1em",
-  lineHeight: 1,
-};
-
 const mainTextFontFamiliesByLang: Partial<Record<string, string>> = {
   ja: "Noto Sans JP",
   tok: "Linja Laso",
@@ -225,6 +223,87 @@ const mainTextFontFamiliesByLang: Partial<Record<string, string>> = {
 
 function isWordToken(token: AnnotatedToken): boolean {
   return token.isWord === 1;
+}
+
+type IndexedAnnotatedToken = { index: number; token: AnnotatedToken };
+
+/** Group tokens that should not wrap onto a line by themselves. */
+export function groupAnnotatedTokensToPreventWidows(
+  tokens: AnnotatedToken[],
+): IndexedAnnotatedToken[][] {
+  const groups: IndexedAnnotatedToken[][] = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (!token) continue;
+    const indexedToken = { index, token };
+
+    // Group the Japanese opening quote with the next token when one exists.
+    if (indexedToken.token.text === "「" && index + 1 < tokens.length) {
+      const nextToken = tokens[index + 1];
+      if (!nextToken) continue;
+      groups.push([indexedToken, { index: index + 1, token: nextToken }]);
+      index += 1;
+      continue;
+    }
+
+    // Standard: group a trailing non-word token with the preceding group so
+    // punctuation cannot become a visual orphan on the next line.
+    if (indexedToken.token.isWord !== 0 || groups.length === 0) {
+      groups.push([indexedToken]);
+    } else {
+      groups[groups.length - 1]?.push(indexedToken);
+    }
+  }
+  return groups;
+}
+
+function escapeHTML(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character] ?? character);
+}
+
+/** Build the spreadsheet-friendly three-row table retained from OmniAccess. */
+export function getAnnotatedTextHTMLTableExport(
+  annotatedText: AnnotatedText,
+): string {
+  // [Post MVB] Future: Do line-breaking when too wide / too many chars.
+  let spellingRow = "";
+  let baseTextRow = "";
+  let glossRow = "";
+
+  for (const token of annotatedText.tokens) {
+    const phoneticToken = token.phoneticToken ?? null;
+    if (phoneticToken) {
+      spellingRow += phoneticToken
+        .map(([chars, spelling]) =>
+          `<td>${escapeHTML(spelling != null && spelling !== chars ? spelling : "")}</td>`,
+        )
+        .join("");
+      baseTextRow += phoneticToken
+        .map(([chars]) => `<td>${escapeHTML(chars.replaceAll("‿", ""))}</td>`)
+        .join("");
+    } else {
+      spellingRow += "<td></td>";
+      baseTextRow += `<td>${escapeHTML(token.text.replaceAll("‿", ""))}</td>`;
+    }
+    const spanLength = phoneticToken?.length || 1;
+    glossRow += `<td${spanLength === 1 ? "" : ` colspan="${spanLength}"`}>${escapeHTML(token.gloss ?? "")}</td>`;
+  }
+
+  return [
+    // Future [POST MVB]: Make basic/user-applied styling survive copying to
+    // Google Sheets. The current output retains OmniAccess's original sizes.
+    '<table style="text-align:center;">',
+    `<tr style="font-size:12px;">${spellingRow}</tr>`,
+    `<tr style="font-size:16px;">${baseTextRow}</tr>`,
+    `<tr style="font-size:12px;">${glossRow}</tr>`,
+    "</table>",
+  ].join("\n");
 }
 
 function canResolveSpeechForVoice({
@@ -268,14 +347,13 @@ function phoneticPartToSpelling(
   return phoneticPartSpelling;
 }
 
-// Port status (20260824): Lingop ATV covers OmniAccess's core render/style
-// inputs, spelling systems and reading guides, preference/streak-driven hints,
-// non-core fading, audio actions/preloading, and image/spelling exports. It uses
-// optional Lingop providers and plain DOM/CSS; astyle.css targets the exported
-// content rather than its action wrapper. Remaining parity work is limited to
-// nullable/loading annotations, a few exact visibility/layout cases, Korean
-// affix-marker cleanup, richer emoji/non-core-gloss behavior, and HTML-table
-// export.
+// Port status (20260825): Lingop ATV now covers OmniAccess's render/style inputs,
+// spelling and reading guides, preference/streak-driven hints, non-core fading
+// and gloss preferences, audio/preloading, richer emoji rendering, token widow
+// grouping, nullable/loading annotations, and image/spelling/HTML-table exports.
+// It uses optional Lingop providers and plain DOM/CSS; astyle.css targets the
+// exported content rather than its action wrapper. Full OmniAccess ATV parity
+// is intentionally not the goal while consumers migrate incrementally.
 type TokenSpellingAndMainViewProps = {
   _showSpelling: TripleDisplayState;
   _showMainText: boolean;
@@ -371,6 +449,9 @@ function TokenSpellingAndMainView({
 
   // BASE TEXT: WHEN ATEXT HAS NO PHONETICS.
   if (_showSpelling === "NEVER" || !atextHasPhonetics) {
+    // OmniAccess intentionally renders no base-text row when both display
+    // controls are off. Keep this guard here as well as at the token callsite.
+    if (_showSpelling === "NEVER" && !_showMainText) return null;
     // Match OmniAccess's content-preserving fallback: if neither a spelling
     // row nor backend/local phonetics can render, keep the token's base text.
     return (
@@ -627,7 +708,9 @@ function TokenSpellingTextSpan({
         // main script direction, as considered in OmniAccess.
       }}
     >
-      {children}
+      {/* Korean glossers can retain the internal affix-join marker. It is
+          meaningful to annotation processing, but must not reach display. */}
+      {typeof children === "string" ? children.replaceAll("‿", "") : children}
     </span>
   );
 }
@@ -672,7 +755,9 @@ type TokenGlossViewProps = {
   lang: string;
   lingopClient: LingoDataClient;
   l10nWordDetailHandler?: AnnotatedTextViewProps["l10nWordDetailHandler"];
+  localShouldFadeNonCoreWords: boolean;
   token: AnnotatedToken;
+  tokenCoreWordOrUnknownStatus: boolean | null;
   wordSubMorphemes: ATokenSubMorphemes;
   showGlossText: TripleDisplayState;
   showGlossEmoji: TripleDisplayState;
@@ -686,7 +771,9 @@ function TokenGlossView({
   lang,
   lingopClient,
   l10nWordDetailHandler,
+  localShouldFadeNonCoreWords,
   token,
+  tokenCoreWordOrUnknownStatus,
   wordSubMorphemes,
   showGlossText,
   showGlossEmoji,
@@ -695,7 +782,12 @@ function TokenGlossView({
   // 20260223 Note, updated 20260824: userWordStreaks is optional so ATV
   // consumers without streak-driven behavior do not need the provider.
   const userWordStreaksData = useOptionalUserWordStreaksData();
+  const userLingoPrefsData = useOptionalUserLingoPrefsData();
   const userWordStreaks = userWordStreaksData?.userWordStreaks;
+  const showNonCoreGlossEmoji =
+    userLingoPrefsData?.showNonCoreGlossEmoji ?? "ALWAYS";
+  const showNonCoreGlossText =
+    userLingoPrefsData?.showNonCoreGlossText ?? "ALWAYS";
   const enGloss = useMemo(() => {
     // Format the gloss to strip out the "TO " prefix if specified.
     let gloss = isWordToken(token) ? token.gloss ?? null : null;
@@ -734,12 +826,13 @@ function TokenGlossView({
     lang: string;
     token: AnnotatedToken;
   } | null>(null);
-  const generatedEmoji =
+  const matchingEmojiResult =
     emojiResult?.token === token &&
     emojiResult.enGloss === enGloss &&
     emojiResult.lang === lang
-      ? emojiResult.emoji
+      ? emojiResult
       : null;
+  const generatedEmoji = matchingEmojiResult?.emoji ?? null;
   const emoji =
     generatedEmoji && isEmojiBlackWhite
       ? convertEmojiTextToBlackWhiteCompatibleEmojiText(generatedEmoji)
@@ -752,6 +845,13 @@ function TokenGlossView({
       morphemeStreak < WORD_STREAK_LIMIT_FOR_AUTO_HINT
     );
   });
+  const shouldFetchEmoji =
+    !!enGloss &&
+    !(
+      (showGlossEmoji === "NEVER" || showGlossEmoji === "ON_HINT") &&
+      !l10nWordDetailHandler
+    );
+  const isLoadingEmoji = shouldFetchEmoji && matchingEmojiResult === null;
 
   // GlossTextTipLang
   useEffect(() => {
@@ -802,9 +902,7 @@ function TokenGlossView({
     let cancelled = false;
     setEmojiResult(null);
 
-    if (!enGloss) return;
-    if (showGlossEmoji === "NEVER" && !l10nWordDetailHandler) return;
-    if (showGlossEmoji === "ON_HINT" && !l10nWordDetailHandler) return;
+    if (!enGloss || !shouldFetchEmoji) return;
 
     void lingopClient
       .generateEmoji(enGloss)
@@ -822,6 +920,7 @@ function TokenGlossView({
         // Fail open: retain the gloss fallback if public emoji data cannot load.
         if (!cancelled) {
           console.error("Error determining gloss emoji:", error);
+          setEmojiResult({ enGloss, emoji: null, lang, token });
         }
       });
 
@@ -834,6 +933,7 @@ function TokenGlossView({
     lingopClient,
     l10nWordDetailHandler,
     showGlossEmoji,
+    shouldFetchEmoji,
     token,
   ]);
 
@@ -851,21 +951,9 @@ function TokenGlossView({
   }
 
   if (!shouldDisplayGloss) {
-    return (
-      <span
-        className="no-gloss-space"
-        style={{
-          ...emptyAnnotationSlotStyle,
-          boxSizing: "border-box",
-          width: "100%",
-          userSelect: "none",
-          color: astyle.glossTextColor,
-          fontSize: `${astyle.glossTextSize}px`,
-        }}
-      >
-        {visuallyEmpty}
-      </span>
-    );
+    // OmniAccess's old no-gloss spacing span is hidden and scheduled for
+    // deprecation. Omitting it avoids an otherwise empty vertical slot.
+    return null;
   }
 
   // Emoji Font
@@ -877,6 +965,29 @@ function TokenGlossView({
   ) {
     emojiFont = "emoji-bw-font";
   }
+  // Split into emoji graphemes so direction-sensitive symbols can be flipped
+  // independently and exceptional text-like graphemes can reset their font.
+  const emojiGraphemes = emoji
+    ? typeof Intl.Segmenter === "function"
+      ? Array.from(
+          new Intl.Segmenter("en", { granularity: "grapheme" }).segment(emoji),
+          ({ segment }) => (segment === " " ? "\u2002" : segment),
+        )
+      : Array.from(emoji, (segment) => (segment === " " ? "\u2002" : segment))
+    : [];
+  const tokenIsHinted = shouldDisplayGloss;
+  const shouldApplyNonCoreGlossPrefs =
+    tokenCoreWordOrUnknownStatus === false &&
+    localShouldFadeNonCoreWords &&
+    !isWordUnfamiliar;
+  const shouldShowGlossEmoji =
+    !shouldApplyNonCoreGlossPrefs ||
+    (showNonCoreGlossEmoji !== "NEVER" &&
+      (showNonCoreGlossEmoji !== "ON_HINT" || tokenIsHinted));
+  const shouldShowGlossText =
+    !shouldApplyNonCoreGlossPrefs ||
+    (showNonCoreGlossText !== "NEVER" &&
+      (showNonCoreGlossText !== "ON_HINT" || tokenIsHinted));
 
   return (
     <span
@@ -890,6 +1001,10 @@ function TokenGlossView({
         minWidth: "max-content",
       }}
     >
+      {/* OmniAccess used small phonetic gaps plus 2px gloss padding and a
+          temporary 3px top pad. Lingop intentionally keeps its cleaner spacing
+          for now; those values remain documented here if exact parity becomes
+          necessary later. */}
       {/* GLOSS EMOJI */}
       {/* 20260223: ON_HINT visibility can currently be applied directly here. */}
       {(showGlossEmoji === "ALWAYS" ||
@@ -908,7 +1023,37 @@ function TokenGlossView({
           // FUTURE CONSIDERATION: CUR: BRUTE Temp Forcing to LTR. FUTURE: For RTL Langs: Emoji Content needs to adopt: (ARROW DIRECTIONS + Reflip Directions of Emojis) - 20260707
           dir="ltr"
         >
-          {emoji ?? tipLangGloss ?? visuallyEmpty}
+          {!shouldShowGlossEmoji ? (
+            visuallyEmpty
+          ) : isLoadingEmoji ? (
+            <span
+              className="annotated-text-inline-spinner"
+              aria-label="Loading emoji"
+            />
+          ) : emoji ? (
+            emojiGraphemes.map((grapheme, index) => {
+              const flip = shouldFlipEmoji(grapheme);
+              return (
+                <span
+                  key={`${index}-${grapheme}`}
+                  className={`grapheme${
+                    ["Ọ", "Ȯ"].includes(grapheme) ? " reset-font" : ""
+                  }${
+                    flip === "YES"
+                      ? " to-flip"
+                      : flip === "IF_NOTO"
+                        ? " to-flip-for-noto"
+                        : ""
+                  }`}
+                  style={{ display: "inline-block" }}
+                >
+                  {grapheme}
+                </span>
+              );
+            })
+          ) : (
+            tipLangGloss ?? token.gloss ?? visuallyEmpty
+          )}
         </span>
       )}
 
@@ -933,10 +1078,13 @@ function TokenGlossView({
           }}
         >
           <span className="gloss-text">
-            {loadingTipLangGloss ? (
-              <span className="gloss-text-loading" aria-label="Loading gloss">
-                …
-              </span>
+            {!shouldShowGlossText ? (
+              visuallyEmpty
+            ) : loadingTipLangGloss ? (
+              <span
+                className="annotated-text-inline-spinner gloss-text-loading"
+                aria-label="Loading gloss"
+              />
             ) : (
               tipLangGloss
             )}
@@ -1002,7 +1150,12 @@ function ActionButtonSpeak({
  * Punctuation/non-word tokens keep the same vertical slots so the main text
  * baseline stays aligned with word tokens.
  */
-function AnnotatedTextViewComponent({
+type LoadedAnnotatedTextViewProps = Omit<
+  AnnotatedTextViewProps,
+  "annotatedText"
+> & { annotatedText: AnnotatedText };
+
+function LoadedAnnotatedTextViewComponent({
   annotatedText,
   showSpelling,
   showMainText,
@@ -1023,7 +1176,7 @@ function AnnotatedTextViewComponent({
   shouldPreloadSpeech = false,
   l10nWordDetailHandler,
   supabaseClient,
-}: AnnotatedTextViewProps, ref: ForwardedRef<AnnotatedTextViewHandle>): ReactNode {
+}: LoadedAnnotatedTextViewProps, ref: ForwardedRef<AnnotatedTextViewHandle>): ReactNode {
   const astyle = resolveAnnotatedTextStyle(astyleInput);
   const userLingoPrefsData = useOptionalUserLingoPrefsData();
   // Explicit per-instance inputs take precedence over shared user preferences.
@@ -1049,6 +1202,10 @@ function AnnotatedTextViewComponent({
   const { linearizedAText, morphemesPerLinearToken } = useMemo(
     () => linearizeTemplaticAText(annotatedText),
     [annotatedText],
+  );
+  const tokenGroups = useMemo(
+    () => groupAnnotatedTokensToPreventWidows(linearizedAText.tokens),
+    [linearizedAText.tokens],
   );
   const exportHTMLElementRef = useRef<HTMLDivElement>(null);
   const userWordStreaksData = useOptionalUserWordStreaksData();
@@ -1189,6 +1346,11 @@ function AnnotatedTextViewComponent({
     linearizedAText,
     spellingFormatSignature,
   ]);
+
+  const requestHTMLTableExport = useCallback(
+    async () => getAnnotatedTextHTMLTableExport(linearizedAText),
+    [linearizedAText],
+  );
 
   const getResolvableActiveSpeechVoice = useCallback(async () => {
     const voice = await speechSynthTTS.getActiveVoiceForLang(
@@ -1347,10 +1509,11 @@ function AnnotatedTextViewComponent({
         if (!element) return undefined;
         return captureAnnotatedTextImage(element, scale);
       },
+      requestHTMLTableExport,
       triggerSpeechSynthesis,
       getSpelling,
     }),
-    [getSpelling, triggerSpeechSynthesis],
+    [getSpelling, requestHTMLTableExport, triggerSpeechSynthesis],
   );
 
   // DISPLAY: CORE WORD STATUSES
@@ -1452,126 +1615,164 @@ function AnnotatedTextViewComponent({
         }}
       >
         <div className="tokens" style={{ display: "contents" }}>
-          {linearizedAText.tokens.map((_token, index) => {
-          const token = stripDisambiguatorFromToken(_token);
-          const wordSubMorphemes = morphemesPerLinearToken[index] ?? [];
-          const key = `${index}-${token.text}`;
-          // Word is "unfamiliar" if ANY of its sub-morphemes is unfamiliar
-          // (only root-and-pattern languages like mt have more than one
-          // submorpheme).
-          const isWordUnfamiliar = wordSubMorphemes.some(({ morpheme }) => {
-            const morphemeStreak =
-              userWordStreaks?.[linearizedAText.lang]?.[
-                morpheme.toUpperCase()
-              ] ?? 0;
-            return (
-              !!userWordStreaksData &&
-              morphemeStreak < WORD_STREAK_LIMIT_FOR_AUTO_HINT
-            );
-          });
-          // Non-Core - Fade
-          const wordIsCoreOrUnknown =
-            tokensCoreWordOrUnknownStatus?.[index] ?? true;
-          const opacity =
-            resolvedShouldFadeNonCoreWords &&
-            !wordIsCoreOrUnknown &&
-            !isWordUnfamiliar
-              ? nonCoreWordsFadeOpacity
-              : 1;
-          const tokenInlinePadding =
-            index === linearizedAText.tokens.length - 1
-              ? "0"
-              : `${(
-                (astyle.mainTextSize / 5.0) *
-                astyle.wordSpacing /
-                2.0
-              ).toFixed(2)}px`;
-
-          return (
+          {/* Group tokens to prevent widows such as standalone punctuation. */}
+          {tokenGroups.map((tokenGroup, groupIndex) => (
             <div
-              key={key}
-              className={`token${
-                streakWordDetailHandler && isWordToken(token)
-                  ? " token-word-detail"
-                  : ""
-              }${
-                streakWordDetailHandler &&
-                isWordToken(token) &&
-                isWordUnfamiliar
-                  ? " token-word-unfamiliar"
-                  : ""
-              }`}
-              aria-hidden={
-                !isWordToken(token) && token.text.trim() === ""
-                  ? true
-                  : undefined
-              }
-              style={{
-                display: "inline-flex",
-                flexDirection:
-                  glossPlacementFlexDirections[astyle.glossPlacement],
-                alignItems: "center",
-                justifyContent: "flex-end",
-                minWidth: "max-content",
-                paddingInline: tokenInlinePadding,
-                opacity,
-                transition: "all 0.1s ease-in-out",
-              }}
-              onClick={
-                streakWordDetailHandler && isWordToken(token)
-                  ? (event) => {
-                    event.stopPropagation();
-                    if (!isWordUnfamiliar && setUserWordStreaksToValue) {
-                      // A 1-way hint-toggle (l10nWordDetailHandler's overlay
-                      // itself handles de-hinting).
-                      void setUserWordStreaksToValue(
-                        linearizedAText.lang,
-                        wordSubMorphemes.map(({ morpheme }) => morpheme),
-                        1,
-                      );
-                    }
-                    if (isWordUnfamiliar) {
-                      streakWordDetailHandler(
-                        linearizedAText,
-                        index,
-                        event,
-                        wordSubMorphemes,
-                      );
-                    }
-                  }
-                  : undefined
-              }
+              key={`${groupIndex}-${tokenGroup[0]?.index ?? 0}`}
+              className="token-group"
+              style={{ display: "inline-flex" }}
             >
-              <TokenSpellingAndMainView
-                _showSpelling={resolvedShowSpelling}
-                _showMainText={resolvedShowMainText}
-                annotatedText={linearizedAText}
-                astyle={astyle}
-                l10nWordDetailHandler={streakWordDetailHandler}
-                mainLangFont={mainLangFont}
-                showMainTextReadingGuide={resolvedShowMainTextReadingGuide}
-                spellingSystem={spellingSystem}
-                token={token}
-                tokenCoreWordOrUnknownStatus={
-                  tokensCoreWordOrUnknownStatus?.[index] ?? null
-                }
-              />
-              <TokenGlossView
-                astyle={astyle}
-                isEmojiBlackWhite={isEmojiBlackWhite}
-                glossTextTipLang={glossTextTipLang}
-                lang={linearizedAText.lang}
-                lingopClient={lingopClient}
-                l10nWordDetailHandler={streakWordDetailHandler}
-                token={token}
-                wordSubMorphemes={wordSubMorphemes}
-                showGlossText={resolvedShowGlossText}
-                showGlossEmoji={resolvedShowGlossEmoji}
-                showTokenGlossPrefix_TO__={showTokenGlossPrefix_TO__}
-              />
+              {tokenGroup.map(({ token: unstrippedToken, index }) => {
+                const token = stripDisambiguatorFromToken(unstrippedToken);
+                const wordSubMorphemes =
+                  morphemesPerLinearToken[index] ?? [];
+                const key = `${index}-${token.text}`;
+                // Word is "unfamiliar" if ANY sub-morpheme is unfamiliar
+                // (only root-and-pattern languages like mt have multiple).
+                const isWordUnfamiliar = wordSubMorphemes.some(
+                  ({ morpheme }) => {
+                    const morphemeStreak =
+                      userWordStreaks?.[linearizedAText.lang]?.[
+                        morpheme.toUpperCase()
+                      ] ?? 0;
+                    return (
+                      !!userWordStreaksData &&
+                      morphemeStreak < WORD_STREAK_LIMIT_FOR_AUTO_HINT
+                    );
+                  },
+                );
+                // Non-Core - Fade
+                const wordIsCoreOrUnknown =
+                  tokensCoreWordOrUnknownStatus?.[index] ?? true;
+                const opacity =
+                  resolvedShouldFadeNonCoreWords &&
+                  !wordIsCoreOrUnknown &&
+                  !isWordUnfamiliar
+                    ? nonCoreWordsFadeOpacity
+                    : 1;
+                const tokenInlinePadding =
+                  index === linearizedAText.tokens.length - 1
+                    ? "0"
+                    : `${(
+                      (astyle.mainTextSize / 5.0) *
+                      astyle.wordSpacing /
+                      2.0
+                    ).toFixed(2)}px`;
+
+                return (
+                  <div
+                    key={key}
+                    className={`token${
+                      streakWordDetailHandler && isWordToken(token)
+                        ? " token-word-detail"
+                        : ""
+                    }${
+                      streakWordDetailHandler &&
+                      isWordToken(token) &&
+                      isWordUnfamiliar
+                        ? " token-word-unfamiliar"
+                        : ""
+                    }`}
+                    aria-hidden={
+                      !isWordToken(token) && token.text.trim() === ""
+                        ? true
+                        : undefined
+                    }
+                    style={{
+                      display: "inline-flex",
+                      flexDirection:
+                        glossPlacementFlexDirections[astyle.glossPlacement],
+                      alignItems: "center",
+                      justifyContent: "flex-end",
+                      minWidth: "max-content",
+                      paddingInline: tokenInlinePadding,
+                      opacity,
+                      transition: "all 0.1s ease-in-out",
+                    }}
+                    onClick={
+                      streakWordDetailHandler && isWordToken(token)
+                        ? (event) => {
+                            event.stopPropagation();
+                            if (
+                              !isWordUnfamiliar &&
+                              setUserWordStreaksToValue
+                            ) {
+                              // A 1-way hint-toggle (the overlay handles
+                              // de-hinting).
+                              void setUserWordStreaksToValue(
+                                linearizedAText.lang,
+                                wordSubMorphemes.map(
+                                  ({ morpheme }) => morpheme,
+                                ),
+                                1,
+                              );
+                            }
+                            if (isWordUnfamiliar) {
+                              streakWordDetailHandler(
+                                linearizedAText,
+                                index,
+                                event,
+                                wordSubMorphemes,
+                              );
+                            }
+                          }
+                        : undefined
+                    }
+                  >
+                    {/* MAIN TEXT + SPELLING */}
+                    {(resolvedShowMainText ||
+                      resolvedShowSpelling !== "NEVER") && (
+                      <TokenSpellingAndMainView
+                        _showSpelling={resolvedShowSpelling}
+                        _showMainText={resolvedShowMainText}
+                        annotatedText={linearizedAText}
+                        astyle={astyle}
+                        l10nWordDetailHandler={streakWordDetailHandler}
+                        mainLangFont={mainLangFont}
+                        showMainTextReadingGuide={
+                          resolvedShowMainTextReadingGuide
+                        }
+                        spellingSystem={spellingSystem}
+                        token={token}
+                        tokenCoreWordOrUnknownStatus={
+                          tokensCoreWordOrUnknownStatus?.[index] ?? null
+                        }
+                      />
+                    )}
+
+                    {/* GLOSS: annotations that declare no gloss skip the
+                        component entirely, matching OmniAccess's layout. */}
+                    {linearizedAText.containsGloss &&
+                      (resolvedShowGlossText !== "NEVER" ||
+                        resolvedShowGlossEmoji !== "NEVER" ||
+                        streakWordDetailHandler) && (
+                        <TokenGlossView
+                          astyle={astyle}
+                          isEmojiBlackWhite={isEmojiBlackWhite}
+                          glossTextTipLang={glossTextTipLang}
+                          lang={linearizedAText.lang}
+                          lingopClient={lingopClient}
+                          l10nWordDetailHandler={streakWordDetailHandler}
+                          localShouldFadeNonCoreWords={
+                            resolvedShouldFadeNonCoreWords
+                          }
+                          token={token}
+                          tokenCoreWordOrUnknownStatus={
+                            tokensCoreWordOrUnknownStatus?.[index] ?? null
+                          }
+                          wordSubMorphemes={wordSubMorphemes}
+                          showGlossText={resolvedShowGlossText}
+                          showGlossEmoji={resolvedShowGlossEmoji}
+                          showTokenGlossPrefix_TO__={
+                            showTokenGlossPrefix_TO__
+                          }
+                        />
+                      )}
+                  </div>
+                );
+              })}
             </div>
-          );
-          })}
+          ))}
         </div>
       </div>
 
@@ -1583,9 +1784,41 @@ function AnnotatedTextViewComponent({
   );
 }
 
+const LoadedAnnotatedTextView = forwardRef<
+  AnnotatedTextViewHandle,
+  LoadedAnnotatedTextViewProps
+>(LoadedAnnotatedTextViewComponent);
+
+function AnnotatedTextViewComponent(
+  { annotatedText, ...props }: AnnotatedTextViewProps,
+  ref: ForwardedRef<AnnotatedTextViewHandle>,
+): ReactNode {
+  if (!annotatedText) {
+    return (
+      <div
+        className="annotated-text-view-wrapper annotated-text-view-loading"
+        role="status"
+        aria-live="polite"
+      >
+        <span className="annotated-text-loading-spinner" aria-hidden="true" />
+        <span>Loading Annotations</span>
+      </div>
+    );
+  }
+
+  return (
+    <LoadedAnnotatedTextView
+      {...props}
+      annotatedText={annotatedText}
+      ref={ref}
+    />
+  );
+}
+
 export const AnnotatedTextView = forwardRef<
   AnnotatedTextViewHandle,
   AnnotatedTextViewProps
 >(AnnotatedTextViewComponent);
 
+LoadedAnnotatedTextView.displayName = "LoadedAnnotatedTextView";
 AnnotatedTextView.displayName = "AnnotatedTextView";

@@ -83,6 +83,29 @@
   animation: lingop-atv-action-spin 0.7s linear infinite;
 }
 
+.annotated-text-view-loading {
+  display: inline-flex;
+  width: 100%;
+  min-height: 2rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: #718096;
+}
+
+.annotated-text-loading-spinner,
+.annotated-text-view .annotated-text-inline-spinner {
+  display: inline-block;
+  width: 0.875em;
+  height: 0.875em;
+  box-sizing: border-box;
+  border: 0.125em solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.08em;
+  animation: lingop-atv-action-spin 0.7s linear infinite;
+}
+
 @keyframes lingop-atv-action-spin {
   to {
     transform: rotate(360deg);
@@ -90,7 +113,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .annotated-text-view-wrapper .annotated-text-action-spinner {
+  .annotated-text-view-wrapper .annotated-text-action-spinner,
+  .annotated-text-loading-spinner,
+  .annotated-text-view .annotated-text-inline-spinner {
     animation-duration: 1.5s;
   }
 }
@@ -160,6 +185,16 @@
   );
 }
 
+/* Direction and font fixes are applied per grapheme, as in OmniAccess. */
+.annotated-text-view .gloss-emoji .grapheme.to-flip,
+.annotated-text-view .emoji-bw-font .grapheme.to-flip-for-noto {
+  transform: scaleX(-1);
+}
+
+.annotated-text-view .gloss-emoji .grapheme.reset-font {
+  font-family: "Noto Sans", system-ui, serif;
+}
+
 /* Not iOS/macOS Safari: prefer the platform's Noto color emoji font. */
 @supports not (font: -apple-system-body) {
   .annotated-text-view .emoji-color-font {
@@ -169,5 +204,9 @@
       "Apple Color Emoji",
       sans-serif
     );
+  }
+
+  .annotated-text-view .emoji-color-font .grapheme.to-flip-for-noto {
+    transform: scaleX(-1);
   }
 }
