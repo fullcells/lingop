@@ -473,6 +473,7 @@ export async function getVoiceOptionsForLang(
     : await getVOICES(options);
 
   const voicesForLang: SpeechSynthTTSVoice[] = [];
+  const matchedVoiceKeys = new Set<string>();
   for (const voiceLangSuffix of voiceLangSuffixes) {
     let matches: SpeechSynthTTSVoice[] = [];
     if (voiceLangSuffix.includes("-")) { // e.g. pt-BR
@@ -485,7 +486,15 @@ export async function getVoiceOptionsForLang(
         ilike(v.voice_lang, voiceLangSuffix) || // e.g. exact match 'en'
         v.voice_lang.toUpperCase().startsWith(voiceLangSuffix.toUpperCase() + "-")); // e.g. match 'en-**'
     }
-    voicesForLang.push(...matches);
+    for (const voice of matches) {
+      // A voice may match both the language and one of its locale fallbacks
+      // (for example, Japanese voices match both `ja` and `ja-JP`). Keep the
+      // public voice identity unique after combining those searches.
+      const key = `${voice.service}\u0000${voice.voice_id}\u0000${voice.voice_lang}`;
+      if (matchedVoiceKeys.has(key)) continue;
+      matchedVoiceKeys.add(key);
+      voicesForLang.push(voice);
+    }
   }
 
   // Split Voices by if service is BROWSER / NOT-BROWSER
@@ -1165,7 +1174,9 @@ export function speakableTextFromDisplayText({
   return speakableText;
 }
 
-const BROWSER_SPEECH_START_TIMEOUT_MS = 1000;
+// Browser speech engines can take more than a second to start on their first
+// use, particularly just after loading or refreshing the system voice list.
+const BROWSER_SPEECH_START_TIMEOUT_MS = 3000;
 
 class BrowserSpeechStartTimeoutError extends Error {
   constructor() {

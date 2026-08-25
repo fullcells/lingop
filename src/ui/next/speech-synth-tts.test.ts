@@ -323,6 +323,35 @@ describe("speech synth TTS", () => {
     vi.unstubAllGlobals();
   });
 
+  it("returns each voice once when language and locale searches overlap", async () => {
+    vi.resetModules();
+    const japaneseVoice = {
+      default: true,
+      lang: "ja-JP",
+      localService: true,
+      name: "Google 日本語",
+      voiceURI: "Google 日本語",
+    } as SpeechSynthesisVoice;
+    const speechSynthesis = {
+      getVoices: vi.fn(() => [japaneseVoice]),
+      onvoiceschanged: null,
+    };
+    vi.stubGlobal("window", { speechSynthesis });
+
+    const { getVoiceOptionsForLang } = await import("./speech-synth-tts.js");
+    const voiceOptions = await getVoiceOptionsForLang("ja", "NONE");
+
+    expect(voiceOptions.available.voices).toEqual([
+      {
+        service: "BROWSER",
+        voice_id: "Google 日本語",
+        voice_lang: "ja-JP",
+      },
+    ]);
+
+    vi.unstubAllGlobals();
+  });
+
   it("resumes browser playback after clearing the queue and propagates playback errors", async () => {
     vi.resetModules();
     const calls: string[] = [];
@@ -552,7 +581,7 @@ describe("speech synth TTS", () => {
       lang: "en",
       apiVoiceAccessProfile: "NONE",
     });
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(3000);
 
     await expect(playback).resolves.toBeUndefined();
     expect(spokenUtterances).toHaveLength(2);

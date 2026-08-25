@@ -198,7 +198,11 @@ export function SpeechSynthLangVoicePicker({
         ...speechOptions,
       });
     } catch (error: unknown) {
-      console.error("Could not preview speech voice:", error);
+      // Preview failure is recoverable UI state. Avoid passing an Error object
+      // to framework development consoles, which can promote a handled browser
+      // speech timeout into a full-page error overlay.
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`Could not preview speech voice: ${message}`);
     } finally {
       setPreviewingVoiceKey((current) =>
         current === voiceKey ? null : current,
