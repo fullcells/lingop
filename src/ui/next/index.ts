@@ -13,6 +13,7 @@ export * from "./l10n-word-detail-popover.js";
 export * from "./l10n-word-detail-types.js";
 export * from "./speech-synth-tts.js";
 export * from "./speech-synth-lang-voice-picker.js";
+export * from "./settings-voices-n-annotations.js";
 export * from "./spelling-system-picker.js";
 export * from "./supabase-auth.js";
 export * from "./user-lingo-prefs.js";

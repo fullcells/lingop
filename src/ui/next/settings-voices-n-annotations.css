@@ -1,0 +1,373 @@
+@import "./annotated-text.css";
+@import "./l10n-word-detail-content.css";
+@import "./l10n-word-detail-popover.css";
+@import "./speech-synth-lang-voice-picker.css";
+@import "./spelling-system-picker.css";
+
+.lingop-settings-voices-annotations {
+  --lingop-settings-accent: #2563eb;
+  --lingop-settings-border: color-mix(in srgb, currentColor 13%, transparent);
+  --lingop-settings-muted: color-mix(in srgb, currentColor 58%, transparent);
+  --lingop-settings-surface: color-mix(in srgb, currentColor 4%, transparent);
+  color: inherit;
+  font: inherit;
+  max-width: 44rem;
+  overflow: hidden;
+  width: 100%;
+}
+
+.lingop-settings-voices-annotations *,
+.lingop-settings-voices-annotations *::before,
+.lingop-settings-voices-annotations *::after {
+  box-sizing: border-box;
+}
+
+.lingop-settings-page {
+  animation: lingop-settings-slide-forward 180ms ease-out both;
+  min-width: 0;
+}
+
+.lingop-settings-page[data-direction="BACK"] {
+  animation-name: lingop-settings-slide-back;
+}
+
+.lingop-settings-page[data-screen="VOICE"],
+.lingop-settings-page[data-screen="SPELLING"] {
+  min-height: 28rem;
+}
+
+@keyframes lingop-settings-slide-forward {
+  from { opacity: 0; transform: translateX(1.25rem); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes lingop-settings-slide-back {
+  from { opacity: 0; transform: translateX(-1.25rem); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.lingop-settings-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+}
+
+.lingop-settings-section > h2,
+.lingop-settings-subpage > header {
+  align-items: center;
+  display: flex;
+  gap: 0.55rem;
+  margin: 0 0 0.45rem;
+}
+
+.lingop-settings-section > h2,
+.lingop-settings-subpage h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.lingop-settings-section > h2 > span[aria-hidden="true"] {
+  align-items: center;
+  display: inline-flex;
+  font-size: 1.05rem;
+  justify-content: center;
+  width: 1.35rem;
+}
+
+.lingop-settings-card {
+  background: var(--lingop-settings-surface);
+  border: 1px solid var(--lingop-settings-border);
+  border-radius: 0.8rem;
+  overflow: hidden;
+}
+
+.lingop-settings-card[data-preview] {
+  padding: 1rem;
+}
+
+.lingop-settings-row {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--lingop-settings-border);
+  color: inherit;
+  display: flex;
+  font: inherit;
+  gap: 0.75rem;
+  min-height: 3.2rem;
+  padding: 0.65rem 0.85rem;
+  text-align: start;
+  width: 100%;
+}
+
+.lingop-settings-card > .lingop-settings-row:first-child {
+  border-top: 0;
+}
+
+.lingop-settings-row__label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.lingop-settings-row__value,
+.lingop-settings-row__state {
+  color: var(--lingop-settings-muted);
+  flex: 0 1 auto;
+  font-size: 0.9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lingop-settings-row__value[data-faded] {
+  opacity: 0.58;
+}
+
+.lingop-settings-navigation-row {
+  cursor: pointer;
+}
+
+.lingop-settings-navigation-row:hover,
+.lingop-settings-navigation-row:focus-visible {
+  background: color-mix(in srgb, var(--lingop-settings-accent) 8%, transparent);
+}
+
+.lingop-settings-chevron {
+  fill: none;
+  flex: 0 0 auto;
+  height: 1.15rem;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  width: 1.15rem;
+}
+
+.lingop-settings-switch {
+  background: color-mix(in srgb, currentColor 23%, transparent);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  flex: 0 0 auto;
+  height: 1.55rem;
+  padding: 0.16rem;
+  transition: background 140ms ease;
+  width: 2.75rem;
+}
+
+.lingop-settings-switch > span {
+  background: #fff;
+  border-radius: 50%;
+  display: block;
+  height: 1.23rem;
+  transform: translateX(0);
+  transition: transform 140ms ease;
+  width: 1.23rem;
+}
+
+.lingop-settings-switch[aria-checked="true"] {
+  background: var(--lingop-settings-accent);
+}
+
+.lingop-settings-switch[aria-checked="true"] > span {
+  transform: translateX(1.18rem);
+}
+
+.lingop-settings-triple-row {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.lingop-settings-row__main {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.lingop-settings-row__footnote {
+  color: var(--lingop-settings-muted);
+  font-size: 0.78rem;
+  line-height: 1.4;
+  margin: 0;
+  max-width: 36rem;
+}
+
+.lingop-settings-segment {
+  background: color-mix(in srgb, currentColor 7%, transparent);
+  border: 1px solid var(--lingop-settings-border);
+  border-radius: 0.55rem;
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: repeat(3, 2.35rem);
+  overflow: hidden;
+}
+
+.lingop-settings-segment button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-left: 1px solid var(--lingop-settings-border);
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  height: 2rem;
+  justify-content: center;
+  padding: 0;
+}
+
+.lingop-settings-segment button:first-child {
+  border-left: 0;
+}
+
+.lingop-settings-segment button[data-selected] {
+  background: var(--lingop-settings-accent);
+  color: #fff;
+}
+
+.lingop-settings-segment[data-value="ON_HINT"] button[data-selected] {
+  background: #e8a900;
+  color: #17120a;
+}
+
+.lingop-settings-segment svg {
+  fill: none;
+  height: 1.05rem;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  width: 1.05rem;
+}
+
+.lingop-settings-segment svg[data-filled] {
+  fill: currentColor;
+}
+
+.lingop-settings-speed-row {
+  align-items: flex-start;
+}
+
+.lingop-settings-speed {
+  flex: 1 1 12rem;
+  max-width: 17rem;
+  min-width: 8rem;
+}
+
+.lingop-settings-speed input[type="range"] {
+  accent-color: var(--lingop-settings-accent);
+  display: block;
+  margin: 0.2rem 0 0;
+  width: 100%;
+}
+
+.lingop-settings-speed__marks {
+  color: var(--lingop-settings-muted);
+  display: flex;
+  font-size: 0.76rem;
+  justify-content: space-between;
+  padding: 0 0.15rem;
+}
+
+.lingop-settings-icon-button,
+.lingop-settings-back-button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--lingop-settings-border);
+  border-radius: 0.5rem;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 2.25rem;
+  justify-content: center;
+  padding: 0;
+  width: 2.25rem;
+}
+
+.lingop-settings-icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.lingop-settings-icon-button svg,
+.lingop-settings-back-button svg {
+  fill: none;
+  height: 1.25rem;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 1.25rem;
+}
+
+.lingop-settings-icon-button svg path:last-child {
+  fill: currentColor;
+  stroke: none;
+}
+
+.lingop-settings-spinner {
+  animation: lingop-settings-spin 700ms linear infinite;
+  border: 2px solid color-mix(in srgb, currentColor 24%, transparent);
+  border-radius: 50%;
+  border-top-color: currentColor;
+  display: inline-block;
+  height: 1rem;
+  width: 1rem;
+}
+
+@keyframes lingop-settings-spin {
+  to { transform: rotate(360deg); }
+}
+
+.lingop-settings-subpage > header {
+  margin-bottom: 0.85rem;
+}
+
+.lingop-settings-subpage h2 {
+  margin: 0;
+}
+
+.lingop-settings-voices-annotations .speech-voice-picker {
+  --lingop-voice-picker-accent: var(--lingop-settings-accent);
+}
+
+.lingop-settings-voices-annotations .spelling-system-picker {
+  --lingop-spelling-picker-accent: var(--lingop-settings-accent);
+}
+
+.lingop-settings-voices-annotations .speech-voice-picker,
+.lingop-settings-voices-annotations .spelling-system-picker {
+  max-width: none;
+}
+
+@media (max-width: 32rem) {
+  .lingop-settings-row__main {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .lingop-settings-row__main .lingop-settings-segment {
+    margin-inline-start: auto;
+  }
+
+  .lingop-settings-row__state {
+    display: none;
+  }
+
+  .lingop-settings-speed-row {
+    flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lingop-settings-page,
+  .lingop-settings-spinner,
+  .lingop-settings-switch,
+  .lingop-settings-switch > span {
+    animation: none;
+    transition: none;
+  }
+}

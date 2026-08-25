@@ -6,6 +6,9 @@ export const lingopOATSourceData: OATSourceData = {
   "guiTextsByScope": {
     "_": [
       "Already have an account?",
+      "Audio",
+      "Back",
+      "Background Words",
       "Browser Voices",
       "Browser Voices load faster. Cloud Voices are usually higher quality.",
       "Cloud Voices",
@@ -14,35 +17,57 @@ export const lingopOATSourceData: OATSourceData = {
       "Don't have an account?",
       "Done",
       "Email",
+      "Emoji",
+      "Emojis",
+      "Fade Background Words",
+      "Faded",
       "For Advanced Users",
       "For Beginners",
       "For Practice",
       "Forgot Password",
+      "Hidden",
       "International Phonetic Alphabet",
       "Language Speaker",
       "Learnt",
       "Log in",
       "None",
+      "Not Faded",
       "Official Spelling",
+      "On Hint",
       "or",
+      "Original Text",
       "Password",
       "Password must be at least 6 characters.",
       "Passwords do not match.",
       "Popular Spelling",
       "Popular Spelling with diacritics",
+      "Preview",
       "Re-Type Password",
+      "Reading Guide",
       "Rule-Based Spelling Guide",
+      "Show Original Text",
+      "Show Spelling",
       "Sign up",
       "Simplified Chinese Script",
       "Slow speech sounds better with Browser Voices.",
       "Sorry, that email-password pair didn't match any of our records. Please try again with different details.",
+      "Speed",
       "Spelling",
-      "Tone Numbers"
+      "There is a small cat at my door. It wants to drink some water.",
+      "Tone Numbers",
+      "Visible",
+      "Word Translations",
+      "You can also tap on a word at any time to view its {LANGUAGE} translation."
     ]
   },
-  "focusTextsByScope": {},
+  "focusTextsByScope": {
+    "_": [
+      "There is a small cat at my door. It wants to drink some water."
+    ]
+  },
   "staticFocusTextsByScope": {
     "_": [
+      "There is a small cat at my door. It wants to drink some water.",
       "Where is the toilet?"
     ]
   }
