@@ -8,6 +8,8 @@ export {
   type LingopClientDataContextType,
   type LingopClientDataProviderProps,
 } from "./lingop-client-data-provider.js";
+export * from "./l10n-word-detail-content.js";
+export * from "./l10n-word-detail-types.js";
 export * from "./speech-synth-tts.js";
 export * from "./speech-synth-lang-voice-picker.js";
 export * from "./spelling-system-picker.js";

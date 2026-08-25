@@ -10,7 +10,6 @@ import {
   useState,
   type CSSProperties,
   type ForwardedRef,
-  type MouseEvent,
   type ReactNode,
 } from "react";
 
@@ -64,6 +63,7 @@ import type {
 } from "./speech-synth-tts.js";
 import { useOptionalUserLingoPrefsData } from "./user-lingo-prefs.js";
 import { useOptionalUserWordStreaksData } from "./user-word-streaks.js";
+import type { L10nWordDetailHandler } from "./l10n-word-detail-types.js";
 
 export type { AnnotatedTextImageData } from "./annotated-text-image.js";
 
@@ -195,12 +195,7 @@ export type AnnotatedTextViewProps = {
   contentRef_forAPISpeech?: ContentReference;
   shouldPreloadSpeech?: boolean;
 
-  l10nWordDetailHandler?: (
-    l10nAText: AnnotatedText,
-    l10nATextTokenIdx: number,
-    eventWithCurrentTarget: MouseEvent<HTMLDivElement>,
-    wordSubMorphemes: ATokenSubMorphemes,
-  ) => void;
+  l10nWordDetailHandler?: L10nWordDetailHandler;
   /** @deprecated Configure this once on LingopClientDataProvider instead. */
   supabaseClient?: SupabaseLingoDataClient;
 };

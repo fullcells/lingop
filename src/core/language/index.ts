@@ -5,6 +5,7 @@ export * from "./data/openai-voices.js";
 export * from "./data/word-explanations.js";
 export * from "./arpabet-to-ipa.js";
 export * from "./canto-jyutping-to-ipa.js";
+export * from "./chinese-script.js";
 export * from "./ipa-to-en-wiki.js";
 export * from "./main-script-reading-guide.js";
 export * from "./spelling-content.js";
