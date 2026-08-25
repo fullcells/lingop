@@ -266,6 +266,7 @@ export function SpellingSystemPicker({
                 <AnnotatedTextView
                   annotatedText={exampleAText}
                   showActionPlayAudio={showPreviewAudio}
+                  showSpelling={"ALWAYS"}
                   glossTextTipLang={guiLang}
                 />
               )}
