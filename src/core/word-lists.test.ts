@@ -1,10 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseQueryLike, SupabaseQueryResult } from "./supabase.js";
 import {
+  buildWordListMetaTree,
   clearWordListsCache,
+  getDescendantL10nsOfWordLists,
+  getListPksInWordListsMetaTree,
   loadSBCacheWordListsForLang,
   loadWordListMetaData,
   loadWordLists,
+  segmentWordListTitle,
+  WORD_STREAKS_MASTERY_THRESHOLD,
   type SBCacheWordListL10nWordsRow,
   type SBWordListRow,
   type SupabaseWordListsClient,
@@ -96,6 +101,138 @@ describe("word lists", () => {
     expect(metadata).toHaveLength(rows.length);
     expect(metadata[0]).not.toHaveProperty("words");
     expect(select).toHaveBeenCalledTimes(2);
+  });
+
+  it("segments titles and exposes the word-streaks mastery threshold", () => {
+    expect(segmentWordListTitle("First_Words#3")).toEqual({
+      titleLabel: "First Words",
+      titleCounter: 3,
+    });
+    expect(WORD_STREAKS_MASTERY_THRESHOLD).toBe(10);
+  });
+
+  it("builds filtered trees while allowing shared nodes across sibling branches", () => {
+    const rows: SBWordListRow[] = [
+      {
+        ...makeWordList(1),
+        title: "Root",
+        lang: "en",
+        type: "UNIVERSAL",
+        sublists: ["Branch A", "Branch B", "Japanese", "French"],
+      },
+      {
+        ...makeWordList(2),
+        title: "Branch A",
+        lang: "en",
+        type: "UNIVERSAL",
+        sublists: ["Shared"],
+      },
+      {
+        ...makeWordList(3),
+        title: "Branch B",
+        lang: "en",
+        type: "UNIVERSAL",
+        sublists: ["Shared"],
+      },
+      {
+        ...makeWordList(4),
+        title: "Shared",
+        lang: "en",
+        type: "UNIVERSAL",
+        sublists: null,
+      },
+      {
+        ...makeWordList(5),
+        title: "Japanese",
+        lang: "ja",
+        type: "LANG_SPECIFIC",
+        sublists: null,
+      },
+      {
+        ...makeWordList(6),
+        title: "French",
+        lang: "fr",
+        type: "LANG_SPECIFIC",
+        sublists: null,
+      },
+    ];
+    const metadata = rows.map(({ words: _words, ...meta }) => meta);
+
+    const tree = buildWordListMetaTree(metadata, "Root", "ja");
+
+    expect(tree?.children?.map((child) => child.meta.title)).toEqual([
+      "Branch A",
+      "Branch B",
+      "Japanese",
+    ]);
+    expect(tree?.children?.[0]?.children?.[0]?.meta.title).toBe("Shared");
+    expect(tree?.children?.[1]?.children?.[0]?.meta.title).toBe("Shared");
+    expect(tree && getListPksInWordListsMetaTree(tree)).toEqual([
+      "Root",
+      "Branch A",
+      "Shared",
+      "Branch B",
+      "Japanese",
+    ]);
+  });
+
+  it("can fail hard on ancestry cycles for build-time validation", () => {
+    const rows: SBWordListRow[] = [
+      { ...makeWordList(1), title: "A", sublists: ["B"] },
+      { ...makeWordList(2), title: "B", sublists: ["A"] },
+    ];
+    const metadata = rows.map(({ words: _words, ...meta }) => meta);
+
+    expect(() =>
+      buildWordListMetaTree(metadata, "A", "_ANY", {
+        throwOnCycle: true,
+      }),
+    ).toThrow("Infinite word-list ancestry loop detected at A.");
+  });
+
+  it("gets unique descendant localizations in their original casing", async () => {
+    const wordLists: SBWordListRow[] = [
+      {
+        ...makeWordList(1),
+        title: "Root",
+        type: "UNIVERSAL",
+        sublists: ["Animals", "Birds"],
+      },
+      { ...makeWordList(2), title: "Animals", sublists: null },
+      { ...makeWordList(3), title: "Birds", sublists: null },
+      { ...makeWordList(4), title: "Unselected", sublists: null },
+    ];
+    const localizedWordLists: SBCacheWordListL10nWordsRow[] = [
+      {
+        lang: "en",
+        list_title: "Animals",
+        l10n_words: ["Cat", "DOG"],
+        updated_at: "2026-08-20T00:00:00.000Z",
+        is_human_verified: true,
+      },
+      {
+        lang: "en",
+        list_title: "Birds",
+        l10n_words: ["DOG", "Bird"],
+        updated_at: "2026-08-20T00:00:00.000Z",
+        is_human_verified: true,
+      },
+      {
+        lang: "en",
+        list_title: "Unselected",
+        l10n_words: ["Ignore"],
+        updated_at: "2026-08-20T00:00:00.000Z",
+        is_human_verified: true,
+      },
+    ];
+    const { supabaseClient } = makeSupabaseClient({
+      wordLists,
+      localizedWordLists,
+    });
+
+    await expect(
+      getDescendantL10nsOfWordLists(["Root"], "en", { supabaseClient }),
+    ).resolves.toEqual(["Cat", "DOG", "Bird"]);
   });
 
   it("dedupes concurrent localized loads and caches each language separately", async () => {

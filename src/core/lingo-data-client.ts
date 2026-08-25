@@ -54,6 +54,7 @@ import {
   type SBUserWordExposure,
 } from "./user-word-exposures.js";
 import {
+  getDescendantL10nsOfWordLists,
   loadSBCacheWordListsForLang,
   loadWordListMetaData,
   loadWordLists,
@@ -167,6 +168,11 @@ export type LingoDataClient = {
   loadSBCacheWordListsForLang(
     lang: string,
   ): Promise<SBCacheWordListL10nWordsRow[]>;
+  /** Returns localized words from the requested lists and every descendant. */
+  getDescendantL10nsOfWordLists(
+    wordListPks: string[],
+    focusLang: string,
+  ): Promise<string[]>;
   /** Loads and caches Supabase emoji rows. */
   loadEmojiData(): Promise<EmojiRow[]>;
   /** Generates emoji text for an English gloss using the shared emoji row cache. */
@@ -929,6 +935,12 @@ export function createLingoDataClient({
       }),
     loadSBCacheWordListsForLang: (lang) =>
       loadSBCacheWordListsForLang(lang, {
+        ...(runtimeSupabaseClient
+          ? { supabaseClient: runtimeSupabaseClient }
+          : {}),
+      }),
+    getDescendantL10nsOfWordLists: (wordListPks, focusLang) =>
+      getDescendantL10nsOfWordLists(wordListPks, focusLang, {
         ...(runtimeSupabaseClient
           ? { supabaseClient: runtimeSupabaseClient }
           : {}),

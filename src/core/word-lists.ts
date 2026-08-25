@@ -12,6 +12,106 @@ export type SBWordListRow = {
 
 export type WordListMeta = Omit<SBWordListRow, "words">;
 
+/** The streak value at which a word is treated as mastered. */
+export const WORD_STREAKS_MASTERY_THRESHOLD = 10;
+
+export type WordListTreeNode = {
+  meta: WordListMeta;
+  children?: WordListTreeNode[];
+};
+
+export type BuildWordListMetaTreeOptions = {
+  /** Build-time validation can fail hard; runtime UI normally omits cycles. */
+  throwOnCycle?: boolean;
+};
+
+// Shared by word-list views, selectors, build tools, and other runtime consumers.
+export function segmentWordListTitle(wordListTitle: string): {
+  titleLabel: string;
+  titleCounter: number | null;
+} {
+  const segments = wordListTitle.split("#");
+  const titleLabel = (segments[0] ?? "").replaceAll("_", " ").trim();
+  const titleCounter = segments[1] ? Number(segments[1]) : null;
+  return { titleLabel, titleCounter };
+  // H: Future: This may get elaborated on further (e.g. with parenthesis
+  // removal, splitting further by ":", etc.). Retained from OmniAccess.
+}
+
+export function buildWordListMetaTree(
+  wordListsMeta: WordListMeta[],
+  listTitle: string,
+  filterForFocusLang: string | "_ANY",
+  options: BuildWordListMetaTreeOptions = {},
+): WordListTreeNode | null {
+  return buildWordListMetaTreeBranch(
+    wordListsMeta,
+    listTitle,
+    filterForFocusLang,
+    new Set(),
+    options,
+  );
+}
+
+function buildWordListMetaTreeBranch(
+  wordListsMeta: WordListMeta[],
+  listTitle: string,
+  filterForFocusLang: string | "_ANY",
+  visited = new Set<string>(),
+  options: BuildWordListMetaTreeOptions = {},
+): WordListTreeNode | null {
+  const meta = wordListsMeta.find((list) => list.title === listTitle);
+  if (!meta) {
+    console.warn(`List ${listTitle} not found in wordListsMeta.`);
+    return null;
+  }
+
+  // Detect infinite loops in the current ancestry, not shared sibling nodes.
+  if (visited.has(listTitle)) {
+    if (options.throwOnCycle) {
+      throw new Error(`Infinite word-list ancestry loop detected at ${listTitle}.`);
+    }
+    console.error(`> Infinite loop detected at: ${listTitle}`);
+    return null;
+  }
+  // Pass a copy so a list can legitimately occur in multiple sibling branches.
+  const branchVisited = new Set(visited).add(listTitle);
+  const children = meta.sublists
+    ?.map((subListTitle) =>
+      buildWordListMetaTreeBranch(
+        wordListsMeta,
+        subListTitle,
+        filterForFocusLang,
+        branchVisited,
+        options,
+      ),
+    )
+    .filter((child): child is WordListTreeNode => {
+      if (!child) return false;
+      if (filterForFocusLang === "_ANY") return true;
+      return (
+        child.meta.type !== "LANG_SPECIFIC" ||
+        child.meta.lang === filterForFocusLang
+      );
+    });
+
+  return { meta, ...(children?.length ? { children } : {}) };
+}
+
+export function getListPksInWordListsMetaTree(
+  root: WordListTreeNode,
+  visited = new Set<string>(),
+): string[] {
+  if (visited.has(root.meta.title)) return [];
+  visited.add(root.meta.title);
+  return [
+    root.meta.title,
+    ...(root.children?.flatMap((child) =>
+      getListPksInWordListsMetaTree(child, visited),
+    ) ?? []),
+  ];
+}
+
 // Table: cache_word_list_l10n_words (emphasis on "L10N")
 export type SBCacheWordListL10nWordsRow = {
   lang: string;
@@ -153,6 +253,42 @@ export async function loadSBCacheWordListsForLang(
 
   cacheWordListPromisesByLang.set(lang, dataPromise);
   return dataPromise;
+}
+
+/**
+ * Retrieves every localized word from the requested word lists and all of
+ * their descendants.
+ *
+ * Returned words are deduplicated while retaining their original casing.
+ */
+export async function getDescendantL10nsOfWordLists(
+  wordListPks: string[],
+  focusLang: string,
+  {
+    supabaseClient,
+  }: {
+    supabaseClient?: SupabaseWordListsClient | undefined;
+  } = {},
+): Promise<string[]> {
+  const wordListsMeta = await loadWordListMetaData({ supabaseClient });
+  const selectedTrees = wordListPks
+    .map((listPk) => buildWordListMetaTree(wordListsMeta, listPk, "_ANY"))
+    .filter((tree): tree is WordListTreeNode => tree !== null);
+
+  const selectedListPks = new Set(
+    selectedTrees.flatMap((tree) => getListPksInWordListsMetaTree(tree)),
+  );
+  const localizedRows = await loadSBCacheWordListsForLang(focusLang, {
+    supabaseClient,
+  });
+
+  return [
+    ...new Set(
+      localizedRows
+        .filter((row) => selectedListPks.has(row.list_title))
+        .flatMap((row) => row.l10n_words),
+    ),
+  ];
 }
 
 /**

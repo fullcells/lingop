@@ -3,8 +3,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 import {
+  buildWordListMetaTree,
+  getListPksInWordListsMetaTree,
+  segmentWordListTitle,
   type SupabaseWordListsClient,
   type WordListMeta,
+  type WordListTreeNode as CoreWordListTreeNode,
 } from "../../core/index.js";
 import { usePrebaked } from "../../prebake/react/index.js";
 import { useLingopClientDataOrCreate } from "./lingop-client-data-provider.js";
@@ -40,10 +44,8 @@ export type WordListsSelectorProps = {
   className?: string;
 };
 
-export type WordListTreeNode = {
-  meta: WordListMeta;
-  children?: WordListTreeNode[];
-};
+// Retain the existing UI export while the canonical tree type lives in core.
+export type WordListTreeNode = CoreWordListTreeNode;
 
 export type WordListVisualLeafNodeProps = {
   /** @deprecated Configure this once on LingopClientDataProvider instead. */
@@ -65,62 +67,6 @@ type SeenAndTotalWordsStat = { seen: number; total: number };
 
 function joinClassNames(...values: Array<string | false | undefined>): string {
   return values.filter(Boolean).join(" ");
-}
-
-function segmentWordListTitle(wordListTitle: string): {
-  titleLabel: string;
-  titleCounter: number | null;
-} {
-  const segments = wordListTitle.split("#");
-  const titleLabel = (segments[0] ?? "").replaceAll("_", " ").trim();
-  const titleCounter = segments[1] ? Number(segments[1]) : null;
-  return { titleLabel, titleCounter };
-  // H: Future: This may get elaborated on further (e.g. with parenthesis
-  // removal, splitting further by ":", etc.).
-}
-
-function buildWordListMetaTree(
-  wordListsMeta: WordListMeta[],
-  listTitle: string,
-  focusLang: string,
-  visited = new Set<string>(),
-): WordListTreeNode | null {
-  const meta = wordListsMeta.find((list) => list.title === listTitle);
-  if (!meta) {
-    console.warn(`List ${listTitle} not found in wordListsMeta.`);
-    return null;
-  }
-  if (visited.has(listTitle)) {
-    console.error(`> Infinite loop detected at: ${listTitle}`);
-    return null;
-  }
-
-  // Pass a copy so the same list can legitimately occur in sibling branches.
-  const branchVisited = new Set(visited).add(listTitle);
-  const children = meta.sublists
-    ?.map((subListTitle) =>
-      buildWordListMetaTree(wordListsMeta, subListTitle, focusLang, branchVisited),
-    )
-    .filter((child): child is WordListTreeNode => {
-      if (!child) return false;
-      return child.meta.type !== "LANG_SPECIFIC" || child.meta.lang === focusLang;
-    });
-
-  return { meta, ...(children?.length ? { children } : {}) };
-}
-
-function getListPksInWordListsMetaTree(
-  root: WordListTreeNode,
-  visited = new Set<string>(),
-): string[] {
-  if (visited.has(root.meta.title)) return [];
-  visited.add(root.meta.title);
-  return [
-    root.meta.title,
-    ...(root.children?.flatMap((child) =>
-      getListPksInWordListsMetaTree(child, visited),
-    ) ?? []),
-  ];
 }
 
 function wordListHref(basePath: string, title: string): string {
