@@ -2,19 +2,14 @@
 
 import React, {
   useCallback,
-  useEffect,
-  useRef,
   useState,
   type MouseEvent,
   type ReactNode,
 } from "react";
-import { createPortal } from "react-dom";
 
+import { useOAT } from "../../oat/react/index.js";
+import { AnchoredPopover } from "./anchored-popover.js";
 import { L10nWordDetailContent } from "./l10n-word-detail-content.js";
-import {
-  getAnchoredPopoverPosition,
-  type PopoverPosition,
-} from "./l10n-word-detail-popover-utils.js";
 import type {
   L10nWordDetailData,
   L10nWordDetailHandler,
@@ -39,49 +34,37 @@ export type L10nWordDetailPopoverHandle = {
   l10nWordDetailData: L10nWordDetailData | null;
 };
 
-/**
- * Lightweight, framework-independent presentation for Lingop word details.
- * The fixed portal avoids clipping inside scroll containers and animated
- * page-like settings panels; consumers only pass their narrow language inputs.
- */
+/** Word-details state and content composed over the shared anchored popover. */
 export function useL10nWordDetailPopover({
   guiLang,
   focusLang,
   className,
   offset = 8,
 }: UseL10nWordDetailPopoverOptions): L10nWordDetailPopoverHandle {
-  const anchorRef = useRef<HTMLElement | null>(null);
-  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const { OAT } = useOAT();
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [open, setOpen] = useState(false);
   const [l10nWordDetailData, setL10nWordDetailData] =
     useState<L10nWordDetailData | null>(null);
-  const [position, setPosition] = useState<PopoverPosition | null>(null);
 
   const closeL10nWordDetail = useCallback(() => {
     setOpen(false);
-    setPosition(null);
   }, []);
-
-  const updatePosition = useCallback(() => {
-    const anchor = anchorRef.current;
-    const popover = popoverRef.current;
-    if (!anchor || !popover || typeof window === "undefined") return;
-    setPosition(
-      getAnchoredPopoverPosition({
-        anchor: anchor.getBoundingClientRect(),
-        popover: popover.getBoundingClientRect(),
-        viewportWidth: window.innerWidth,
-        viewportHeight: window.innerHeight,
-        offset,
-      }),
-    );
-  }, [offset]);
 
   const openL10nWordDetail = useCallback(
     (data: L10nWordDetailData, event?: MouseEvent<HTMLElement>) => {
-      if (event) anchorRef.current = event.currentTarget;
+      const nextAnchor =
+        event?.currentTarget ??
+        (typeof document !== "undefined" &&
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null);
+      if (!nextAnchor) {
+        console.warn("Could not open word details without an anchor element.");
+        return;
+      }
+      setAnchor(nextAnchor);
       setL10nWordDetailData(data);
-      setPosition(null);
       setOpen(true);
     },
     [],
@@ -93,11 +76,11 @@ export function useL10nWordDetailPopover({
       if (!l10nWord) return;
 
       const tappedAnchor = event.currentTarget;
-      if (open && anchorRef.current === tappedAnchor) {
+      if (open && anchor === tappedAnchor) {
         closeL10nWordDetail();
         return;
       }
-      anchorRef.current = tappedAnchor;
+      setAnchor(tappedAnchor);
       setL10nWordDetailData({
         l10nWord,
         l10nLang: l10nAText.lang,
@@ -105,86 +88,46 @@ export function useL10nWordDetailPopover({
         l10nATextTokenIdx,
         wordSubMorphemes,
       });
-      setPosition(null);
       setOpen(true);
     },
-    [closeL10nWordDetail, open],
+    [anchor, closeL10nWordDetail, open],
   );
 
-  useEffect(() => {
-    if (!open) return;
-    const frame = window.requestAnimationFrame(updatePosition);
-    const reposition = () => updatePosition();
-    const dismissOnPointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (
-        popoverRef.current?.contains(target) ||
-        anchorRef.current?.contains(target)
-      ) {
-        return;
-      }
-      closeL10nWordDetail();
-    };
-    const dismissOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      closeL10nWordDetail();
-      anchorRef.current?.focus();
-    };
-
-    window.addEventListener("resize", reposition);
-    window.addEventListener("scroll", reposition, true);
-    document.addEventListener("pointerdown", dismissOnPointerDown);
-    document.addEventListener("keydown", dismissOnEscape);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", reposition);
-      window.removeEventListener("scroll", reposition, true);
-      document.removeEventListener("pointerdown", dismissOnPointerDown);
-      document.removeEventListener("keydown", dismissOnEscape);
-    };
-  }, [closeL10nWordDetail, open, updatePosition]);
-
   const PopoverComponent =
-    open && l10nWordDetailData && typeof document !== "undefined"
-      ? createPortal(
-          <div
-            ref={popoverRef}
-            className={[
-              "lingop-word-detail-popover",
-              className,
-            ].filter(Boolean).join(" ")}
-            role="dialog"
-            aria-label="Word details"
-            style={{
-              left: position?.left ?? 0,
-              top: position?.top ?? 0,
-              visibility: position ? "visible" : "hidden",
-            }}
-          >
-            <button
-              type="button"
-              className="lingop-word-detail-popover__close"
-              aria-label="Close"
-              onClick={() => {
-                closeL10nWordDetail();
-                anchorRef.current?.focus();
-              }}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M18 6 6 18M6 6l12 12" />
-              </svg>
-            </button>
-            <L10nWordDetailContent
-              l10nWordDetailData={l10nWordDetailData}
-              guiLang={guiLang}
-              {...(focusLang ? { focusLang } : {})}
-              onClose={closeL10nWordDetail}
-            />
-          </div>,
-          document.body,
-        )
-      : null;
+    l10nWordDetailData ? (
+      <AnchoredPopover
+        anchor={anchor}
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) closeL10nWordDetail();
+        }}
+        ariaLabel={OAT("Word details")}
+        className={[
+          "lingop-word-detail-popover",
+          className,
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        offset={offset}
+      >
+        <button
+          type="button"
+          className="lingop-word-detail-popover__close"
+          aria-label={OAT("Close")}
+          onClick={closeL10nWordDetail}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+        <L10nWordDetailContent
+          l10nWordDetailData={l10nWordDetailData}
+          guiLang={guiLang}
+          {...(focusLang ? { focusLang } : {})}
+          onClose={closeL10nWordDetail}
+        />
+      </AnchoredPopover>
+    ) : null;
 
   return {
     PopoverComponent,

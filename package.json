@@ -88,6 +88,14 @@
       "types": "./dist/ui/next/index.d.ts",
       "default": "./dist/ui/next/index.js"
     },
+    "./ui/next/anchored-popover": {
+      "types": "./dist/ui/next/anchored-popover.d.ts",
+      "default": "./dist/ui/next/anchored-popover.js"
+    },
+    "./ui/next/l10n-word-detail-popover": {
+      "types": "./dist/ui/next/l10n-word-detail-popover.d.ts",
+      "default": "./dist/ui/next/l10n-word-detail-popover.js"
+    },
     "./ui/next/annotated-text.css": "./src/ui/next/annotated-text.css",
     "./ui/next/camp-lingo-auth-form.css": "./src/ui/next/camp-lingo-auth-form.css",
     "./ui/next/l10n-word-detail-content.css": "./src/ui/next/l10n-word-detail-content.css",
@@ -143,6 +151,7 @@
     "@babel/parser": "^7.28.0",
     "@babel/traverse": "^7.28.0",
     "@dehoist/romanize-thai": "^1.0.0",
+    "@floating-ui/react": "^0.27.20",
     "arabic-transliterate": "^1.0.1",
     "aromanize": "^0.1.5",
     "chinese-conv": "^4.0.0",

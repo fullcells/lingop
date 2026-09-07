@@ -1,4 +1,5 @@
 export * from "../types.js";
+export * from "./anchored-popover.js";
 export * from "./cookies.js";
 export * from "./annotated-text.js";
 export * from "./camp-lingo-auth-form.js";

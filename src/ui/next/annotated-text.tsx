@@ -202,6 +202,13 @@ export type AnnotatedTextViewProps = {
 
 const visuallyEmpty = "\u00a0";
 
+// Keep the annotation rows visually distinct without depending on a
+// consumer's inherited line-height. These mirror the breathing room in the
+// original OmniAccess view while remaining proportional to ATV's small
+// default type sizes.
+const DEFAULT_TOKEN_GLOSS_GAP = "3px";
+const DEFAULT_GLOSS_LINE_GAP = "2px";
+
 const WORD_STREAK_LIMIT_FOR_AUTO_HINT = 3;
 
 const glossPlacementFlexDirections = {
@@ -994,13 +1001,10 @@ function TokenGlossView({
           ? "column-reverse"
           : "column",
         alignItems: "center",
+        gap: DEFAULT_GLOSS_LINE_GAP,
         minWidth: "max-content",
       }}
     >
-      {/* OmniAccess used small phonetic gaps plus 2px gloss padding and a
-          temporary 3px top pad. Lingop intentionally keeps its cleaner spacing
-          for now; those values remain documented here if exact parity becomes
-          necessary later. */}
       {/* GLOSS EMOJI */}
       {/* 20260223: ON_HINT visibility can currently be applied directly here. */}
       {(showGlossEmoji === "ALWAYS" ||
@@ -1674,12 +1678,27 @@ function LoadedAnnotatedTextViewComponent({
                         ? true
                         : undefined
                     }
+                    role={
+                      streakWordDetailHandler && isWordToken(token)
+                        ? "button"
+                        : undefined
+                    }
+                    tabIndex={
+                      streakWordDetailHandler && isWordToken(token)
+                        ? 0
+                        : undefined
+                    }
+                    aria-haspopup={
+                      streakWordDetailHandler && isWordToken(token)
+                        ? "dialog"
+                        : undefined
+                    }
                     style={{
                       display: "inline-flex",
                       flexDirection:
                         glossPlacementFlexDirections[astyle.glossPlacement],
                       alignItems: "center",
-                      justifyContent: "flex-end",
+                      gap: DEFAULT_TOKEN_GLOSS_GAP,
                       minWidth: "max-content",
                       paddingInline: tokenInlinePadding,
                       opacity,
@@ -1711,6 +1730,17 @@ function LoadedAnnotatedTextViewComponent({
                                 wordSubMorphemes,
                               );
                             }
+                          }
+                        : undefined
+                    }
+                    onKeyDown={
+                      streakWordDetailHandler && isWordToken(token)
+                        ? (event) => {
+                            if (event.key !== "Enter" && event.key !== " ") {
+                              return;
+                            }
+                            event.preventDefault();
+                            event.currentTarget.click();
                           }
                         : undefined
                     }

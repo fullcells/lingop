@@ -11,6 +11,7 @@ export const lingopOATSourceData: OATSourceData = {
       "Background Words",
       "Browser Voices",
       "Browser Voices load faster. Cloud Voices are usually higher quality.",
+      "Close",
       "Cloud Voices",
       "Could not load word details.",
       "Designed for English speakers",
@@ -56,6 +57,7 @@ export const lingopOATSourceData: OATSourceData = {
       "There is a small cat at my door. It wants to drink some water.",
       "Tone Numbers",
       "Visible",
+      "Word details",
       "Word Translations",
       "You can also tap on a word at any time to view its {LANGUAGE} translation."
     ]
