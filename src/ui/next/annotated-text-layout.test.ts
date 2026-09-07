@@ -7,17 +7,25 @@ import { AnnotatedTextView } from "./annotated-text.js";
 
 const annotatedText: AnnotatedText = {
   lang: "zh",
-  lang_text: "你好？",
+  lang_text: "你幾好？",
   tokens: [
     {
-      text: "你好",
+      text: "你",
       isWord: 1,
-      gloss: "hello",
-      glossEmoji: "👋",
-      phoneticToken: [
-        ["你", "nǐ"],
-        ["好", "hǎo"],
-      ],
+      gloss: null,
+      phoneticToken: [["你", "nǐ"]],
+    },
+    {
+      text: "幾",
+      isWord: 1,
+      gloss: "how many",
+      phoneticToken: [["幾", "jǐ"]],
+    },
+    {
+      text: "好",
+      isWord: 1,
+      gloss: null,
+      phoneticToken: [["好", "hǎo"]],
     },
     { text: "？", isWord: 0, gloss: null },
   ],
@@ -28,6 +36,19 @@ const annotatedText: AnnotatedText = {
 };
 
 describe("AnnotatedTextView row layout", () => {
+  it("top-aligns token groups when only one token displays annotation rows", () => {
+    const html = renderToStaticMarkup(
+      createElement(AnnotatedTextView, {
+        annotatedText,
+        showGlossEmoji: "NEVER",
+        showGlossText: "ALWAYS",
+      }),
+    );
+
+    expect(html).toContain("align-items:flex-start");
+    expect(html).not.toContain("align-items:flex-end");
+  });
+
   it("spaces the main, emoji, and gloss rows by default", () => {
     const html = renderToStaticMarkup(
       createElement(AnnotatedTextView, {

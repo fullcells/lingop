@@ -1608,7 +1608,10 @@ function LoadedAnnotatedTextViewComponent({
           flex: 1,
           flexWrap: "wrap",
           alignContent: "center",
-          alignItems: "flex-end",
+          // Hinting can add gloss rows to only one token. Align every token
+          // group from the top so their spelling and main-text rows do not
+          // move when a neighboring token expands downward.
+          alignItems: "flex-start",
           rowGap: "0.25em",
           lineHeight: 1.2,
           ...astyle.css,
