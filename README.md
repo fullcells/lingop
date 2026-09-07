@@ -610,9 +610,10 @@ import "lingop/ui/next/l10n-word-detail-popover.css";
 />
 ```
 
-The component retains the existing `CL_TRANSLATE_RECENT_A8NS` browser cache
-for compatibility with CL Translate. A future general bilingual view should
-separate rendering from this transient-annotation and persisted-cache policy.
+Lingop session-caches transient annotations through its shared client. A
+consumer that needs cross-session persistence can load its stored value into
+`preparedFocusA8n` and save newly generated values from `onAnnotated`; storage
+keys, migrations, and eviction policy deliberately remain consumer-owned.
 
 ## Spelling-system picker in Next.js
 

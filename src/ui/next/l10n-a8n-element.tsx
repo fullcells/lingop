@@ -37,9 +37,6 @@ const defaultStyleVals = {
   styleGlossColor: "#dc2626",
 };
 
-const LOCALSTORE_CL_TRANSLATE_RECENT_A8NS = "CL_TRANSLATE_RECENT_A8NS";
-const RECENT_A8NS_TOTAL_LIMIT = 50; // Across all languages
-
 type StatusMessage = {
   kind: "error" | "success";
   text: string;
@@ -61,50 +58,6 @@ export type L10nA8nElementProps = {
   className?: string;
   style?: CSSProperties;
 };
-
-function readRecentAnnotations(): AnnotatedText[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const value = JSON.parse(
-      window.localStorage.getItem(LOCALSTORE_CL_TRANSLATE_RECENT_A8NS) ?? "[]",
-    ) as unknown;
-    if (!Array.isArray(value)) return [];
-    return value as AnnotatedText[];
-  } catch {
-    return [];
-  }
-}
-
-function writeRecentAnnotations(annotations: AnnotatedText[]): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(
-      LOCALSTORE_CL_TRANSLATE_RECENT_A8NS,
-      JSON.stringify(annotations),
-    );
-  } catch {
-    // The in-memory Lingop client cache remains available when storage is not.
-  }
-}
-
-function updateLegacyPhoneticTokens(annotations: AnnotatedText[]): void {
-  // Compatibility for old CL Translate localStorage entries which used
-  // phoneticWord rather than phoneticToken. Keep this while those browser
-  // caches may still exist.
-  for (const annotation of annotations) {
-    for (const token of annotation.tokens ?? []) {
-      const legacyToken = token as typeof token & {
-        phoneticWord?: Array<{ chars: string; spelling?: string }>;
-      };
-      if (!legacyToken.phoneticToken && legacyToken.phoneticWord) {
-        legacyToken.phoneticToken = legacyToken.phoneticWord.map((part) =>
-          part.spelling ? [part.chars, part.spelling] : [part.chars],
-        );
-      }
-      delete legacyToken.phoneticWord;
-    }
-  }
-}
 
 function Icon({ name }: { name: "copy" | "feedback" | "image" | "play" }) {
   if (name === "play") {
@@ -133,9 +86,8 @@ function Icon({ name }: { name: "copy" | "feedback" | "image" | "play" }) {
  * Initially designed for the CL Translate site on 20251231.
  *
  * TODO(UI): Consider extracting a smaller reusable bilingual annotated-text
- * view (possibly BiTextView; name TBD). L10nA8nElement intentionally retains
- * CL Translate's transient-annotation and persisted recent-cache policy for
- * now; the reusable view should remain separate from that acquisition policy.
+ * view (possibly BiTextView; name TBD). Keep that view separate from transient
+ * annotation acquisition; persisted-cache policy belongs to the consumer.
  */
 export function L10nA8nElement({
   localization,
@@ -259,29 +211,14 @@ export function L10nA8nElement({
     const focusLangText = bilingualText.focusLangText;
 
     async function loadFocusLangA8n() {
-      // LOCAL STORAGE CHECK
       setStatus(null);
-      let allRecentA8ns = readRecentAnnotations();
-      updateLegacyPhoneticTokens(allRecentA8ns);
-      const matchingA8n = allRecentA8ns.find(
-        (atext) =>
-          atext.lang === focusLang && atext.lang_text === focusLangText,
-      );
-      if (matchingA8n) {
-        if (activeAnnotationRequestRef.current !== requestId) return;
-        setFocusA8n(matchingA8n);
-        setLoadingFocusA8n(false);
-        onAnnotatedRef.current?.(matchingA8n);
-        return;
-      }
-
       setFocusA8n(null);
       setLoadingFocusA8n(true);
       try {
         // Generate a transient annotation through Lingop. The shared client
         // owns backend selection, session-token forwarding, request
-        // deduplication, and its in-memory cache; this component retains CL
-        // Translate's persisted cache.
+        // deduplication, and its in-memory cache. Cross-session persistence is
+        // consumer policy, supplied through preparedFocusA8n/onAnnotated.
         const atext = await lingopClient.createTransientAnnotation({
           lang: focusLang,
           text: focusLangText,
@@ -291,14 +228,6 @@ export function L10nA8nElement({
           setStatus({ kind: "error", text: OAT("Annotation Error") });
           return;
         }
-
-        // Store in Local Storage up to the limit. Maintain the oldest item,
-        // because that is CL Translate's example annotation.
-        const last = allRecentA8ns[allRecentA8ns.length - 1];
-        allRecentA8ns = [atext, ...allRecentA8ns.slice(0, -1)];
-        if (last) allRecentA8ns.push(last);
-        allRecentA8ns = allRecentA8ns.slice(0, RECENT_A8NS_TOTAL_LIMIT);
-        writeRecentAnnotations(allRecentA8ns);
 
         // Set
         setFocusA8n(atext);
