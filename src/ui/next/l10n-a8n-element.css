@@ -1,0 +1,201 @@
+.lingop-l10n-a8n-element {
+  width: 100%;
+  color: #111827;
+  font-family: inherit;
+}
+
+.lingop-l10n-a8n-element__main {
+  display: flex;
+  width: 100%;
+  overflow: hidden;
+  flex-direction: column;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.lingop-l10n-a8n-element__main[data-source-content-is-gui-lang="false"] {
+  flex-direction: column-reverse;
+}
+
+.lingop-l10n-a8n-element__gui-text {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #4b5563;
+  font-size: 0.875rem;
+}
+
+.lingop-l10n-a8n-element__main[data-source-content-is-gui-lang="false"]
+  .lingop-l10n-a8n-element__gui-text {
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 0;
+}
+
+.lingop-l10n-a8n-element__focus-text {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 4px 8px 12px;
+}
+
+.lingop-l10n-a8n-element__controls {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 32px;
+  gap: 4px;
+}
+
+.lingop-l10n-a8n-element__control,
+.lingop-l10n-a8n-element__icon-control,
+.lingop-l10n-a8n-element__menu-item {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #6b7280;
+  font: inherit;
+  cursor: pointer;
+}
+
+.lingop-l10n-a8n-element__control {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+}
+
+.lingop-l10n-a8n-element__icon-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 4px;
+  border-radius: 6px;
+}
+
+.lingop-l10n-a8n-element__control:hover,
+.lingop-l10n-a8n-element__icon-control:hover,
+.lingop-l10n-a8n-element__menu-item:hover {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.lingop-l10n-a8n-element__control:focus-visible,
+.lingop-l10n-a8n-element__icon-control:focus-visible,
+.lingop-l10n-a8n-element__menu-item:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.lingop-l10n-a8n-element__control:disabled,
+.lingop-l10n-a8n-element__menu-item:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.lingop-l10n-a8n-element__control-gap {
+  flex: 1;
+}
+
+.lingop-l10n-a8n-element__feedback-icon {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.lingop-l10n-a8n-element__spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  box-sizing: border-box;
+  border: 2px solid #d1d5db;
+  border-top-color: #4b5563;
+  border-radius: 50%;
+  animation: lingop-l10n-a8n-element-spin 0.75s linear infinite;
+}
+
+@keyframes lingop-l10n-a8n-element-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.lingop-l10n-a8n-element__menu {
+  position: relative;
+}
+
+.lingop-l10n-a8n-element__menu > summary {
+  list-style: none;
+}
+
+.lingop-l10n-a8n-element__menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.lingop-l10n-a8n-element__menu-content {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  right: 0;
+  display: flex;
+  width: max-content;
+  min-width: 190px;
+  max-width: min(320px, 90vw);
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgb(0 0 0 / 14%);
+}
+
+.lingop-l10n-a8n-element__menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 5px;
+  text-align: left;
+}
+
+.lingop-l10n-a8n-element__menu-separator {
+  height: 1px;
+  margin: 4px;
+  background: #e5e7eb;
+}
+
+.lingop-l10n-a8n-element__menu-label {
+  padding: 4px 8px 2px;
+  color: #6b7280;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.lingop-l10n-a8n-element__status {
+  padding: 2px 8px;
+  font-size: 0.75rem;
+}
+
+.lingop-l10n-a8n-element__status--success {
+  color: #047857;
+}
+
+.lingop-l10n-a8n-element__status--error {
+  color: #b91c1c;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lingop-l10n-a8n-element__spinner {
+    animation-duration: 1.5s;
+  }
+}

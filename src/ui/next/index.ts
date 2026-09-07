@@ -12,6 +12,7 @@ export {
 export * from "./l10n-word-detail-content.js";
 export * from "./l10n-word-detail-popover.js";
 export * from "./l10n-word-detail-types.js";
+export * from "./l10n-a8n-element.js";
 export * from "./speech-synth-tts.js";
 export * from "./speech-synth-lang-voice-picker.js";
 export * from "./settings-voices-n-annotations.js";

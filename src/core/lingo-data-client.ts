@@ -152,9 +152,6 @@ export type LingoDataClient = {
     lang: string;
     text: string;
   }): Promise<AnnotatedText | null>;
-  // TODO(UI): When revisiting OmniAccess's L10nA8nElement, consider a reusable
-  // Lingop bilingual annotated-text component (possibly BiTextView; name TBD).
-  // Keep that view separate from this transient-annotation acquisition policy.
   /** Rebuilds owner-scoped annotation data and refreshes the annotation cache. */
   reGenOwnerAnnotation(
     input: { localization: Localization; skipDeletionOfExisting?: boolean },

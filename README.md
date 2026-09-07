@@ -586,6 +586,34 @@ Consumers can override its font stacks with CSS custom properties:
 }
 ```
 
+## Bilingual annotated text in Next.js
+
+`L10nA8nElement` renders a localization and its source text together, annotates
+whichever side is the focus language, and owns its annotation, speech, copy,
+image-download, word-detail, and feedback controls. It requires
+`LingopClientDataProvider`, `OATDataProvider`, and
+`UserLingoPrefsDataProvider` above it:
+
+```tsx
+import { L10nA8nElement } from "lingop/ui/next";
+import "lingop/ui/next/annotated-text.css";
+import "lingop/ui/next/l10n-a8n-element.css";
+import "lingop/ui/next/l10n-word-detail-content.css";
+import "lingop/ui/next/l10n-word-detail-popover.css";
+
+<L10nA8nElement
+  localization={localization}
+  guiLang={guiLang}
+  focusLang={focusLang}
+  showGuiLangText
+  contentContext="LIMITED_TEMP_ANON"
+/>
+```
+
+The component retains the existing `CL_TRANSLATE_RECENT_A8NS` browser cache
+for compatibility with CL Translate. A future general bilingual view should
+separate rendering from this transient-annotation and persisted-cache policy.
+
 ## Spelling-system picker in Next.js
 
 `SpellingSystemPicker` is the reusable picker content without a dialog or
@@ -666,6 +694,7 @@ For `MEMBER_CONTENT`, pass the app's Supabase client: `speak({ ..., contentConte
 - `src/core/word-lists.ts` loads public Supabase word-list source and localization rows through shared module caches.
 - `src/ui/next/cookies.ts` contains browser cookie helpers separated from platform-neutral core utilities.
 - `src/ui/next/annotated-text-image.ts` lazily loads `html2canvas` for the annotated-text ref's image-data and download methods.
+- `src/ui/next/l10n-a8n-element.tsx` contains the interactive bilingual localization-and-annotation component originally designed for CL Translate.
 - `src/ui/next/spelling-system-picker.tsx` contains the dialog-agnostic full and compact spelling-system pickers. Consumers own dialog presentation and lifecycle.
 - `src/ui/next/speech-synth-tts.ts` contains browser/Next speech synthesis helpers exported from `lingop/ui/next`.
 - `src/ui/next/user-word-streaks.tsx` contains the Next user-word-streaks provider and hook exported from `lingop/ui/next`.
