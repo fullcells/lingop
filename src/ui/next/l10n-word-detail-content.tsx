@@ -141,12 +141,28 @@ export function useL10nWordDetail({
           l10nWordToken.text.toUpperCase()
         ] ?? null)
       : null;
+  const wordStreaksForLang = l10nWordAnnotatedText
+    ? wordStreaksData?.userWordStreaks[l10nWordAnnotatedText.lang]
+    : undefined;
   const [sbWordGloss, setSBWordGloss] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!l10nWordAnnotatedText?.lang || !wordStreaksData) return;
+    if (
+      !l10nWordAnnotatedText?.lang ||
+      !wordStreaksData ||
+      wordStreaksForLang !== undefined
+    ) {
+      return;
+    }
+    // Word-detail bodies remount each time their popover opens. Only initialize
+    // a missing language: re-ensuring an existing one can replay an older
+    // server snapshot over optimistic "Learnt" changes made by the prior body.
     void wordStreaksData.ensureUserWordStreaksForLang(l10nWordAnnotatedText.lang);
-  }, [l10nWordAnnotatedText?.lang, wordStreaksData?.ensureUserWordStreaksForLang]);
+  }, [
+    l10nWordAnnotatedText?.lang,
+    wordStreaksData?.ensureUserWordStreaksForLang,
+    wordStreaksForLang,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
