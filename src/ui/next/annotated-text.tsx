@@ -1608,9 +1608,10 @@ function LoadedAnnotatedTextViewComponent({
           flex: 1,
           flexWrap: "wrap",
           alignContent: "center",
-          // Hinting can add gloss rows to only one token. Align every token
-          // group from the top so their spelling and main-text rows do not
-          // move when a neighboring token expands downward.
+          // Hinting can add gloss rows to only one token. Keep top alignment
+          // as the row default so spelling and main-text content does not move
+          // when a neighboring token expands downward; token groups stretch
+          // their hit areas independently below.
           alignItems: "flex-start",
           rowGap: "0.25em",
           lineHeight: 1.2,
@@ -1623,7 +1624,15 @@ function LoadedAnnotatedTextViewComponent({
             <div
               key={`${groupIndex}-${tokenGroup[0]?.index ?? 0}`}
               className="token-group"
-              style={{ display: "inline-flex" }}
+              style={{
+                display: "inline-flex",
+                // A neighboring token can add gloss rows that make this flex
+                // line taller. Fill that height so every word's hover/tap
+                // target includes the corresponding blank rows, while its
+                // visible spelling and main-text content remains at the top.
+                alignSelf: "stretch",
+                alignItems: "stretch",
+              }}
             >
               {tokenGroup.map(({ token: unstrippedToken, index }) => {
                 const token = stripDisambiguatorFromToken(unstrippedToken);

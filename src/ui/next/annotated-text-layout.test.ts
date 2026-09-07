@@ -36,7 +36,7 @@ const annotatedText: AnnotatedText = {
 };
 
 describe("AnnotatedTextView row layout", () => {
-  it("top-aligns token groups when only one token displays annotation rows", () => {
+  it("top-aligns token content while filling the annotated row's hit area", () => {
     const html = renderToStaticMarkup(
       createElement(AnnotatedTextView, {
         annotatedText,
@@ -46,6 +46,8 @@ describe("AnnotatedTextView row layout", () => {
     );
 
     expect(html).toContain("align-items:flex-start");
+    expect(html).toContain("align-self:stretch");
+    expect(html).toContain("align-items:stretch");
     expect(html).not.toContain("align-items:flex-end");
   });
 
