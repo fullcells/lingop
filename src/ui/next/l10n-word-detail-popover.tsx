@@ -109,23 +109,20 @@ export function useL10nWordDetailPopover({
           .filter(Boolean)
           .join(" ")}
         offset={offset}
+        showArrow
+        arrowClassName="lingop-word-detail-popover__arrow"
+        transitionDuration={{ open: 140, close: 110 }}
       >
-        <button
-          type="button"
-          className="lingop-word-detail-popover__close"
-          aria-label={OAT("Close")}
-          onClick={closeL10nWordDetail}
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
-        </button>
-        <L10nWordDetailContent
-          l10nWordDetailData={l10nWordDetailData}
-          guiLang={guiLang}
-          {...(focusLang ? { focusLang } : {})}
-          onClose={closeL10nWordDetail}
-        />
+        <div className="lingop-word-detail-popover__panel">
+          <L10nWordDetailContent
+            l10nWordDetailData={l10nWordDetailData}
+            guiLang={guiLang}
+            {...(focusLang ? { focusLang } : {})}
+            // Keep the body-to-shell close path for actions such as "Learnt";
+            // the popover itself no longer needs a permanently visible X.
+            onClose={closeL10nWordDetail}
+          />
+        </div>
       </AnchoredPopover>
     ) : null;
 

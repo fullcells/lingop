@@ -10,7 +10,9 @@
 .lingop-word-detail *, .lingop-word-detail *::before, .lingop-word-detail *::after { box-sizing: border-box; }
 .lingop-word-detail__word { font-size: 2rem; line-height: 1.2; }
 .lingop-word-detail__annotated-text { display: flex; flex-direction: column; align-items: flex-start; width: 100%; }
-.lingop-word-detail__glosses { margin: 0.25rem 0 0; padding-left: 1.25rem; }
+/* Restore semantic list presentation after host resets such as Chakra UI's. */
+.lingop-word-detail__glosses { margin: 0.25rem 0 0; padding-left: 1.25rem; list-style: disc outside; }
+.lingop-word-detail__glosses > li { display: list-item; }
 .lingop-word-detail__morphemes { display: flex; flex-direction: column; align-items: flex-start; gap: 1rem; padding-block: 1rem; }
 .lingop-word-detail__alternate-script { display: flex; align-items: flex-start; gap: 0.25rem; width: 100%; padding-block: 0.5rem; border-top: 1px solid rgb(0 0 0 / 18%); font-size: 0.875rem; }
 .lingop-word-detail__alternate-script-text { font-size: 1.25rem; line-height: 1.25; }

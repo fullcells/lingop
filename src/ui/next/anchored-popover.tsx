@@ -3,12 +3,15 @@
 import React, {
   useEffect,
   useId,
+  useRef,
   type CSSProperties,
   type ReactNode,
 } from "react";
 import {
+  arrow as floatingArrow,
   autoUpdate,
   flip,
+  FloatingArrow,
   FloatingFocusManager,
   FloatingPortal,
   hide,
@@ -19,6 +22,7 @@ import {
   useFloating,
   useInteractions,
   useRole,
+  useTransitionStyles,
   type Placement,
 } from "@floating-ui/react";
 
@@ -36,12 +40,16 @@ export type AnchoredPopoverProps = {
   viewportPadding?: number;
   modal?: boolean;
   manageFocus?: boolean;
+  showArrow?: boolean;
+  arrowClassName?: string;
+  transitionDuration?: number | { open: number; close: number };
 };
 
 /**
  * Shared, unstyled shell for interactive content anchored to a DOM element.
  * Consumers own the trigger and presentation; this component owns collision-
- * aware positioning, portal rendering, dismissal, and focus management.
+ * aware positioning, portal rendering, dismissal, focus management, and any
+ * explicitly enabled arrow or transition behavior.
  */
 export function AnchoredPopover({
   anchor,
@@ -57,8 +65,12 @@ export function AnchoredPopover({
   viewportPadding = 8,
   modal = false,
   manageFocus = true,
+  showArrow = false,
+  arrowClassName,
+  transitionDuration = 0,
 }: AnchoredPopoverProps): ReactNode {
   const floatingId = useId();
+  const arrowRef = useRef<SVGSVGElement>(null);
   const { context, floatingStyles, isPositioned, middlewareData, refs } =
     useFloating({
       elements: { reference: anchor },
@@ -66,6 +78,7 @@ export function AnchoredPopover({
         floatingOffset(offset),
         flip({ padding: viewportPadding }),
         shift({ padding: viewportPadding }),
+        ...(showArrow ? [floatingArrow({ element: arrowRef })] : []),
         size({
           padding: viewportPadding,
           apply({ availableHeight, availableWidth, elements }) {
@@ -84,6 +97,12 @@ export function AnchoredPopover({
   const dismiss = useDismiss(context, { outsidePressEvent: "pointerdown" });
   const role = useRole(context, { role: "dialog" });
   const { getFloatingProps } = useInteractions([dismiss, role]);
+  const { isMounted, styles: transitionStyles } = useTransitionStyles(context, {
+    duration: transitionDuration,
+    initial: { opacity: 0 },
+    open: { opacity: 1 },
+    close: { opacity: 0 },
+  });
 
   // The anchor can live deep inside a consumer-owned component, so it cannot
   // receive Floating UI's React prop getter directly. Keep the essential ARIA
@@ -103,7 +122,9 @@ export function AnchoredPopover({
     };
   }, [anchor, floatingId, open]);
 
-  if (!open || !anchor) return null;
+  // Keep the portal mounted for the closing duration; the popover's data and
+  // anchor intentionally remain available while the fade completes.
+  if (!isMounted || !anchor) return null;
 
   const floatingElement = (
     <div
@@ -117,12 +138,20 @@ export function AnchoredPopover({
       style={{
         ...style,
         ...floatingStyles,
+        ...transitionStyles,
         visibility:
           isPositioned && !middlewareData.hide?.referenceHidden
             ? "visible"
             : "hidden",
       }}
     >
+      {showArrow && (
+        <FloatingArrow
+          ref={arrowRef}
+          context={context}
+          className={arrowClassName}
+        />
+      )}
       {children}
     </div>
   );

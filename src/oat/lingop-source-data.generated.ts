@@ -12,7 +12,6 @@ export const lingopOATSourceData: OATSourceData = {
       "Background Words",
       "Browser Voices",
       "Browser Voices load faster. Cloud Voices are usually higher quality.",
-      "Close",
       "Cloud Voices",
       "Copied",
       "Copy",
