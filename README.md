@@ -443,6 +443,63 @@ import "lingop/ui/next/annotated-text.css";
 <AnnotatedTextView annotatedText={annotatedText} />;
 ```
 
+## Bilingual UI in Phaser
+
+`lingop/ui/phaser` provides renderer-native Phaser components; it does not use
+HTML or a DOM overlay. Phaser is an optional peer dependency, so importing
+Lingop's core, Next.js, or React Native entry points does not load Phaser.
+
+```ts
+import {
+  PhaserBilingualButton,
+  PhaserFocusSpeechController,
+  formatLingopLanguagePair,
+} from "lingop/ui/phaser";
+
+const speech = new PhaserFocusSpeechController(scene, {
+  speak: (text) => speechSynthTTS.speak({
+    text,
+    lang: focusLang,
+    apiVoiceAccessProfile: "NONE",
+  }),
+});
+
+new PhaserBilingualButton(scene, 400, 300, {
+  width: 360,
+  height: 68,
+  content: {
+    gui: { lang: guiLang, text: "Languages" },
+    focus: {
+      lang: focusLang,
+      text: focusLanguageText,
+      annotatedText: focusLanguageAnnotation,
+    },
+    suffix: `: ${formatLingopLanguagePair(guiLang, focusLang)}`,
+  },
+  speechHost: speech,
+  icon: { texture: "tabler-language", size: 24 },
+  onPress: openLanguages,
+});
+```
+
+The Phaser surface includes:
+
+- `PhaserAnnotatedText` for furigana, Jyutping, token-aware wrapping, and crisp
+  high-DPI text;
+- `PhaserBilingualLabel` for consistently aligned horizontal and vertical
+  GUI/focus-language labels;
+- `PhaserBilingualButton` for icons, selected and disabled states, and toggle
+  controls;
+- `bindPhaserFocusSpeech` and `PhaserFocusSpeechController` for hover, tap, and
+  keyboard-driven speech behavior;
+- `PhaserSpeechHint` for the animated screen-level shortcut and active speech
+  display;
+- `sharpenPhaserSceneText` and `formatLingopLanguagePair` utilities.
+
+Applications provide their own translations, `AnnotatedText` values, icon
+textures, colors, and TTS function. This keeps game content and visual identity
+outside the shared renderer.
+
 The ATV stylesheet includes its LS Jyutping, Noto Sans JP, and Linja Laso font
 assets, so consumers do not need to copy OmniAccess's `/public/fonts` files.
 OmniAccess's approximately 24 MB `NotoColorEmoji-Regular.ttf` is deliberately
