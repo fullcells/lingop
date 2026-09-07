@@ -1,5 +1,7 @@
 import {
   ilike,
+  isReferenceDB,
+  isReferenceFile,
   isSourceContentDefinitelyPublic,
   type Localization,
   type SourceContent,
@@ -122,7 +124,7 @@ function translationMatchesSource({
 
   if (isRefDbId) {
     const translationRef = translation.ref?.db;
-    const sourceRef = "db" in ref ? ref.db : undefined;
+    const sourceRef = isReferenceDB(ref) ? ref.db : undefined;
 
     if (
       translationRef?.id !== sourceRef?.id ||
@@ -244,8 +246,12 @@ async function _fetchLocalization2({
   }
 
   // 1. Check ref validity.
-  const isRefDbId = "db" in ref && !!(ref.db.id && ref.db.table && ref.db.column);
-  const isRefFile = "file" in ref && !!ref.file;
+  const dbRef = isReferenceDB(ref) && ref.db.id && ref.db.table && ref.db.column
+    ? ref
+    : null;
+  const fileRef = isReferenceFile(ref) && ref.file ? ref : null;
+  const isRefDbId = dbRef !== null;
+  const isRefFile = fileRef !== null;
 
   if (!isRefDbId && !isRefFile) {
     console.warn("No valid ref found in sourceContent", sourceContent);
@@ -282,8 +288,8 @@ async function _fetchLocalization2({
     }
 
     // TODO: merge db and file approaches, using public-data-host for owner_id where isRefFile.
-    if (isRefDbId) {
-      const { db } = ref;
+    if (dbRef) {
+      const { db } = dbRef;
       const { data, error } = await callSBSelectTranslationsByRef({
         supabaseClient: runtimeSupabaseClient,
         owner_id,

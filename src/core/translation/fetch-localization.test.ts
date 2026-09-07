@@ -85,6 +85,44 @@ function makeSupabaseClient(
 }
 
 describe("utilsFetchLocalization", () => {
+  it("returns source text for a same-language localization without a reference", async () => {
+    const sourceContent: SourceContent = {
+      owner_id: null,
+      lang: "en",
+      text: "temporary source",
+      ref: null,
+    };
+
+    await expect(
+      utilsFetchLocalization({
+        l10n_lang: "EN",
+        sourceContent,
+        translationsCache: makeCache(),
+      }),
+    ).resolves.toEqual({
+      text: sourceContent.text,
+      l10n_lang: "EN",
+      sourceContent,
+    });
+  });
+
+  it("returns null for a cross-language localization without a reference", async () => {
+    const sourceContent: SourceContent = {
+      owner_id: null,
+      lang: "en",
+      text: "temporary source",
+      ref: null,
+    };
+
+    await expect(
+      utilsFetchLocalization({
+        l10n_lang: "th",
+        sourceContent,
+        translationsCache: makeCache(),
+      }),
+    ).resolves.toBeNull();
+  });
+
   it("returns source text when target language matches source language", async () => {
     const sourceContent = makeDbSourceContent();
 

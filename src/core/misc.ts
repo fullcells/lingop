@@ -1,7 +1,11 @@
 import type { AnnotatedToken } from "./annotation/types.js";
 import { getLangName } from "./language/utils.js";
 import type { TranslationRow } from "./translation/types.js";
-import type { ContentReference } from "./content-reference.js";
+import {
+  isReferenceDB,
+  isReferenceFile,
+  type ContentReference,
+} from "./content-reference.js";
 import { ilike } from "../utils/string.js";
 
 // NOTE: Some of these functions should more appropriately sit in `lingop/utils/string`, but are included here for compatibility with existing consumers of `core/misc` that expect them to be present for now. New code should import from `lingop/utils/string` instead of `core/misc`.
@@ -21,12 +25,13 @@ export type {
   ReferenceDB,
   ReferenceFile,
 } from "./content-reference.js";
+export { isReferenceDB, isReferenceFile } from "./content-reference.js";
 
 export type BaseContent = {
   owner_id: string | null;
   lang: string;
   text: string;
-  ref: ContentReference;
+  ref: ContentReference | null;
 };
 
 export type SourceContent = BaseContent;
@@ -239,7 +244,9 @@ export function contentRefFromLocalization(
 ): ContentReference | null {
   if (!l10n) return null;
   if (l10n.translationRow) {
-    const sourceDbRef = "db" in l10n.sourceContent.ref ? l10n.sourceContent.ref.db : null;
+    const sourceDbRef = isReferenceDB(l10n.sourceContent.ref)
+      ? l10n.sourceContent.ref.db
+      : null;
     return {
       db: {
         table: "translations",
@@ -427,11 +434,11 @@ export function isJsonDeepEqual(a: unknown, b: unknown): boolean {
 }
 
 export function isSourceContentDefinitelyPublic(sourceContent: SourceContent): boolean {
-  if ("file" in sourceContent.ref) {
+  if (isReferenceFile(sourceContent.ref)) {
     return true;
   }
   if (
-    "db" in sourceContent.ref &&
+    isReferenceDB(sourceContent.ref) &&
     ["word_explicitations", "words", "homographs"].includes(sourceContent.ref.db.table)
   ) {
     return true;

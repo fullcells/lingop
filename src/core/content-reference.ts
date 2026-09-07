@@ -17,3 +17,15 @@ export type ReferenceFile = {
 };
 
 export type ContentReference = ReferenceDB | ReferenceFile;
+
+export function isReferenceDB(
+  ref: ContentReference | null | undefined,
+): ref is ReferenceDB {
+  return ref !== null && ref !== undefined && "db" in ref;
+}
+
+export function isReferenceFile(
+  ref: ContentReference | null | undefined,
+): ref is ReferenceFile {
+  return ref !== null && ref !== undefined && "file" in ref;
+}

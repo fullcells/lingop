@@ -126,9 +126,44 @@ describe("misc utilities", () => {
         },
       }),
     ).toEqual({ file: "lingodex" });
+
+    expect(
+      contentRefFromLocalization({
+        text: "temporary translation",
+        l10n_lang: "th",
+        sourceContent: {
+          owner_id: null,
+          lang: "en",
+          text: "temporary source",
+          ref: null,
+        },
+      }),
+    ).toBeNull();
+
+    expect(
+      contentRefFromLocalization({
+        text: "temporary translation",
+        translationRow: { id: 44 },
+        l10n_lang: "th",
+        sourceContent: {
+          owner_id: null,
+          lang: "en",
+          text: "temporary source",
+          ref: null,
+        },
+      }),
+    ).toEqual({ db: { table: "translations", column: "target_text", id: 44 } });
   });
 
   it("detects definitely public source content", () => {
+    expect(
+      isSourceContentDefinitelyPublic({
+        owner_id: null,
+        lang: "en",
+        text: "temporary",
+        ref: null,
+      }),
+    ).toBe(false);
     expect(
       isSourceContentDefinitelyPublic({
         owner_id: null,

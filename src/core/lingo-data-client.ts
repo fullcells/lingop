@@ -2,6 +2,7 @@ import { getBEApiBaseUrl } from "./backend-api.js";
 import {
   contentRefFromLocalization,
   isJsonDeepEqual,
+  isReferenceDB,
   type Localization,
   type SourceContent,
 } from "./misc.js";
@@ -250,7 +251,7 @@ const enabledSubProdLookupRecent = new Map<
 const enabledSubProdLookupRecentMs = 5_000;
 
 function hasDbRefId(ref: Localization["sourceContent"]["ref"]): boolean {
-  return "db" in ref && ref.db.id != null;
+  return isReferenceDB(ref) && ref.db.id != null;
 }
 
 function errorMessage(error: unknown): string {
