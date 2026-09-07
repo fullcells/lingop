@@ -255,8 +255,7 @@ Release tags follow the package version in `package.json`, so `0.3.X` is publish
 ## To Tag a New Version
 
 - Commit and push everything first
-- `git tag -a v0.3.X -m "Release v0.3.X"`
-- `git push origin v0.3.X`
+- `VERSION=v0.7.XX; git tag -a "$VERSION" -m "Release $VERSION" && git push origin "$VERSION"`
 
 ## Lingo Data Usage
 
