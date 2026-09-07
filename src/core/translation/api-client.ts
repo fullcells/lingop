@@ -42,7 +42,7 @@ export type CallTranslateCreateLimitedAnonInput = {
   source_lang: string;
   source_text: string;
   target_lang: string;
-  accessToken: string;
+  accessToken?: string;
   useStagingBackend?: boolean;
   fetchImpl?: TranslateFetch;
 };
@@ -226,7 +226,7 @@ export async function callTranslateCreateLimitedAnon({
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
     body: JSON.stringify({
       source_lang,

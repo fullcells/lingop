@@ -121,6 +121,8 @@ export type LingoDataClient = {
   readonly enabledSubProd: string | null | undefined;
   /** Reloads users_info.enabled_sub_prod for the current Supabase user. */
   refreshEnabledSubProd(): Promise<string | null>;
+  /** Subscribes to authentication or entitlement changes on this client. */
+  subscribeAuthState(listener: () => void): () => void;
   translationsCache: TranslationCacheRef;
   t9nCacheDatesBySC: Record<string, string>;
   /** Reads or generates the newest localization for a source/target language pair. */
@@ -128,6 +130,12 @@ export type LingoDataClient = {
     l10n_lang: string;
     sourceContent: SourceContent;
     isPublic?: boolean;
+  }): Promise<Localization | null>;
+  /** Creates and session-caches a localization that has no persistent content reference. */
+  createTransientTranslation(input: {
+    sourceLang: string;
+    sourceText: string;
+    targetLang: string;
   }): Promise<Localization | null>;
   /** Merges translation rows into the owned cache and keeps newest rows first. */
   updateTranslationsCaches(sbTranslationRows: TranslationRow[]): void;
@@ -443,24 +451,57 @@ export function createLingoDataClient({
     string,
     Promise<AnnotatedText | null>
   >();
+  const transientTranslations = new Map<string, Localization>();
+  const transientTranslationRequests = new Map<
+    string,
+    Promise<Localization | null>
+  >();
   const translationsCache = createTranslationCacheRef();
   const t9nCacheDatesBySC: Record<string, string> = {};
   const authState = createAuthState();
+  const authStateListeners = new Set<() => void>();
+
+  function notifyAuthStateListeners(): void {
+    for (const listener of authStateListeners) listener();
+  }
+
+  function setEnabledSubProd(
+    enabledSubProd: string | null | undefined,
+  ): void {
+    if (authState.enabledSubProd === enabledSubProd) return;
+    authState.enabledSubProd = enabledSubProd;
+    notifyAuthStateListeners();
+  }
 
   function setAuthUser(
     user: { id: string; email?: string | null } | null | undefined,
   ): void {
-    authState.supabaseUserID = user?.id ?? null;
-    authState.userEmail = user?.email ?? null;
-    authState.signedInStatus = !!user;
-    if (!user) authState.enabledSubProd = null;
+    const nextSupabaseUserID = user?.id ?? null;
+    const nextUserEmail = user?.email ?? null;
+    const nextSignedInStatus = !!user;
+    const nextEnabledSubProd = !user
+      ? null
+      : authState.supabaseUserID !== nextSupabaseUserID
+        ? undefined
+        : authState.enabledSubProd;
+    const didChange =
+      authState.supabaseUserID !== nextSupabaseUserID ||
+      authState.userEmail !== nextUserEmail ||
+      authState.signedInStatus !== nextSignedInStatus ||
+      authState.enabledSubProd !== nextEnabledSubProd;
+
+    authState.supabaseUserID = nextSupabaseUserID;
+    authState.userEmail = nextUserEmail;
+    authState.signedInStatus = nextSignedInStatus;
+    authState.enabledSubProd = nextEnabledSubProd;
+    if (didChange) notifyAuthStateListeners();
   }
 
   async function refreshEnabledSubProd({
     allowRecentCache = false,
   }: { allowRecentCache?: boolean } = {}): Promise<string | null> {
     if (!runtimeSupabaseClient || !authState.supabaseUserID) {
-      authState.enabledSubProd = null;
+      setEnabledSubProd(null);
       return null;
     }
 
@@ -477,8 +518,13 @@ export function createLingoDataClient({
 
     if (error) return authState.enabledSubProd ?? null;
 
-    authState.enabledSubProd = enabledSubProd;
+    setEnabledSubProd(enabledSubProd);
     return enabledSubProd;
+  }
+
+  function subscribeAuthState(listener: () => void): () => void {
+    authStateListeners.add(listener);
+    return () => authStateListeners.delete(listener);
   }
 
   async function loadAuthState(): Promise<void> {
@@ -537,6 +583,72 @@ export function createLingoDataClient({
         : {}),
       ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
     });
+  }
+
+  function createTransientTranslation({
+    sourceLang,
+    sourceText,
+    targetLang,
+  }: {
+    sourceLang: string;
+    sourceText: string;
+    targetLang: string;
+  }): Promise<Localization | null> {
+    const normalizedSourceLang = sourceLang.trim().toLowerCase();
+    const normalizedTargetLang = targetLang.trim().toLowerCase();
+    if (!normalizedSourceLang || !normalizedTargetLang || !sourceText.trim()) {
+      console.error(
+        "createTransientTranslation requires source and target languages and non-empty text.",
+      );
+      return Promise.resolve(null);
+    }
+
+    const requestKey = JSON.stringify([
+      normalizedSourceLang,
+      sourceText,
+      normalizedTargetLang,
+    ]);
+    const cachedLocalization = transientTranslations.get(requestKey);
+    if (cachedLocalization) return Promise.resolve(cachedLocalization);
+
+    const existingRequest = transientTranslationRequests.get(requestKey);
+    if (existingRequest) return existingRequest;
+
+    const request = (async (): Promise<Localization | null> => {
+      try {
+        const accessToken = await resolveAccessToken({
+          supabaseClient: runtimeSupabaseClient,
+        });
+        const generated = await callTranslateCreateLimitedAnon({
+          source_lang: normalizedSourceLang,
+          source_text: sourceText,
+          target_lang: normalizedTargetLang,
+          ...(accessToken ? { accessToken } : {}),
+          ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
+        });
+        const localization: Localization = {
+          text: generated.targetText,
+          l10n_lang: normalizedTargetLang,
+          sourceContent: {
+            owner_id: null,
+            lang: normalizedSourceLang,
+            text: sourceText,
+            ref: null,
+          },
+        };
+
+        transientTranslations.set(requestKey, localization);
+        return localization;
+      } catch (error) {
+        console.error("callTranslateCreateLimitedAnon failed", error);
+        return null;
+      } finally {
+        transientTranslationRequests.delete(requestKey);
+      }
+    })();
+
+    transientTranslationRequests.set(requestKey, request);
+    return request;
   }
 
   function updateTranslationsCaches(sbTranslationRows: TranslationRow[]): void {
@@ -971,9 +1083,11 @@ export function createLingoDataClient({
       return authState.enabledSubProd;
     },
     refreshEnabledSubProd,
+    subscribeAuthState,
     translationsCache,
     t9nCacheDatesBySC,
     fetchLocalization,
+    createTransientTranslation,
     updateTranslationsCaches,
     getT9nCacheDateBySC,
     _updateT9nCacheDatesBySCs,

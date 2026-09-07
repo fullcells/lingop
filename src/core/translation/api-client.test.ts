@@ -183,4 +183,30 @@ describe("callTranslateCreateLimitedAnon", () => {
       },
     );
   });
+
+  it("omits authorization for a signed-out anonymous translation", async () => {
+    const fetchImpl = vi.fn<TranslateFetch>(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => "",
+      json: async () => ({
+        target_text: "sawatdee",
+        translator: "MODEL_B",
+      }),
+    }));
+
+    await callTranslateCreateLimitedAnon({
+      source_lang: "en",
+      target_lang: "th",
+      source_text: "hello",
+      fetchImpl,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      `${BE_API_PRODUCTION_URL}/api/translate-create-limited-anon`,
+      expect.objectContaining({
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+  });
 });

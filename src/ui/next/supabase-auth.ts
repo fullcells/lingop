@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   asSupabaseRuntimeClient,
@@ -15,6 +15,10 @@ export type SupabaseSignedInStatusState = {
   supabaseUserID: string | null;
   userEmail: string | null;
   authChangeCount: number;
+  /** Current users_info.enabled_sub_prod value; undefined until its first lookup completes. */
+  enabledSubProd: string | null | undefined;
+  /** Reloads users_info.enabled_sub_prod for the current provider user. */
+  refreshEnabledSubProd: () => Promise<string | null>;
 };
 
 export function useSupabaseSignedInStatus(
@@ -27,11 +31,23 @@ export function useSupabaseSignedInStatus(
       ? supabaseClient
       : providedClientData?.supabaseClient;
   const runtimeSupabaseClient = asSupabaseRuntimeClient(resolvedSupabaseClient);
+  // Entitlement state is owned by the provider's long-lived client. An explicit
+  // Supabase client continues to support auth-only use outside the provider.
+  const lingopClient =
+    supabaseClient === undefined ? providedClientData?.lingopClient : undefined;
   const [signedInStatus, setSignedInStatus] =
     useState<SupabaseSignedInStatus>(null);
   const [supabaseUserID, setSupabaseUserID] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [authChangeCount, setAuthChangeCount] = useState(0);
+  const [enabledSubProd, setEnabledSubProd] = useState<
+    string | null | undefined
+  >(lingopClient?.enabledSubProd);
+
+  const refreshEnabledSubProd = useCallback(async (): Promise<string | null> => {
+    if (!lingopClient) return null;
+    return lingopClient.refreshEnabledSubProd();
+  }, [lingopClient]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -77,5 +93,33 @@ export function useSupabaseSignedInStatus(
     };
   }, [runtimeSupabaseClient]);
 
-  return { signedInStatus, supabaseUserID, userEmail, authChangeCount };
+  useEffect(() => {
+    if (!lingopClient) {
+      setEnabledSubProd(undefined);
+      return;
+    }
+    const subscribedClient = lingopClient;
+
+    function syncEnabledSubProd() {
+      setEnabledSubProd(subscribedClient.enabledSubProd);
+    }
+
+    syncEnabledSubProd();
+    return subscribedClient.subscribeAuthState(syncEnabledSubProd);
+  }, [lingopClient]);
+
+  useEffect(() => {
+    if (lingopClient && signedInStatus) {
+      void lingopClient.refreshEnabledSubProd();
+    }
+  }, [authChangeCount, lingopClient, signedInStatus, supabaseUserID]);
+
+  return {
+    signedInStatus,
+    supabaseUserID,
+    userEmail,
+    authChangeCount,
+    enabledSubProd,
+    refreshEnabledSubProd,
+  };
 }

@@ -278,6 +278,8 @@ describe("createLingoDataClient", () => {
     };
 
     const client = createLingoDataClient({ supabaseClient });
+    const authStateListener = vi.fn();
+    const unsubscribe = client.subscribeAuthState(authStateListener);
     expect(client.signedInStatus).toBeNull();
     expect(client.enabledSubProd).toBeUndefined();
 
@@ -288,6 +290,8 @@ describe("createLingoDataClient", () => {
       expect(client.enabledSubProd).toBe("lingop-pro");
     });
     expect(eqCalls).toContainEqual(["user_id", "user-1"]);
+    expect(authStateListener).toHaveBeenCalled();
+    unsubscribe();
   });
 
   it("dedupes simultaneous enabled subscription lookups for the same Supabase user", async () => {
@@ -664,6 +668,87 @@ describe("createLingoDataClient", () => {
     expect(client.getT9nCacheDateBySC(sourceContent)).toBe(
       "2026-02-03T04:05:06.000Z",
     );
+  });
+
+  it("creates, dedupes, and session-caches transient translations", async () => {
+    let resolveFetch:
+      | ((response: {
+          ok: true;
+          status: 200;
+          text: () => Promise<string>;
+          json: () => Promise<unknown>;
+        }) => void)
+      | null = null;
+    const fetchImpl = vi.fn(
+      () =>
+        new Promise<{
+          ok: true;
+          status: 200;
+          text: () => Promise<string>;
+          json: () => Promise<unknown>;
+        }>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", fetchImpl);
+    const client = createLingoDataClient({ useStagingBackend: true });
+
+    const firstRequest = client.createTransientTranslation({
+      sourceLang: "EN",
+      sourceText: "hello",
+      targetLang: "TH",
+    });
+    const duplicateRequest = client.createTransientTranslation({
+      sourceLang: "en",
+      sourceText: "hello",
+      targetLang: "th",
+    });
+
+    expect(firstRequest).toBe(duplicateRequest);
+    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(1));
+    expect(fetchImpl).toHaveBeenCalledWith(
+      `${BE_API_STAGING_URL}/api/translate-create-limited-anon`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source_lang: "en",
+          target_lang: "th",
+          source_text: "hello",
+        }),
+      },
+    );
+
+    resolveFetch?.({
+      ok: true,
+      status: 200,
+      text: async () => "",
+      json: async () => ({
+        target_text: "sawatdee",
+        translator: "MODEL_B",
+      }),
+    });
+
+    const expectedLocalization: Localization = {
+      text: "sawatdee",
+      l10n_lang: "th",
+      sourceContent: {
+        owner_id: null,
+        lang: "en",
+        text: "hello",
+        ref: null,
+      },
+    };
+    await expect(firstRequest).resolves.toEqual(expectedLocalization);
+    await expect(duplicateRequest).resolves.toEqual(expectedLocalization);
+    await expect(
+      client.createTransientTranslation({
+        sourceLang: "en",
+        sourceText: "hello",
+        targetLang: "th",
+      }),
+    ).resolves.toBe(await firstRequest);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it("retranslates by translation id and refreshes the cached row", async () => {
