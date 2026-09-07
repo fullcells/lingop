@@ -4,6 +4,7 @@ import {
   createLingoDataClient,
   type SupabaseLingoDataClient,
 } from "./lingo-data-client.js";
+import { BE_API_STAGING_URL } from "./backend-api.js";
 import type { Localization } from "./misc.js";
 import type { AnnotatedText } from "./annotation/types.js";
 import type { TranslationRow } from "./translation/types.js";
@@ -181,6 +182,63 @@ describe("createLingoDataClient", () => {
     await expect(request).resolves.toEqual(makeAnnotatedText("hello"));
     expect(eqCalls).toContainEqual(["owner_id", "user-1"]);
     expect(supabaseClient.auth?.getUser).toHaveBeenCalled();
+  });
+
+  it("creates, dedupes, and session-caches transient annotations", async () => {
+    const annotation: AnnotatedText = {
+      ...makeAnnotatedText("สวัสดี"),
+      lang: "th",
+      ref: null,
+      owner_id: null,
+    };
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => "",
+      json: async () => [annotation],
+    }));
+    vi.stubGlobal("fetch", fetchImpl);
+    const getSession = vi.fn(async () => ({
+      data: { session: { access_token: "token-1" } },
+    }));
+    const client = createLingoDataClient({
+      useStagingBackend: true,
+      supabaseClient: { auth: { getSession } },
+    });
+
+    const firstRequest = client.createTransientAnnotation({
+      lang: "TH",
+      text: "สวัสดี",
+    });
+    const duplicateRequest = client.createTransientAnnotation({
+      lang: "th",
+      text: "สวัสดี",
+    });
+
+    await expect(Promise.all([firstRequest, duplicateRequest])).resolves.toEqual([
+      annotation,
+      annotation,
+    ]);
+    await expect(
+      client.createTransientAnnotation({ lang: "th", text: "สวัสดี" }),
+    ).resolves.toBe(annotation);
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(getSession).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      `${BE_API_STAGING_URL}/api/annotate-create-limited-anons`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer token-1",
+        },
+        body: JSON.stringify({ lang: "th", texts: ["สวัสดี"] }),
+      },
+    );
+    expect(client.annotationsByLangNTextCache.current.th?.["สวัสดี"]).toEqual([
+      annotation,
+    ]);
   });
 
   it("loads Supabase auth and enabled subscription state into the client", async () => {

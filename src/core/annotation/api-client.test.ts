@@ -4,7 +4,9 @@ import {
   BE_API_PRODUCTION_URL,
   BE_API_STAGING_URL,
 } from "../backend-api.js";
-import callAnnotate_storedForOwner from "./api-client.js";
+import callAnnotate_storedForOwner, {
+  callAnnotateCreateLimitedAnons,
+} from "./api-client.js";
 import type { AnnotatedText } from "./types.js";
 
 function makeAnnotatedText(text: string): AnnotatedText {
@@ -18,6 +20,88 @@ function makeAnnotatedText(text: string): AnnotatedText {
     owner_id: "owner-1",
   };
 }
+
+function makeTransientAnnotatedText(text: string): AnnotatedText {
+  return {
+    ...makeAnnotatedText(text),
+    ref: null,
+    owner_id: null,
+  };
+}
+
+describe("callAnnotateCreateLimitedAnons", () => {
+  it("calls the production limited-anonymous endpoint without requiring auth", async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => "",
+      json: async () => [makeTransientAnnotatedText("hello")],
+    }));
+
+    await expect(
+      callAnnotateCreateLimitedAnons({
+        lang: "th",
+        texts: ["hello"],
+        fetchImpl,
+      }),
+    ).resolves.toEqual([makeTransientAnnotatedText("hello")]);
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      `${BE_API_PRODUCTION_URL}/api/annotate-create-limited-anons`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lang: "th", texts: ["hello"] }),
+      },
+    );
+  });
+
+  it("forwards auth and uses the staging backend when configured", async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => "",
+      json: async () => [makeTransientAnnotatedText("สวัสดี")],
+    }));
+
+    await callAnnotateCreateLimitedAnons({
+      lang: "th",
+      texts: ["สวัสดี"],
+      accessToken: "token-1",
+      useStagingBackend: true,
+      fetchImpl,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      `${BE_API_STAGING_URL}/api/annotate-create-limited-anons`,
+      expect.objectContaining({
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer token-1",
+        },
+      }),
+    );
+  });
+
+  it("rejects malformed annotation responses", async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => "",
+      json: async () => [{ lang: "th", lang_text: "hello" }],
+    }));
+
+    await expect(
+      callAnnotateCreateLimitedAnons({
+        lang: "th",
+        texts: ["hello"],
+        fetchImpl,
+      }),
+    ).rejects.toThrow(
+      "External /annotate-create-limited-anons returned malformed data.",
+    );
+  });
+});
 
 describe("callAnnotate_storedForOwner", () => {
   afterEach(() => {

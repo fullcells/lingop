@@ -49,6 +49,14 @@ export type CallAnnotateStoredForOwnerInput = {
   fetchImpl?: AnnotateFetch;
 };
 
+export type CallAnnotateCreateLimitedAnonsInput = {
+  lang: string;
+  texts: string[];
+  accessToken?: string;
+  useStagingBackend?: boolean;
+  fetchImpl?: AnnotateFetch;
+};
+
 const inflightRequests: Record<string, Promise<AnnotatedText> | undefined> = {};
 const batches: Record<string, AnnotateBatch | undefined> = {};
 const batchTimers: Record<string, ReturnType<typeof setTimeout> | undefined> = {};
@@ -92,6 +100,37 @@ function parseAnnotateAPIOutput(data: unknown): AnnotateAPIOutput {
     langHasPhonetics: output.langHasPhonetics ?? false,
     annotatedTexts: output.annotatedTexts,
   };
+}
+
+function isAnnotatedText(data: unknown): data is AnnotatedText {
+  if (!data || typeof data !== "object") return false;
+  const annotation = data as Partial<AnnotatedText>;
+
+  return (
+    typeof annotation.lang === "string" &&
+    typeof annotation.lang_text === "string" &&
+    Array.isArray(annotation.tokens) &&
+    annotation.tokens.every(
+      (token) =>
+        token !== null &&
+        typeof token === "object" &&
+        typeof token.text === "string" &&
+        typeof token.isWord === "number",
+    ) &&
+    typeof annotation.containsGloss === "boolean" &&
+    typeof annotation.containsPhonetics === "boolean" &&
+    (annotation.owner_id === null || typeof annotation.owner_id === "string") &&
+    "ref" in annotation
+  );
+}
+
+function parseLimitedAnonAnnotations(data: unknown): AnnotatedText[] {
+  if (!Array.isArray(data) || !data.every(isAnnotatedText)) {
+    throw new Error(
+      "External /annotate-create-limited-anons returned malformed data.",
+    );
+  }
+  return data;
 }
 
 async function readErrorResponse(res: AnnotateFetchResponse): Promise<unknown> {
@@ -159,6 +198,51 @@ async function callAnnotateApi({
   }
 
   return parseAnnotateAPIOutput(await res.json());
+}
+
+/** Creates non-reference-backed annotations through the limited anonymous API. */
+export async function callAnnotateCreateLimitedAnons({
+  lang,
+  texts,
+  accessToken,
+  useStagingBackend,
+  fetchImpl,
+}: CallAnnotateCreateLimitedAnonsInput): Promise<AnnotatedText[]> {
+  if (texts.length === 0) return [];
+
+  for (const text of texts) {
+    if (text.trim() !== text) {
+      console.warn(
+        `Text has whitespace at start/end. The annotation backend may struggle with this case. Text: "${text}"`,
+      );
+    }
+  }
+
+  const apiBaseUrl = normalizeApiBaseUrl(
+    useStagingBackend === undefined
+      ? getBEApiBaseUrl()
+      : getBEApiBaseUrl({ useStagingBackend }),
+  );
+  const requestFetch = getFetch(fetchImpl);
+  const endpoint = `${apiBaseUrl}/api/annotate-create-limited-anons`;
+  const res = await requestFetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
+    body: JSON.stringify({ lang, texts }),
+  });
+
+  if (!res.ok) {
+    const errorData = await readErrorResponse(res);
+    const prefix = res.status === 429 ? "Too many requests to" : "External";
+    throw new Error(
+      `${prefix} /annotate-create-limited-anons (HTTP ${res.status}). Data: ${JSON.stringify(errorData)}`,
+    );
+  }
+
+  return parseLimitedAnonAnnotations(await res.json());
 }
 
 async function flushBatch(batchKey: string): Promise<void> {

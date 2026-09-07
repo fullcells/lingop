@@ -280,6 +280,7 @@ Low-level annotation API calls, `callAnnotate_storedForOwner()` remains public a
 - `retranslate({ id })`: loads the existing translation row, generates fresh text through backend `/api/translate-create-limited-anon`, updates that Supabase row's `target_text`, `created_at`, and backend-reported `translator`, then refreshes the client cache.
 - `updateTranslationWithHumanEdit({ id, targetText })`: updates an existing Supabase translation row's `target_text`, `created_at`, and `translator: "USER"`, then refreshes the client cache.
 - `fetchAnnotation({ localization })`: returns annotation data for a localization, using cache/Supabase/backend lookup as needed.
+- `createTransientAnnotation({ lang, text })`: creates a reference-less annotation through the limited-anonymous backend, forwarding the current session token when available and reusing the result for the lifetime of the client.
 - `reGenOwnerAnnotation({ localization, skipDeletionOfExisting? })`: deletes and rebuilds an owner-scoped annotation, then refreshes the annotation cache.
 - `reAnnotateWithExistingData(input)`: re-runs backend annotation generation from existing stored annotation data and updates the annotation cache with the returned rows.
 - `loadWordExplicitationsRows()`: loads and caches Supabase `word_explicitations` rows.

@@ -6,7 +6,9 @@ import {
   type Localization,
   type SourceContent,
 } from "./misc.js";
-import callAnnotate_storedForOwner from "./annotation/api-client.js";
+import callAnnotate_storedForOwner, {
+  callAnnotateCreateLimitedAnons,
+} from "./annotation/api-client.js";
 import { convertAnnotatedEntryToAText } from "./annotation/converters.js";
 import {
   utilsFetchAnnotation,
@@ -145,6 +147,14 @@ export type LingoDataClient = {
   annotationsByLangNTextCache: AnnotationCacheRef;
   /** Reads or generates annotation data for a localization. */
   fetchAnnotation(input: { localization: Localization }): Promise<AnnotatedText | null>;
+  /** Creates and session-caches an annotation that has no persistent content reference. */
+  createTransientAnnotation(input: {
+    lang: string;
+    text: string;
+  }): Promise<AnnotatedText | null>;
+  // TODO(UI): When revisiting OmniAccess's L10nA8nElement, consider a reusable
+  // Lingop bilingual annotated-text component (possibly BiTextView; name TBD).
+  // Keep that view separate from this transient-annotation acquisition policy.
   /** Rebuilds owner-scoped annotation data and refreshes the annotation cache. */
   reGenOwnerAnnotation(
     input: { localization: Localization; skipDeletionOfExisting?: boolean },
@@ -432,6 +442,10 @@ export function createLingoDataClient({
     ? getEmojiCoreWordResolver(runtimeSupabaseClient)
     : undefined;
   const annotationsByLangNTextCache = createAnnotationCacheRef();
+  const transientAnnotationRequests = new Map<
+    string,
+    Promise<AnnotatedText | null>
+  >();
   const translationsCache = createTranslationCacheRef();
   const t9nCacheDatesBySC: Record<string, string> = {};
   const authState = createAuthState();
@@ -709,6 +723,72 @@ export function createLingoDataClient({
     });
   }
 
+  function createTransientAnnotation({
+    lang,
+    text,
+  }: {
+    lang: string;
+    text: string;
+  }): Promise<AnnotatedText | null> {
+    const normalizedLang = lang.trim().toLowerCase();
+    if (!normalizedLang || !text.trim()) {
+      console.error("createTransientAnnotation requires a language and non-empty text.");
+      return Promise.resolve(null);
+    }
+
+    const cachedAnnotation =
+      annotationsByLangNTextCache.current[normalizedLang]?.[text]?.find(
+        (annotation) => annotation.ref == null,
+      );
+    if (cachedAnnotation) return Promise.resolve(cachedAnnotation);
+
+    const requestKey = JSON.stringify([normalizedLang, text]);
+    const existingRequest = transientAnnotationRequests.get(requestKey);
+    if (existingRequest) return existingRequest;
+
+    const request = (async (): Promise<AnnotatedText | null> => {
+      try {
+        const accessToken = await resolveAccessToken({
+          supabaseClient: runtimeSupabaseClient,
+        });
+        const annotations = await callAnnotateCreateLimitedAnons({
+          lang: normalizedLang,
+          texts: [text],
+          ...(accessToken ? { accessToken } : {}),
+          ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
+        });
+        const annotation =
+          annotations.find(
+            (candidate) =>
+              candidate.lang.toLowerCase() === normalizedLang &&
+              candidate.lang_text === text,
+          ) ?? null;
+
+        if (!annotation) {
+          console.error(
+            "createTransientAnnotation response did not contain the requested language and text.",
+          );
+          return null;
+        }
+
+        upsertAnnotationCache({
+          cacheRef: annotationsByLangNTextCache,
+          annotation,
+          insertAtFront: true,
+        });
+        return annotation;
+      } catch (error) {
+        console.error("callAnnotateCreateLimitedAnons failed", error);
+        return null;
+      } finally {
+        transientAnnotationRequests.delete(requestKey);
+      }
+    })();
+
+    transientAnnotationRequests.set(requestKey, request);
+    return request;
+  }
+
   async function reGenOwnerAnnotation({
     localization,
     skipDeletionOfExisting = false,
@@ -904,6 +984,7 @@ export function createLingoDataClient({
     updateTranslationWithHumanEdit,
     annotationsByLangNTextCache,
     fetchAnnotation,
+    createTransientAnnotation,
     reGenOwnerAnnotation,
     reAnnotateWithExistingData,
     loadWordExplicitationsRows: () =>
