@@ -101,12 +101,18 @@ function getPrettyLangName(
 function PickerIcon({
   name,
 }: {
-  name: "translate" | "globe" | "luggage" | "learn" | "down" | "search";
+  name: "language" | "globe" | "luggage" | "learn" | "down" | "search";
 }): ReactNode {
   const paths: Record<typeof name, ReactNode> = {
-    translate: (
+    // Tabler Icons: language SVG. Embedded from Tabler's MIT-licensed source
+    // so the picker does not force consumers to install an icon runtime.
+    language: (
       <>
-        <path d="M4 7h10m-3-3 3 3-3 3M20 17H10m3-3-3 3 3 3" />
+        <path d="M4 5h7" />
+        <path d="M9 3v2c0 4.418-2.239 8-5 8" />
+        <path d="M5 9c0 2.144 2.952 3.908 6.7 4" />
+        <path d="m12 20 4-9 4 9" />
+        <path d="M19.1 18h-6.2" />
       </>
     ),
     globe: (
@@ -194,7 +200,7 @@ export function LanguagePicker_GuiAndFocus({
               consumer-controlled because this picker can fill a page or dialog. */}
           {showHeader && (
             <div className="lingop-language-picker__header-icon" aria-hidden="true">
-              <PickerIcon name="translate" />
+              <PickerIcon name="language" />
             </div>
           )}
 
