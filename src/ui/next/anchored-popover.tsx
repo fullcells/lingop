@@ -42,6 +42,9 @@ export type AnchoredPopoverProps = {
   manageFocus?: boolean;
   showArrow?: boolean;
   arrowClassName?: string;
+  arrowFill?: string;
+  arrowStroke?: string;
+  arrowStrokeWidth?: number;
   transitionDuration?: number | { open: number; close: number };
 };
 
@@ -67,13 +70,15 @@ export function AnchoredPopover({
   manageFocus = true,
   showArrow = false,
   arrowClassName,
+  arrowFill,
+  arrowStroke,
+  arrowStrokeWidth,
   transitionDuration = 0,
 }: AnchoredPopoverProps): ReactNode {
   const floatingId = useId();
   const arrowRef = useRef<SVGSVGElement>(null);
   const { context, floatingStyles, isPositioned, middlewareData, refs } =
     useFloating({
-      elements: { reference: anchor },
       middleware: [
         floatingOffset(offset),
         flip({ padding: viewportPadding }),
@@ -103,6 +108,14 @@ export function AnchoredPopover({
     open: { opacity: 1 },
     close: { opacity: 0 },
   });
+
+  useEffect(() => {
+    // `elements.reference` is treated as the initial reference by Floating
+    // UI's React root context. This popover can remain mounted during its exit
+    // transition and then reopen for a different token, so keep the imperative
+    // reference in sync as the consumer's anchor changes.
+    refs.setReference(anchor);
+  }, [anchor, refs]);
 
   // The anchor can live deep inside a consumer-owned component, so it cannot
   // receive Floating UI's React prop getter directly. Keep the essential ARIA
@@ -150,6 +163,9 @@ export function AnchoredPopover({
           ref={arrowRef}
           context={context}
           className={arrowClassName}
+          fill={arrowFill}
+          stroke={arrowStroke}
+          strokeWidth={arrowStrokeWidth}
         />
       )}
       {children}

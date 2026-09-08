@@ -108,9 +108,13 @@ export function useL10nWordDetailPopover({
         ]
           .filter(Boolean)
           .join(" ")}
+        placement="bottom"
         offset={offset}
         showArrow
         arrowClassName="lingop-word-detail-popover__arrow"
+        arrowFill="#fff"
+        arrowStroke="rgba(15, 23, 42, 0.16)"
+        arrowStrokeWidth={1}
         transitionDuration={{ open: 140, close: 110 }}
       >
         <div className="lingop-word-detail-popover__panel">
