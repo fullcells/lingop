@@ -1,0 +1,230 @@
+.lingop-word-chips-array,
+.lingop-word-chips-array *,
+.lingop-word-chips-array__streak-popover,
+.lingop-word-chips-array__streak-popover * {
+  box-sizing: border-box;
+}
+
+.lingop-word-chips-array {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.lingop-word-chips-array__empty {
+  width: 100%;
+  color: #a0aec0;
+  font-size: 0.625rem;
+  text-align: center;
+}
+
+.lingop-word-chip {
+  display: inline-flex;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.25rem;
+  background: #fff;
+  color: #1a202c;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.lingop-word-chip button,
+.lingop-word-chips-array__streak-popover button,
+.lingop-word-chips-array__streak-popover summary {
+  appearance: none;
+  color: inherit;
+  font: inherit;
+}
+
+.lingop-word-chip__word,
+.lingop-word-chip__streak,
+.lingop-word-chips-array__streak-action {
+  margin: 0;
+  border: 0;
+  background: transparent;
+}
+
+.lingop-word-chip__word {
+  padding: 0.75rem 1rem;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+}
+
+.lingop-word-chip__word:hover {
+  background: #bee3f8;
+  color: #2b6cb0;
+}
+
+.lingop-word-chip__word:focus-visible,
+.lingop-word-chip__streak:focus-visible,
+.lingop-word-chips-array__streak-action:focus-visible,
+.lingop-word-chips-array__streak-info summary:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid #3182ce;
+  outline-offset: -2px;
+}
+
+.lingop-word-chip__streak {
+  display: flex;
+  min-width: 2.25rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.5rem;
+  border-inline-start: 1px solid #cbd5e0;
+  color: #718096;
+  font-size: 0.625rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+}
+
+.lingop-word-chip__streak--none {
+  background: #fff5f5;
+  color: #c53030;
+}
+
+.lingop-word-chip__streak--learning {
+  background: #fffff0;
+  color: #b7791f;
+}
+
+.lingop-word-chip__streak--mastered {
+  background: #c6f6d5;
+  color: #2f855a;
+}
+
+.lingop-word-chip__streak:hover {
+  filter: brightness(0.97);
+}
+
+.lingop-word-chip__icon {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.75;
+}
+
+.lingop-word-chip__mastery-fill {
+  fill: currentColor;
+  stroke: none;
+  opacity: 0.18;
+}
+
+.lingop-word-chips-array__streak-popover {
+  position: fixed;
+  z-index: 1120;
+  width: max-content;
+  max-width: min(21rem, calc(100vw - 1rem));
+  overflow: visible;
+  color: #1a202c;
+}
+
+.lingop-word-chips-array__streak-popover-panel {
+  padding: 0.5rem;
+  border: 1px solid rgb(15 23 42 / 16%);
+  border-radius: 0.5rem;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 16%);
+}
+
+.lingop-word-chips-array__streak-popover-arrow {
+  fill: #fff;
+}
+
+.lingop-word-chips-array__streak-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+
+.lingop-word-chips-array__streak-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+.lingop-word-chips-array__streak-action--mastered {
+  color: #2f855a;
+}
+
+.lingop-word-chips-array__streak-action--mastered:hover {
+  background: #c6f6d5;
+}
+
+.lingop-word-chips-array__streak-action--reset {
+  color: #c53030;
+}
+
+.lingop-word-chips-array__streak-action--reset:hover {
+  background: #fff5f5;
+}
+
+.lingop-word-chips-array__streak-info {
+  position: relative;
+}
+
+.lingop-word-chips-array__streak-info summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 50%;
+  color: #718096;
+  cursor: pointer;
+  list-style: none;
+}
+
+.lingop-word-chips-array__streak-info summary::-webkit-details-marker {
+  display: none;
+}
+
+.lingop-word-chips-array__streak-info summary:hover {
+  background: #edf2f7;
+}
+
+.lingop-word-chips-array__streak-info-content {
+  width: min(17rem, calc(100vw - 3rem));
+  padding: 0.5rem;
+  color: #4a5568;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.lingop-word-chips-array__streak-info-content p {
+  margin: 0 0 0.4rem;
+}
+
+.lingop-word-chips-array__streak-info-content p:first-child {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #1a202c;
+  font-weight: 600;
+}
+
+.lingop-word-chips-array__streak-info-content p:last-child {
+  margin-bottom: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lingop-word-chip,
+  .lingop-word-chip__word,
+  .lingop-word-chip__streak,
+  .lingop-word-chips-array__streak-popover {
+    transition-duration: 0ms !important;
+  }
+}

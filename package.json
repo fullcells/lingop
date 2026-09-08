@@ -110,6 +110,7 @@
     "./ui/next/settings-voices-n-annotations.css": "./src/ui/next/settings-voices-n-annotations.css",
     "./ui/next/spelling-system-picker.css": "./src/ui/next/spelling-system-picker.css",
     "./ui/next/word-lists-selector.css": "./src/ui/next/word-lists-selector.css",
+    "./ui/next/word-chips-array-view.css": "./src/ui/next/word-chips-array-view.css",
     "./ui/react-native": {
       "types": "./dist/ui/react-native/index.d.ts",
       "default": "./dist/ui/react-native/index.js"
@@ -128,7 +129,8 @@
     "src/ui/next/speech-synth-lang-voice-picker.css",
     "src/ui/next/settings-voices-n-annotations.css",
     "src/ui/next/spelling-system-picker.css",
-    "src/ui/next/word-lists-selector.css"
+    "src/ui/next/word-lists-selector.css",
+    "src/ui/next/word-chips-array-view.css"
   ],
   "bin": {
     "oat-preflight": "./bin/oat-preflight.js",

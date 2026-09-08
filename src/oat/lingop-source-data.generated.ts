@@ -5,6 +5,7 @@ import type { OATSourceData } from "./types.js";
 export const lingopOATSourceData: OATSourceData = {
   "guiTextsByScope": {
     "_": [
+      "About Word Streaks",
       "Already have an account?",
       "Annotation Error",
       "Audio",
@@ -34,6 +35,7 @@ export const lingopOATSourceData: OATSourceData = {
       "Forgot Password",
       "Hidden",
       "I want to learn {LANGUAGE}",
+      "If you request a lot of hints for a word, or answer questions with the word incorrectly, its word streak decreases.",
       "International Phonetic Alphabet",
       "Language I already know",
       "Language I want to learn",
@@ -57,6 +59,7 @@ export const lingopOATSourceData: OATSourceData = {
       "Preview",
       "Re-Type Password",
       "Reading Guide",
+      "Reset",
       "Rule-Based Spelling Guide",
       "Search",
       "Show Original Text",
@@ -67,11 +70,16 @@ export const lingopOATSourceData: OATSourceData = {
       "Sorry, that email-password pair didn't match any of our records. Please try again with different details.",
       "Speed",
       "Spelling",
+      "The more you see a word, or answer questions with a word, the more that word’s word streak will increase.",
       "There is a small cat at my door. It wants to drink some water.",
       "Tone Numbers",
+      "Use the buttons to set Word Streaks to a specific value.",
       "Visible",
       "Word details",
+      "Word Streaks",
+      "Word Streaks represent how well you know a word.",
       "Word Translations",
+      "Words",
       "You can also tap on a word at any time to view its {LANGUAGE} translation."
     ]
   },
