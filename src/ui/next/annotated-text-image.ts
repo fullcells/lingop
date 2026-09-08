@@ -4,9 +4,9 @@ export type AnnotatedTextImageData = {
   height: number;
 };
 
-const horizontalPadding = 2; // 12;
-const topPadding = 2;
-const bottomPadding = 2; //20;
+const horizontalPadding = 12;
+const topPadding = 8;
+const bottomPadding = 24;
 
 export async function captureAnnotatedTextImage(
   element: HTMLElement,
@@ -15,10 +15,12 @@ export async function captureAnnotatedTextImage(
   const originalRect = element.getBoundingClientRect();
   const clone = element.cloneNode(true) as HTMLElement;
 
-  // 20260822: Retained from OmniAccess as an html2canvas crop workaround, not
-  // as intended presentation spacing. It adds enough white space to avoid
-  // clipping text/glyph edges and can be removed if browser comparison proves
-  // Lingop's plain DOM no longer needs it.
+  // 20260822, updated 20260908: Retained from OmniAccess as an html2canvas crop
+  // workaround, not as intended presentation spacing. The original 12px
+  // horizontal/20px bottom safety margin was reduced during the port, after
+  // which real exports showed clipped glosses and punctuation. Use a slightly
+  // larger block margin because html2canvas's text bounds are less reliable
+  // than the browser's painted bounds for several scripts and emoji fonts.
   clone.style.boxSizing = "content-box";
   clone.style.width = `${originalRect.width}px`;
   clone.style.maxWidth = "none";
@@ -33,21 +35,30 @@ export async function captureAnnotatedTextImage(
   document.body.appendChild(clone);
 
   try {
-    // 20260822: OmniAccess injected the following html2canvas-only correction:
-    // .tokens .token .gloss-emoji { transform: translateY(-6px); }
-    // It likely compensated for Chakra or its former DOM/CSS. Lingop's plain
-    // DOM port intentionally leaves this disabled unless visual testing proves
-    // that html2canvas still needs the correction.
+    // html2canvas can paint a line-height:1 gloss below the line box used for
+    // flex wrapping. Give only the cloned export a safer line box so glosses do
+    // not overlap the following row; the live browser layout remains unchanged.
     const html2canvas = (await import("html2canvas")).default as unknown as (
       element: HTMLElement,
-      options: { scale: number },
+      options: { scale: number; onclone: (clonedDocument: Document) => void },
     ) => Promise<HTMLCanvasElement>;
-    const canvas = await html2canvas(clone, { scale });
+    const canvas = await html2canvas(clone, {
+      scale,
+      onclone(clonedDocument) {
+        const style = clonedDocument.createElement("style");
+        style.textContent = `
+          .annotated-text-view .gloss-text-wrapper {
+            line-height: 1.25 !important;
+          }
+        `;
+        clonedDocument.head.appendChild(style);
+      },
+    });
 
     return {
       dataUrl: canvas.toDataURL("image/png"),
-      width: originalRect.width + horizontalPadding * 2,
-      height: originalRect.height + topPadding + bottomPadding,
+      width: canvas.width / scale,
+      height: canvas.height / scale,
     };
   } finally {
     clone.remove();

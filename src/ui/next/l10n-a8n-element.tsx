@@ -7,6 +7,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
+import { createPortal } from "react-dom";
 
 import type { AnnotatedText } from "../../core/annotation/types.js";
 import { getLang } from "../../core/language/index.js";
@@ -38,8 +39,15 @@ const defaultStyleVals = {
 };
 
 type StatusMessage = {
-  kind: "error" | "success";
+  kind: "error";
   text: string;
+};
+
+type CopyToastMessage = {
+  id: number;
+  kind: "error" | "success";
+  title: string;
+  description?: string;
 };
 
 export type L10nA8nElementProps = {
@@ -59,23 +67,50 @@ export type L10nA8nElementProps = {
   style?: CSSProperties;
 };
 
-function Icon({ name }: { name: "copy" | "feedback" | "image" | "play" }) {
-  if (name === "play") {
-    return <span aria-hidden="true">▶</span>;
-  }
-  if (name === "copy") {
-    return <span aria-hidden="true">⧉</span>;
-  }
-  if (name === "image") {
-    return <span aria-hidden="true">▧</span>;
-  }
+function Icon({
+  name,
+}: {
+  name: "copy" | "feedback" | "image" | "more" | "play";
+}) {
+  const paths = {
+    copy: (
+      <>
+        <path d="M8 8a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2H8Z" />
+        <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2" />
+      </>
+    ),
+    feedback: (
+      <>
+        <path d="M12 20l-3.5-3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3h-2.5L12 20Z" />
+        <path d="M12 8v3" />
+        <path d="M12 14h.01" />
+      </>
+    ),
+    image: (
+      <>
+        <path d="M15 8h.01" />
+        <path d="M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
+        <path d="m4 15 4-4a3 3 0 0 1 3 0l5 5" />
+        <path d="m14 14 1-1a3 3 0 0 1 3 0l2 2" />
+      </>
+    ),
+    more: (
+      <>
+        <path d="M5 12h.01" />
+        <path d="M12 12h.01" />
+        <path d="M19 12h.01" />
+      </>
+    ),
+    play: <path d="M7 4v16l13-8L7 4Z" />,
+  };
+
   return (
     <svg
-      className="lingop-l10n-a8n-element__feedback-icon"
-      viewBox="0 0 16 16"
+      className="lingop-l10n-a8n-element__icon"
+      viewBox="0 0 24 24"
       aria-hidden="true"
     >
-      <path d="M14 0a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.5a1 1 0 0 0-.8.4l-1.9 2.53a1 1 0 0 1-1.6 0L5.3 12.4a1 1 0 0 0-.8-.4H2a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h12ZM8 9.12a.87.87 0 1 0 .01 1.75A.87.87 0 0 0 8 9.12ZM8.04 2c-.62 0-.93.34-.93 1.03 0 .24.02.63.06 1.18l.18 2.8c.06.73.21 1.09.62 1.09.4 0 .55-.36.62-1.07l.25-2.9c.03-.26.04-.52.04-.78C8.88 2.45 8.65 2 8.04 2Z" />
+      {paths[name]}
     </svg>
   );
 }
@@ -147,6 +182,9 @@ export function L10nA8nElement({
   const [isSpeakingFocusLang, setIsSpeakingFocusLang] = useState(false);
   const [isSpeakingGuiLang, setIsSpeakingGuiLang] = useState(false);
   const [status, setStatus] = useState<StatusMessage | null>(null);
+  const [copyToast, setCopyToast] = useState<CopyToastMessage | null>(null);
+  const copyToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nextCopyToastIdRef = useRef(0);
   // The existence of spellings is determined manually in the backend per
   // language; there is no authoritative list of languages offering SPELLING.
   const [spelling, setSpelling] = useState<string | null>(null);
@@ -255,6 +293,15 @@ export function L10nA8nElement({
     return () => window.clearInterval(interval);
   }, [focusA8n, focusLang]);
 
+  useEffect(
+    () => () => {
+      if (copyToastTimerRef.current !== null) {
+        clearTimeout(copyToastTimerRef.current);
+      }
+    },
+    [],
+  );
+
   if (!bilingualText) return null;
 
   const { focusLangText, guiLangText, scIsGuiLang } = bilingualText;
@@ -271,11 +318,27 @@ export function L10nA8nElement({
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
-      setStatus({ kind: "success", text: `${OAT("Copied")}: ${description}` });
+      showCopyToast({
+        kind: "success",
+        title: OAT("Copied"),
+        description,
+      });
     } catch (error) {
       console.error("Could not copy text:", error);
-      setStatus({ kind: "error", text: OAT("Error") });
+      showCopyToast({ kind: "error", title: OAT("Error") });
     }
+  }
+
+  function showCopyToast(message: Omit<CopyToastMessage, "id">) {
+    if (copyToastTimerRef.current !== null) {
+      clearTimeout(copyToastTimerRef.current);
+    }
+    nextCopyToastIdRef.current += 1;
+    setCopyToast({ ...message, id: nextCopyToastIdRef.current });
+    copyToastTimerRef.current = setTimeout(() => {
+      setCopyToast(null);
+      copyToastTimerRef.current = null;
+    }, message.kind === "error" ? 4_000 : 2_500);
   }
 
   async function speakText(
@@ -414,7 +477,7 @@ export function L10nA8nElement({
               className="lingop-l10n-a8n-element__icon-control"
               aria-label={OAT("More")}
             >
-              <span aria-hidden="true">•••</span>
+              <Icon name="more" />
             </summary>
             <div className="lingop-l10n-a8n-element__menu-content">
               {/* - DOWNLOAD JPG (FOCUS) */}
@@ -509,6 +572,25 @@ export function L10nA8nElement({
           {status.text}
         </div>
       )}
+
+      {copyToast &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            key={copyToast.id}
+            className={`lingop-l10n-a8n-element__toast lingop-l10n-a8n-element__toast--${copyToast.kind}`}
+            role={copyToast.kind === "error" ? "alert" : "status"}
+            aria-atomic="true"
+          >
+            <strong>{copyToast.title}</strong>
+            {copyToast.description && (
+              <span className="lingop-l10n-a8n-element__toast-description">
+                {copyToast.description}
+              </span>
+            )}
+          </div>,
+          document.body,
+        )}
 
       {/* COMMON */}
       {l10nWordDetailPopover.PopoverComponent}

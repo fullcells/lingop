@@ -31,18 +31,37 @@ describe("annotated text image export", () => {
     const appendChild = vi.fn();
     vi.stubGlobal("document", { body: { appendChild } });
     html2canvas.mockResolvedValue({
+      width: 248,
+      height: 144,
       toDataURL: vi.fn(() => "data:image/png;base64,test"),
     });
 
     await expect(captureAnnotatedTextImage(element, 2)).resolves.toMatchObject({
       dataUrl: "data:image/png;base64,test",
+      width: 124,
+      height: 72,
     });
     expect(appendChild).toHaveBeenCalledWith(clone);
     expect(clone.style).toMatchObject({
       background: "white",
       width: "100px",
+      padding: "8px 12px 24px",
     });
-    expect(html2canvas).toHaveBeenCalledWith(clone, { scale: 2 });
+    expect(html2canvas).toHaveBeenCalledWith(
+      clone,
+      expect.objectContaining({ scale: 2, onclone: expect.any(Function) }),
+    );
+    const onclone = html2canvas.mock.calls[0]?.[1]?.onclone as
+      | ((clonedDocument: Document) => void)
+      | undefined;
+    const style = { textContent: "" };
+    const appendStyle = vi.fn();
+    onclone?.({
+      createElement: vi.fn(() => style),
+      head: { appendChild: appendStyle },
+    } as unknown as Document);
+    expect(style.textContent).toContain("line-height: 1.25");
+    expect(appendStyle).toHaveBeenCalledWith(style);
     expect(clone.remove).toHaveBeenCalledOnce();
   });
 
