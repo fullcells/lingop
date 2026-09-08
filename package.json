@@ -109,6 +109,7 @@
     "./ui/next/speech-synth-lang-voice-picker.css": "./src/ui/next/speech-synth-lang-voice-picker.css",
     "./ui/next/settings-voices-n-annotations.css": "./src/ui/next/settings-voices-n-annotations.css",
     "./ui/next/spelling-system-picker.css": "./src/ui/next/spelling-system-picker.css",
+    "./ui/next/word-list-view.css": "./src/ui/next/word-list-view.css",
     "./ui/next/word-lists-selector.css": "./src/ui/next/word-lists-selector.css",
     "./ui/next/word-chips-array-view.css": "./src/ui/next/word-chips-array-view.css",
     "./ui/react-native": {
@@ -129,6 +130,7 @@
     "src/ui/next/speech-synth-lang-voice-picker.css",
     "src/ui/next/settings-voices-n-annotations.css",
     "src/ui/next/spelling-system-picker.css",
+    "src/ui/next/word-list-view.css",
     "src/ui/next/word-lists-selector.css",
     "src/ui/next/word-chips-array-view.css"
   ],

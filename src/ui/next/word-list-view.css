@@ -1,0 +1,258 @@
+@import "./l10n-word-detail-content.css";
+@import "./l10n-word-detail-popover.css";
+@import "./word-chips-array-view.css";
+
+.lingop-word-list-view,
+.lingop-word-list-view *,
+.lingop-word-list-view__streak-popover,
+.lingop-word-list-view__streak-popover * {
+  box-sizing: border-box;
+}
+
+.lingop-word-list-view {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 1rem;
+  color: #1a202c;
+}
+
+.lingop-word-list-view__node,
+.lingop-word-list-view__children,
+.lingop-word-list-view__leaf {
+  width: 100%;
+}
+
+.lingop-word-list-view__node {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.lingop-word-list-view__node--outlined {
+  padding: 0.75rem;
+  border: 1px solid #edf2f7;
+  border-radius: 0.25rem;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 10%);
+}
+
+.lingop-word-list-view__children {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.lingop-word-list-view__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-block: 0.25rem;
+  font-size: 0.875rem;
+  transition: all 0.2s ease-in-out;
+}
+
+.lingop-word-list-view__node--root > .lingop-word-list-view__title {
+  font-weight: 700;
+}
+
+.lingop-word-list-view__title--hidden {
+  display: none;
+}
+
+/* Minor historic differences from WordListView_PreAnnotated remain: its title
+   used a larger font, filled the width, and was centered; its parent used a
+   slightly larger gap. */
+.lingop-word-list-view__bilingual-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+}
+
+.lingop-word-list-view__bilingual-title small {
+  color: #718096;
+  font-size: 0.75rem;
+}
+
+.lingop-word-list-view__title-streak,
+.lingop-word-list-view__streak-action,
+.lingop-word-list-view__streak-info summary {
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.lingop-word-list-view__title-streak {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.125rem;
+  color: #718096;
+  cursor: pointer;
+  opacity: 0.4;
+  transition: all 0.2s ease-in-out;
+}
+
+.lingop-word-list-view__title-streak:hover {
+  color: #3182ce;
+  opacity: 1;
+}
+
+.lingop-word-list-view__title-streak:focus-visible,
+.lingop-word-list-view__streak-action:focus-visible,
+.lingop-word-list-view__streak-info summary:focus-visible {
+  outline: 2px solid #3182ce;
+  outline-offset: 2px;
+}
+
+.lingop-word-list-view__spinner {
+  display: block;
+  width: 2rem;
+  height: 2rem;
+  margin: 1rem auto;
+  border: 3px solid #e2e8f0;
+  border-top-color: #3182ce;
+  border-radius: 50%;
+  animation: lingop-word-list-view-spin 0.7s linear infinite;
+}
+
+.lingop-word-list-view__empty {
+  width: 100%;
+  color: #a0aec0;
+  font-size: 0.625rem;
+  text-align: center;
+}
+
+.lingop-word-list-view__streak-popover {
+  position: fixed;
+  z-index: var(--lingop-anchored-popover-z-index, 1600);
+  width: max-content;
+  max-width: min(21rem, calc(100vw - 1rem));
+  overflow: visible;
+  color: #1a202c;
+}
+
+.lingop-word-list-view__streak-popover-panel {
+  padding: 0.5rem;
+  border: 1px solid rgb(15 23 42 / 16%);
+  border-radius: 0.5rem;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 16%);
+}
+
+.lingop-word-list-view__streak-popover-arrow {
+  fill: #fff;
+}
+
+.lingop-word-list-view__streak-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.lingop-word-list-view__streak-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+.lingop-word-list-view__streak-action--mastered {
+  color: #2f855a;
+}
+
+.lingop-word-list-view__streak-action--mastered:hover {
+  background: #c6f6d5;
+}
+
+.lingop-word-list-view__streak-action--reset {
+  color: #c53030;
+}
+
+.lingop-word-list-view__streak-action--reset:hover {
+  background: #fff5f5;
+}
+
+.lingop-word-list-view__streak-info {
+  position: relative;
+}
+
+.lingop-word-list-view__streak-info summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 50%;
+  color: #718096;
+  cursor: pointer;
+  list-style: none;
+}
+
+.lingop-word-list-view__streak-info summary::-webkit-details-marker {
+  display: none;
+}
+
+.lingop-word-list-view__streak-info summary:hover {
+  background: #edf2f7;
+}
+
+.lingop-word-list-view__streak-info-content {
+  width: min(17rem, calc(100vw - 3rem));
+  padding: 0.5rem;
+  color: #4a5568;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.lingop-word-list-view__streak-info-content p {
+  margin: 0 0 0.4rem;
+}
+
+.lingop-word-list-view__streak-info-content p:first-child {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #1a202c;
+  font-weight: 600;
+}
+
+.lingop-word-list-view__streak-info-content p:last-child {
+  margin-bottom: 0;
+}
+
+.lingop-word-list-view__icon {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.75;
+}
+
+.lingop-word-list-view__mastery-fill {
+  fill: currentColor;
+  stroke: none;
+  opacity: 0.18;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lingop-word-list-view__title,
+  .lingop-word-list-view__title-streak,
+  .lingop-word-list-view__streak-popover {
+    transition-duration: 0ms !important;
+  }
+}
+
+@keyframes lingop-word-list-view-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

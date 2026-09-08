@@ -21,6 +21,7 @@ export * from "./spelling-system-picker.js";
 export * from "./supabase-auth.js";
 export * from "./user-lingo-prefs.js";
 export * from "./user-word-streaks.js";
+export * from "./word-list-view.js";
 export * from "./word-lists-selector.js";
 export * from "./word-chips-array-view.js";
 export * as speechSynthTTS from "./speech-synth-tts.js";

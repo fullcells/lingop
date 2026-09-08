@@ -243,6 +243,42 @@ import "lingop/ui/next/word-lists-selector.css";
 />;
 ```
 
+## Word-list view in Next.js
+
+`WordListView` recursively renders one localized word-list tree. By default,
+terminal lists use Lingop's `WordChipsArrayView`; one word-details popover is
+shared across the full tree. `LingopClientDataProvider` and
+`PrebakedDataProvider` are required. `UserWordStreaksDataProvider` is optional
+unless `showWordStreaks` is enabled.
+
+```tsx
+import { WordListView } from "lingop/ui/next";
+import "lingop/ui/next/word-list-view.css";
+
+<WordListView
+  rootListPk="_public"
+  guiLang={guiLang}
+  focusLang={focusLang}
+  showWordStreaks
+/>;
+```
+
+Site-specific terminal cards can remain consumer-owned through `renderLeaf`:
+
+```tsx
+<WordListView
+  rootListPk={wordListPk}
+  guiLang={guiLang}
+  focusLang={focusLang}
+  renderLeaf={({ words, listPk }) => (
+    <MyWordCardGrid words={words} wordListPk={listPk} />
+  )}
+/>;
+```
+
+The aggregate stylesheet includes the default word-chip and word-details
+styles. Consumers can override the isolated `lingop-word-list-view*` classes.
+
 ## Install
 
 - `npm install lingop@github:fullcells/lingop#v0.3.X` // Installs Directly from Github // Replace `X` with version number.
