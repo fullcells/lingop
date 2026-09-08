@@ -599,10 +599,4 @@ export function BiTextView({
   );
 }
 
-/** @deprecated Use `BiTextViewProps`. */
-export type L10nA8nElementProps = BiTextViewProps;
-
-/** @deprecated Use `BiTextView`. */
-export const L10nA8nElement = BiTextView;
-
 export default BiTextView;

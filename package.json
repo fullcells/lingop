@@ -105,7 +105,6 @@
     "./ui/next/l10n-word-detail-content.css": "./src/ui/next/l10n-word-detail-content.css",
     "./ui/next/l10n-word-detail-popover.css": "./src/ui/next/l10n-word-detail-popover.css",
     "./ui/next/bi-text-view.css": "./src/ui/next/bi-text-view.css",
-    "./ui/next/l10n-a8n-element.css": "./src/ui/next/bi-text-view.css",
     "./ui/next/language-picker-gui-and-focus.css": "./src/ui/next/language-picker-gui-and-focus.css",
     "./ui/next/speech-synth-lang-voice-picker.css": "./src/ui/next/speech-synth-lang-voice-picker.css",
     "./ui/next/settings-voices-n-annotations.css": "./src/ui/next/settings-voices-n-annotations.css",

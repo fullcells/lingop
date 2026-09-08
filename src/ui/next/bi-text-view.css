@@ -1,5 +1,3 @@
-/* Class names remain stable so existing consumer overrides survive the public
-   component rename from L10nA8nElement to BiTextView. */
 .lingop-l10n-a8n-element {
   width: 100%;
   color: #111827;

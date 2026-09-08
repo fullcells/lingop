@@ -646,9 +646,6 @@ import "lingop/ui/next/l10n-word-detail-popover.css";
 />
 ```
 
-The former `L10nA8nElement` component and prop type remain available as
-deprecated compatibility aliases while existing consumers migrate.
-
 Lingop session-caches transient annotations through its shared client. A
 consumer that needs cross-session persistence can load its stored value into
 `preparedFocusA8n` and save newly generated values from `onAnnotated`; storage
