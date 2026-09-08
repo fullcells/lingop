@@ -10,6 +10,14 @@ const wordDetailPopoverSource = readFileSync(
   new URL("./l10n-word-detail-popover.tsx", import.meta.url),
   "utf8",
 );
+const wordDetailPopoverCss = readFileSync(
+  new URL("./l10n-word-detail-popover.css", import.meta.url),
+  "utf8",
+);
+const wordChipsArrayCss = readFileSync(
+  new URL("./word-chips-array-view.css", import.meta.url),
+  "utf8",
+);
 
 describe("AnchoredPopover positioning", () => {
   it("synchronizes a changed anchor while the floating component stays mounted", () => {
@@ -22,5 +30,12 @@ describe("AnchoredPopover positioning", () => {
   it("gives word details a centered, outlined pointer", () => {
     expect(wordDetailPopoverSource).toContain('placement="bottom"');
     expect(wordDetailPopoverSource).toContain("arrowStrokeWidth={1}");
+  });
+
+  it("keeps Lingop popovers above consumer-owned modal layers", () => {
+    const modalSafeLayer =
+      "z-index: var(--lingop-anchored-popover-z-index, 1600)";
+    expect(wordDetailPopoverCss).toContain(modalSafeLayer);
+    expect(wordChipsArrayCss).toContain(modalSafeLayer);
   });
 });

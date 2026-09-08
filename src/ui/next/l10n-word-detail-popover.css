@@ -1,6 +1,8 @@
 .lingop-word-detail-popover {
   position: fixed;
-  z-index: 1100;
+  /* Word details can be triggered inside a consumer-owned modal, so use the
+     same overridable layer as Lingop's other anchored popovers. */
+  z-index: var(--lingop-anchored-popover-z-index, 1600);
   width: min(24rem, calc(100vw - 1rem));
   max-height: calc(100vh - 1rem);
   overflow: visible;
