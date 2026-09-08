@@ -50,7 +50,7 @@ type CopyToastMessage = {
   description?: string;
 };
 
-export type L10nA8nElementProps = {
+export type BiTextViewProps = {
   localization: Localization;
   guiLang: string;
   focusLang: string;
@@ -116,15 +116,16 @@ function Icon({
 }
 
 /**
- * An interactive bilingual element that annotates the focus-language text
+ * An interactive bilingual text view that annotates the focus-language text
  * and supplies speech, copy, image-download, and optional feedback controls.
  * Initially designed for the CL Translate site on 20251231.
  *
- * TODO(UI): Consider extracting a smaller reusable bilingual annotated-text
- * view (possibly BiTextView; name TBD). Keep that view separate from transient
- * annotation acquisition; persisted-cache policy belongs to the consumer.
+ * This is intentionally the reusable bilingual-text view for current Lingop
+ * consumers. It owns transient annotation acquisition as well as presentation;
+ * persisted-cache policy remains consumer-owned. If a future consumer needs a
+ * presentation-only layer, extract that smaller boundary when it is needed.
  */
-export function L10nA8nElement({
+export function BiTextView({
   localization,
   guiLang,
   focusLang,
@@ -138,7 +139,7 @@ export function L10nA8nElement({
   preparedFocusA8n,
   className,
   style,
-}: L10nA8nElementProps) {
+}: BiTextViewProps) {
   const { OAT } = useOAT();
   const {
     apiVoiceAccessProfile,
@@ -598,4 +599,10 @@ export function L10nA8nElement({
   );
 }
 
-export default L10nA8nElement;
+/** @deprecated Use `BiTextViewProps`. */
+export type L10nA8nElementProps = BiTextViewProps;
+
+/** @deprecated Use `BiTextView`. */
+export const L10nA8nElement = BiTextView;
+
+export default BiTextView;

@@ -624,20 +624,20 @@ Consumers can override its font stacks with CSS custom properties:
 
 ## Bilingual annotated text in Next.js
 
-`L10nA8nElement` renders a localization and its source text together, annotates
+`BiTextView` renders a localization and its source text together, annotates
 whichever side is the focus language, and owns its annotation, speech, copy,
 image-download, word-detail, and feedback controls. It requires
 `LingopClientDataProvider`, `OATDataProvider`, and
 `UserLingoPrefsDataProvider` above it:
 
 ```tsx
-import { L10nA8nElement } from "lingop/ui/next";
+import { BiTextView } from "lingop/ui/next";
 import "lingop/ui/next/annotated-text.css";
-import "lingop/ui/next/l10n-a8n-element.css";
+import "lingop/ui/next/bi-text-view.css";
 import "lingop/ui/next/l10n-word-detail-content.css";
 import "lingop/ui/next/l10n-word-detail-popover.css";
 
-<L10nA8nElement
+<BiTextView
   localization={localization}
   guiLang={guiLang}
   focusLang={focusLang}
@@ -645,6 +645,9 @@ import "lingop/ui/next/l10n-word-detail-popover.css";
   contentContext="LIMITED_TEMP_ANON"
 />
 ```
+
+The former `L10nA8nElement` component and prop type remain available as
+deprecated compatibility aliases while existing consumers migrate.
 
 Lingop session-caches transient annotations through its shared client. A
 consumer that needs cross-session persistence can load its stored value into
@@ -731,7 +734,7 @@ For `MEMBER_CONTENT`, pass the app's Supabase client: `speak({ ..., contentConte
 - `src/core/word-lists.ts` loads public Supabase word-list source and localization rows through shared module caches.
 - `src/ui/next/cookies.ts` contains browser cookie helpers separated from platform-neutral core utilities.
 - `src/ui/next/annotated-text-image.ts` lazily loads `html2canvas` for the annotated-text ref's image-data and download methods.
-- `src/ui/next/l10n-a8n-element.tsx` contains the interactive bilingual localization-and-annotation component originally designed for CL Translate.
+- `src/ui/next/bi-text-view.tsx` contains the interactive bilingual localization-and-annotation component originally designed for CL Translate.
 - `src/ui/next/spelling-system-picker.tsx` contains the dialog-agnostic full and compact spelling-system pickers. Consumers own dialog presentation and lifecycle.
 - `src/ui/next/speech-synth-tts.ts` contains browser/Next speech synthesis helpers exported from `lingop/ui/next`.
 - `src/ui/next/user-word-streaks.tsx` contains the Next user-word-streaks provider and hook exported from `lingop/ui/next`.
