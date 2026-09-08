@@ -23,5 +23,8 @@ describe("WordChipsArrayView ownership boundary", () => {
   it("ships isolated framework-independent chip styling", () => {
     expect(css).toContain(".lingop-word-chips-array");
     expect(css).toContain("border-inline-start");
+    expect(css).toMatch(
+      /\.lingop-word-chips-array__streak-actions\s*\{[^}]*align-items: center;/s,
+    );
   });
 });

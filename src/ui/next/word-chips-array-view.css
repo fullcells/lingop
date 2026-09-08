@@ -146,7 +146,7 @@
 
 .lingop-word-chips-array__streak-actions {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.25rem;
 }
 

@@ -27,6 +27,10 @@ describe("AnchoredPopover positioning", () => {
     );
   });
 
+  it("restores hit testing when a consumer modal disables body pointer events", () => {
+    expect(anchoredPopoverSource).toContain('pointerEvents: "auto"');
+  });
+
   it("gives word details a centered, outlined pointer", () => {
     expect(wordDetailPopoverSource).toContain('placement="bottom"');
     expect(wordDetailPopoverSource).toContain("arrowStrokeWidth={1}");

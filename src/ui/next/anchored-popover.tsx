@@ -149,6 +149,11 @@ export function AnchoredPopover({
       ref={refs.setFloating}
       className={className}
       style={{
+        // Some modal libraries (e.g. ChakraUI) disable pointer events on the document body and
+        // re-enable them only for their own content subtree. FloatingPortal is
+        // intentionally outside that subtree, so restore hit testing here to
+        // prevent clicks from passing through to the element underneath.
+        pointerEvents: "auto",
         ...style,
         ...floatingStyles,
         ...transitionStyles,
