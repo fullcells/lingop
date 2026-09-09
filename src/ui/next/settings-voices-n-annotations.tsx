@@ -1,6 +1,7 @@
 "use client";
 
 import React, {
+  startTransition,
   useCallback,
   useEffect,
   useMemo,
@@ -446,6 +447,32 @@ export type TripleVisibilityToggleRowProps = {
   className?: string;
 };
 
+/**
+ * Keep the control itself responsive while a shared preference change updates
+ * every visible annotated-text consumer. The parent value remains the source
+ * of truth and resynchronizes the immediate value after external changes.
+ */
+function useImmediateSetting<T>(
+  value: T,
+  onChange: (value: T) => void,
+): [T, (value: T) => void] {
+  const [immediateValue, setImmediateValue] = useState(value);
+
+  useEffect(() => {
+    setImmediateValue(value);
+  }, [value]);
+
+  const updateValue = useCallback(
+    (nextValue: T) => {
+      setImmediateValue(nextValue);
+      startTransition(() => onChange(nextValue));
+    },
+    [onChange],
+  );
+
+  return [immediateValue, updateValue];
+}
+
 /** Shared three-state preference row used by main and non-core settings. */
 export function TripleVisibilityToggleRow({
   label,
@@ -457,6 +484,7 @@ export function TripleVisibilityToggleRow({
   className,
 }: TripleVisibilityToggleRowProps) {
   const { OAT } = useOAT();
+  const [immediateValue, updateValue] = useImmediateSetting(value, onChange);
   const labels: Record<TripleDisplayState, string> = {
     NEVER: OAT("Hidden"),
     ON_HINT: OAT("On Hint"),
@@ -474,27 +502,27 @@ export function TripleVisibilityToggleRow({
     >
       <div className="lingop-settings-row__main">
         <span className="lingop-settings-row__label">{label}</span>
-        <span className="lingop-settings-row__state">{labels[value]}</span>
+        <span className="lingop-settings-row__state">{labels[immediateValue]}</span>
         <div
           className="lingop-settings-segment"
           role="radiogroup"
           aria-label={label}
-          data-value={value}
+          data-value={immediateValue}
         >
           {(["NEVER", "ON_HINT", "ALWAYS"] as const).map((option) => (
             <button
               key={option}
               type="button"
               role="radio"
-              aria-checked={value === option}
+              aria-checked={immediateValue === option}
               aria-label={labels[option]}
-              data-selected={value === option || undefined}
-              onClick={() => onChange(option)}
+              data-selected={immediateValue === option || undefined}
+              onClick={() => updateValue(option)}
             >
               {option === "NEVER" ? (
                 <XIcon />
               ) : option === "ON_HINT" ? (
-                <LightbulbIcon filled={value === option} />
+                <LightbulbIcon filled={immediateValue === option} />
               ) : isJapanese ? (
                 <CircleIcon />
               ) : (
@@ -689,6 +717,11 @@ function SwitchRow({
   checked: boolean;
   onChange: (checked: boolean) => void;
 }) {
+  const [immediateChecked, updateChecked] = useImmediateSetting(
+    checked,
+    onChange,
+  );
+
   return (
     <div className="lingop-settings-row">
       <span className="lingop-settings-row__label">{label}</span>
@@ -696,9 +729,9 @@ function SwitchRow({
         type="button"
         className="lingop-settings-switch"
         role="switch"
-        aria-checked={checked}
+        aria-checked={immediateChecked}
         aria-label={label}
-        onClick={() => onChange(!checked)}
+        onClick={() => updateChecked(!immediateChecked)}
       >
         <span />
       </button>

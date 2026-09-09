@@ -8,7 +8,9 @@
   --lingop-settings-accent: #2563eb;
   --lingop-settings-border: color-mix(in srgb, currentColor 13%, transparent);
   --lingop-settings-muted: color-mix(in srgb, currentColor 58%, transparent);
-  --lingop-settings-surface: color-mix(in srgb, currentColor 4%, transparent);
+  /* Mirrors OmniAccess's original white settings rows. Consumers can still
+     override this custom property when embedding the shared UI in dark themes. */
+  --lingop-settings-surface: #fff;
   color: inherit;
   font: inherit;
   max-width: 44rem;
