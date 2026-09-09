@@ -386,7 +386,7 @@ export function BiTextView({
           <div className="lingop-l10n-a8n-element__gui-text">{guiLangText}</div>
         )}
         <div className="lingop-l10n-a8n-element__focus-text">
-          {!focusA8n && !loadingFocusA8n && preparedFocusA8n !== null && focusLangText}
+          {!focusA8n && focusLangText}
           {(loadingFocusA8n || preparedFocusA8n === null) && (
             <span
               className="lingop-l10n-a8n-element__spinner"

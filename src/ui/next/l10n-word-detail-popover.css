@@ -17,12 +17,12 @@
   padding: 0.75rem;
   border: 1px solid rgb(0 0 0 / 12%);
   border-radius: 0.75rem;
-  background: #fff;
+  background: #facc15;
   box-shadow: 0 12px 32px rgb(0 0 0 / 20%);
 }
 
 .lingop-word-detail-popover__arrow {
-  fill: #fff;
+  fill: #facc15;
 }
 
 @media (prefers-reduced-motion: reduce) {

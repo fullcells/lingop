@@ -33,7 +33,10 @@ describe("AnchoredPopover positioning", () => {
 
   it("gives word details a centered, outlined pointer", () => {
     expect(wordDetailPopoverSource).toContain('placement="bottom"');
+    expect(wordDetailPopoverSource).toContain('arrowFill="#facc15"');
     expect(wordDetailPopoverSource).toContain("arrowStrokeWidth={1}");
+    expect(wordDetailPopoverCss).toMatch(/background:\s*#facc15/);
+    expect(wordDetailPopoverCss).toMatch(/fill:\s*#facc15/);
   });
 
   it("keeps Lingop popovers above consumer-owned modal layers", () => {

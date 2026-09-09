@@ -112,7 +112,7 @@ export function useL10nWordDetailPopover({
         offset={offset}
         showArrow
         arrowClassName="lingop-word-detail-popover__arrow"
-        arrowFill="#fff"
+        arrowFill="#facc15"
         arrowStroke="rgba(15, 23, 42, 0.16)"
         arrowStrokeWidth={1}
         transitionDuration={{ open: 140, close: 110 }}
