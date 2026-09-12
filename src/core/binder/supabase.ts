@@ -47,6 +47,10 @@ export type ListBinderDocsInput = SupabaseBinderClientInput & {
   binderId: number;
 };
 
+export type GetBinderDocInput = SupabaseBinderClientInput & {
+  id: number;
+};
+
 export type ListBinderDocL10nCachesInput = SupabaseBinderClientInput & {
   docIds: number[];
   lang: string;
@@ -190,6 +194,23 @@ export async function listBinderDocs({
     .order("name", { ascending: true });
   throwIfError(error);
   return (data ?? []) as BinderDocRow[];
+}
+
+export async function getBinderDoc({
+  supabaseClient,
+  id,
+}: GetBinderDocInput): Promise<BinderDocRow> {
+  const supabase = requireSupabaseClient(supabaseClient);
+  const { data, error } = await supabase
+    .from("user_binder_docs")
+    .select(binderDocColumns)
+    .eq("id", id)
+    .single();
+  throwIfError(error);
+  return requireData(
+    data as BinderDocRow | null,
+    `Supabase returned no binder doc for id ${id}.`,
+  );
 }
 
 export async function listBinderDocL10nCaches({

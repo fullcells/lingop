@@ -328,6 +328,8 @@ Low-level annotation API calls, `callAnnotate_storedForOwner()` remains public a
 
 Additional core helpers:
 
+- `getBinderDoc({ supabaseClient, id })`: fetches one `user_binder_docs` row by its primary-key ID.
+- `annotateBinderMarkdownLines({ lines, binder, doc, fetchAnnotation, ... })`: annotates every non-markdown, non-empty segment while preserving the source line/segment shape and stable binder-document reference coordinates. It supports source documents directly and localized documents through `localization`, `l10nLang`, and optional `translationId`; pass the long-lived client's `fetchAnnotation` method as the callback.
 - `getBinderDocsByMinL10nsOrder([{ doc_id, l10ns }], priorityDocIds?)`: recommends a learning order for already-loaded binder doc localization caches. It normally minimizes new words, with one narrow recurring-word exception for vocabularies above 1,000 unique l10ns. Omitted priorities default to doc `179` (for LingoTrivia); pass `[]` to disable defaults.
 - `fetchBinderDocsByMinL10nsOrder({ supabaseClient, binder_id, lang, priorityDocIds? })`: loads `cache_binder_doc_l10ns` rows for a binder/language pair and returns the same recommended ordering.
 - Low-level `loadWordExplicitationsRows({ supabaseClient })` and `getOneWayWordExplicitations(input, { supabaseClient })` remain exported for gradual migration, but app code should prefer the existing `LingoDataClient`.
