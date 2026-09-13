@@ -45,6 +45,10 @@ import {
   type SBWordRow2,
 } from "./sb-words.js";
 import {
+  getHancharDecomposition,
+  type HancharDecomposition,
+} from "./hanchar-decomposition.js";
+import {
   asSupabaseRuntimeClient,
   type SupabaseClientLike,
   type SupabaseQueryLike,
@@ -209,6 +213,8 @@ export type LingoDataClient = {
     source_word: string;
     target_lang: string;
   }): Promise<GlossOutputData | null>;
+  /** Returns one character's canonical component tree and available readings. */
+  getHancharDecomposition(literal: string): Promise<HancharDecomposition | null>;
   /** Creates a case-insensitively unique word exposure, preserving display casing. */
   createWordExposureRow(input: {
     word_lang: string;
@@ -460,6 +466,11 @@ export function createLingoDataClient({
   const t9nCacheDatesBySC: Record<string, string> = {};
   const authState = createAuthState();
   const authStateListeners = new Set<() => void>();
+  const hancharDecompositionCache = new Map<string, HancharDecomposition>();
+  const hancharDecompositionRequests = new Map<
+    string,
+    Promise<HancharDecomposition | null>
+  >();
 
   function notifyAuthStateListeners(): void {
     for (const listener of authStateListeners) listener();
@@ -1069,6 +1080,30 @@ export function createLingoDataClient({
     });
   }
 
+  function getClientHancharDecomposition(
+    literal: string,
+  ): Promise<HancharDecomposition | null> {
+    const normalizedLiteral = literal.trim();
+    const cached = hancharDecompositionCache.get(normalizedLiteral);
+    if (cached) return Promise.resolve(cached);
+
+    const existingRequest = hancharDecompositionRequests.get(normalizedLiteral);
+    if (existingRequest) return existingRequest;
+
+    const request = getHancharDecomposition(normalizedLiteral, {
+      ...(runtimeSupabaseClient
+        ? { supabaseClient: runtimeSupabaseClient }
+        : {}),
+    }).then((result) => {
+      if (result) hancharDecompositionCache.set(normalizedLiteral, result);
+      return result;
+    }).finally(() => {
+      hancharDecompositionRequests.delete(normalizedLiteral);
+    });
+    hancharDecompositionRequests.set(normalizedLiteral, request);
+    return request;
+  }
+
   return {
     get supabaseUserID() {
       return authState.supabaseUserID;
@@ -1172,6 +1207,7 @@ export function createLingoDataClient({
           : {}),
       }),
     fetchAndGenGloss: fetchAndGenClientGloss,
+    getHancharDecomposition: getClientHancharDecomposition,
     createWordExposureRow: (input) =>
       createWordExposureRowWithSupabase({
         supabaseClient: runtimeSupabaseClient,

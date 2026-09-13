@@ -3,6 +3,7 @@ export * from "./backend-api.js";
 export * from "./binder/index.js";
 export * from "./binder-docs-order.js";
 export * from "./emojify.js";
+export * from "./hanchar-decomposition.js";
 export * from "./language/index.js";
 export * from "./lingo-data-client.js";
 export * from "./misc.js";

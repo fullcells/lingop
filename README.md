@@ -324,6 +324,7 @@ Low-level annotation API calls, `callAnnotate_storedForOwner()` remains public a
 - `loadWordLists()`, `loadWordListMetaData()`, and `loadSBCacheWordListsForLang(lang)`: load and cache public word-list source and localization rows. They use the injected Supabase client but do not inspect or require an authenticated user.
 - `loadEmojiData()` and `generateEmoji(en_gloss, study_word?, study_lang?)`: load shared cached Supabase emoji rows and generate emoji text for English glosses.
 - `isNotCoreWord(word_lang, word, gloss?)`, `getSBWordsForLangDir(word_lang, gloss_lang)`, `refreshCoreSBWordsCache(word_lang, gloss_lang)`, and `fetchAndGenGloss({ source_lang, source_word, target_lang })`: use the shared SBWords cache for core-word checks and one-word gloss generation.
+- `getHancharDecomposition(literal)`: returns one Unicode character's canonical component tree and available Japanese, Cantonese, and Mandarin readings from the public Han-character dataset. Repeated successful lookups are cached by the client instance.
 - `createWordExposureRow(...)`, `addWORDExposureNow(...)`, `getWORDExposureRow(...)`, and `deleteWORDExposureRow(...)`: manage the authenticated user's per-word exposure rows through the Supabase client already owned by `LingoDataClient`.
 
 Additional core helpers:
