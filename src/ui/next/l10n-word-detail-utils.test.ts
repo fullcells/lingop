@@ -1,7 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { AnnotatedText } from "../../core/annotation/types.js";
-import { formatL10nWordAsAnnotatedText } from "./l10n-word-detail-utils.js";
+import {
+  DEFAULT_YUE_WORD_DETAIL_TAB,
+  formatL10nWordAsAnnotatedText,
+  getUniqueHanCharacters,
+  readYueWordDetailTab,
+  supportsHancharComponents,
+  writeYueWordDetailTab,
+  YUE_WORD_DETAIL_TAB_STORAGE_KEY,
+} from "./l10n-word-detail-utils.js";
 
 describe("formatL10nWordAsAnnotatedText", () => {
   it("narrows a regular annotation and supplies a raw-word morpheme", () => {
@@ -52,5 +60,45 @@ describe("formatL10nWordAsAnnotatedText", () => {
         { morpheme: "•••", gloss: "perfect" },
       ],
     });
+  });
+});
+
+describe("Han-character word details", () => {
+  it("enables components only for the requested languages", () => {
+    expect(supportsHancharComponents("ja")).toBe(true);
+    expect(supportsHancharComponents("YUE")).toBe(true);
+    expect(supportsHancharComponents("cmn-hant")).toBe(true);
+    expect(supportsHancharComponents("cmn-hans")).toBe(false);
+    expect(supportsHancharComponents("ko")).toBe(false);
+  });
+
+  it("extracts unique Han characters in display order", () => {
+    expect(getUniqueHanCharacters("日本語かな語，𠄘")).toEqual([
+      "日",
+      "本",
+      "語",
+      "𠄘",
+    ]);
+  });
+
+  it("defaults and persists the Cantonese character-detail tab", () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => values.set(key, value),
+      },
+    });
+
+    try {
+      expect(readYueWordDetailTab()).toBe(DEFAULT_YUE_WORD_DETAIL_TAB);
+      writeYueWordDetailTab("SIMPLE_SCRIPT");
+      expect(values.get(YUE_WORD_DETAIL_TAB_STORAGE_KEY)).toBe("SIMPLE_SCRIPT");
+      expect(readYueWordDetailTab()).toBe("SIMPLE_SCRIPT");
+      values.set(YUE_WORD_DETAIL_TAB_STORAGE_KEY, "UNKNOWN");
+      expect(readYueWordDetailTab()).toBe(DEFAULT_YUE_WORD_DETAIL_TAB);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

@@ -14,6 +14,25 @@
 .lingop-word-detail__glosses { margin: 0.25rem 0 0; padding-left: 1.25rem; list-style: disc outside; }
 .lingop-word-detail__glosses > li { display: list-item; }
 .lingop-word-detail__morphemes { display: flex; flex-direction: column; align-items: flex-start; gap: 1rem; padding-block: 1rem; }
+.lingop-word-detail__character-components, .lingop-word-detail__character-tabs { width: 100%; padding-block: 0.5rem; border-top: 1px solid rgb(0 0 0 / 18%); }
+.lingop-word-detail__character-section-title { margin: 0 0 0.45rem; font-size: 0.875rem; font-weight: 600; }
+.lingop-word-detail__character-list { display: flex; flex-direction: column; gap: 0.5rem; width: 100%; }
+.lingop-word-detail__character-row { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: start; gap: 0.35rem; width: 100%; }
+.lingop-word-detail__character { font-size: 1.4rem; font-weight: 600; line-height: 1.35; }
+.lingop-word-detail__decomposition-arrow { padding-top: 0.2rem; color: rgb(17 24 39 / 55%); }
+.lingop-word-detail__component-list { display: flex; flex-wrap: wrap; gap: 0.3rem; min-width: 0; margin: 0; padding: 0; list-style: none; }
+.lingop-word-detail__component-list > li { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.lingop-word-detail__component-list .lingop-word-detail__component-list { margin-top: 0.25rem; padding-left: 0.45rem; border-left: 1px solid rgb(17 24 39 / 24%); }
+.lingop-word-detail__component { display: inline-flex; align-items: baseline; gap: 0.3rem; padding: 0.15rem 0.35rem; border: 1px solid rgb(17 24 39 / 20%); border-radius: 0.375rem; background: rgb(255 255 255 / 58%); }
+.lingop-word-detail__component[data-role="semantic"] { border-color: rgb(22 101 52 / 38%); background: rgb(240 253 244 / 72%); }
+.lingop-word-detail__component[data-role="phonetic"] { border-color: rgb(107 33 168 / 38%); background: rgb(250 245 255 / 72%); }
+.lingop-word-detail__component-literal { font-size: 1.15rem; line-height: 1.2; }
+.lingop-word-detail__component-role { color: rgb(17 24 39 / 66%); font-size: 0.625rem; line-height: 1; text-transform: lowercase; }
+.lingop-word-detail__segment { display: inline-flex; max-width: 100%; padding: 0.125rem; border: 1px solid rgb(17 24 39 / 18%); border-radius: 0.5rem; background: rgb(255 255 255 / 34%); }
+.lingop-word-detail__segment button { appearance: none; padding: 0.3rem 0.6rem; border: 0; border-radius: 0.375rem; background: transparent; color: rgb(17 24 39 / 70%); cursor: pointer; font: inherit; font-size: 0.75rem; white-space: nowrap; }
+.lingop-word-detail__segment button[data-selected] { background: rgb(255 255 255 / 88%); color: #111827; box-shadow: 0 1px 2px rgb(0 0 0 / 14%); }
+.lingop-word-detail__segment button:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; }
+.lingop-word-detail__character-tab-panel { width: 100%; min-height: 2rem; padding-top: 0.5rem; }
 .lingop-word-detail__alternate-script { display: flex; align-items: flex-start; gap: 0.25rem; width: 100%; padding-block: 0.5rem; border-top: 1px solid rgb(0 0 0 / 18%); font-size: 0.875rem; }
 .lingop-word-detail__alternate-script-text { font-size: 1.25rem; line-height: 1.25; }
 .lingop-word-detail__actions { display: flex; justify-content: flex-end; align-items: center; gap: 1rem; width: 100%; padding-top: 0.5rem; border-top: 1px solid rgb(0 0 0 / 18%); }

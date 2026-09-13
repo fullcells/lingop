@@ -3,6 +3,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 import type { ATokenSubMorphemes } from "../../core/annotation/types.js";
+import type {
+  HancharComponent,
+  HancharDecomposition,
+} from "../../core/hanchar-decomposition.js";
 import {
   getLang,
   getWordExplanationsForWord,
@@ -15,12 +19,24 @@ import { AnnotatedTextView } from "./annotated-text.js";
 import { useLingopClientData } from "./lingop-client-data-provider.js";
 import type { L10nWordDetailData } from "./l10n-word-detail-types.js";
 import {
+  DEFAULT_YUE_WORD_DETAIL_TAB,
   formatL10nWordAsAnnotatedText,
+  getUniqueHanCharacters,
+  readYueWordDetailTab,
+  supportsHancharComponents,
   type FormattedL10nWordDetail,
+  type YueWordDetailTab,
+  writeYueWordDetailTab,
 } from "./l10n-word-detail-utils.js";
 import { useOptionalUserWordStreaksData } from "./user-word-streaks.js";
 
 export type L10nWordDetailResolutionStatus =
+  | "IDLE"
+  | "LOADING"
+  | "RESOLVED"
+  | "FAILED";
+
+export type HancharDecompositionResolutionStatus =
   | "IDLE"
   | "LOADING"
   | "RESOLVED"
@@ -121,6 +137,18 @@ export function useL10nWordDetail({
   const l10nWordAnnotatedText =
     providedWordDetail?.annotatedText ?? resolvedWordDetail?.annotatedText ?? null;
   const l10nWordToken = l10nWordAnnotatedText?.tokens[0];
+  const hanCharacters = useMemo(
+    () => getUniqueHanCharacters(l10nWordToken?.text ?? ""),
+    [l10nWordToken?.text],
+  );
+  const hancharDecompositionKey = `${l10nWordAnnotatedText?.lang ?? ""}:${hanCharacters.join("")}`;
+  const [hancharDecompositions, setHancharDecompositions] = useState<
+    HancharDecomposition[]
+  >([]);
+  const [resolvedHancharDecompositionKey, setResolvedHancharDecompositionKey] =
+    useState("");
+  const [hancharDecompositionStatus, setHancharDecompositionStatus] =
+    useState<HancharDecompositionResolutionStatus>("IDLE");
   // Prefer the original per-grapheme/root-and-pattern detail where available,
   // and repair direct raw-word calls with the selected token as one morpheme.
   const wordSubMorphemes: ATokenSubMorphemes | undefined =
@@ -145,6 +173,52 @@ export function useL10nWordDetail({
     ? wordStreaksData?.userWordStreaks[l10nWordAnnotatedText.lang]
     : undefined;
   const [sbWordGloss, setSBWordGloss] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setResolvedHancharDecompositionKey(hancharDecompositionKey);
+    setHancharDecompositions([]);
+
+    if (
+      !supportsHancharComponents(l10nWordAnnotatedText?.lang) ||
+      hanCharacters.length === 0
+    ) {
+      setHancharDecompositionStatus("IDLE");
+      return;
+    }
+
+    setHancharDecompositionStatus("LOADING");
+    void Promise.all(
+      hanCharacters.map((character) =>
+        lingopClient.getHancharDecomposition(character)
+      ),
+    )
+      .then((results) => {
+        if (cancelled) return;
+        setHancharDecompositions(
+          results.filter(
+            (result): result is HancharDecomposition =>
+              Boolean(result?.components.length),
+          ),
+        );
+        setHancharDecompositionStatus("RESOLVED");
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        console.warn("Could not load Han-character components.", error);
+        setHancharDecompositions([]);
+        setHancharDecompositionStatus("FAILED");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    hanCharacters,
+    hancharDecompositionKey,
+    lingopClient,
+    l10nWordAnnotatedText?.lang,
+  ]);
 
   useEffect(() => {
     if (
@@ -207,6 +281,15 @@ export function useL10nWordDetail({
     wordStreak,
     sbWordGloss,
     wordSubMorphemes,
+    hanCharacters,
+    hancharDecompositions:
+      resolvedHancharDecompositionKey === hancharDecompositionKey
+        ? hancharDecompositions
+        : [],
+    hancharDecompositionStatus:
+      resolvedHancharDecompositionKey === hancharDecompositionKey
+        ? hancharDecompositionStatus
+        : "IDLE",
     setUserWordStreaksToValue: wordStreaksData?.setUserWordStreaksToValue,
   };
 }
@@ -221,6 +304,9 @@ export function L10nWordDetailContent({
 }: L10nWordDetailContentProps) {
   const { OAT } = useOAT();
   const [isMarkingLearnt, setIsMarkingLearnt] = useState(false);
+  const [yueCharacterTab, setYueCharacterTab] = useState<YueWordDetailTab>(
+    DEFAULT_YUE_WORD_DETAIL_TAB,
+  );
   const {
     l10nWordAnnotatedText,
     l10nWordToken,
@@ -229,12 +315,19 @@ export function L10nWordDetailContent({
     wordStreak,
     sbWordGloss,
     wordSubMorphemes,
+    hanCharacters,
+    hancharDecompositions,
+    hancharDecompositionStatus,
     setUserWordStreaksToValue,
   } = useL10nWordDetail({
     l10nWordDetailData,
     guiLang,
     ...(focusLang ? { focusLang } : {}),
   });
+
+  useEffect(() => {
+    setYueCharacterTab(readYueWordDetailTab());
+  }, []);
 
   if (!l10nWordDetailData) return null;
 
@@ -258,6 +351,17 @@ export function L10nWordDetailContent({
 
   const isEnglishGui = ilike(guiLang, "en");
   const canSetWordStreak = Boolean(setUserWordStreaksToValue);
+  const wordLang = l10nWordAnnotatedText.lang.trim().toLowerCase();
+  const isYue = wordLang === "yue";
+  const canLoadHancharComponents =
+    supportsHancharComponents(wordLang) && hanCharacters.length > 0;
+  const hasHancharComponentPanel =
+    canLoadHancharComponents &&
+    (hancharDecompositionStatus === "IDLE" ||
+      hancharDecompositionStatus === "LOADING" ||
+      hancharDecompositions.length > 0);
+  const usesTraditionalChineseScript =
+    getLang(l10nWordAnnotatedText.lang)?.g_script === "Traditional Chinese";
 
   return (
     <div className={["lingop-word-detail", className].filter(Boolean).join(" ")}>
@@ -302,13 +406,74 @@ export function L10nWordDetailContent({
         </div>
       )}
 
-      {/* ALT MAIN SCRIPT DISPLAY */}
-      {getLang(l10nWordAnnotatedText.lang)?.g_script === "Traditional Chinese" && (
+      {/* CHARACTER COMPONENTS */}
+      {!isYue && hasHancharComponentPanel && (
+        <section className="lingop-word-detail__character-components">
+          <h3 className="lingop-word-detail__character-section-title">
+            {OAT("Characters' Components")}
+          </h3>
+          <HancharComponentsBody
+            decompositions={hancharDecompositions}
+            loading={hancharDecompositionStatus === "LOADING"}
+          />
+        </section>
+      )}
+
+      {/* Cantonese combines components and the existing alternate-script view. */}
+      {isYue && hasHancharComponentPanel ? (
+        <section className="lingop-word-detail__character-tabs">
+          <div
+            className="lingop-word-detail__segment"
+            role="tablist"
+            aria-label={OAT("Character details")}
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={yueCharacterTab === "COMPONENTS"}
+              data-selected={
+                yueCharacterTab === "COMPONENTS" ? true : undefined
+              }
+              onClick={() => {
+                setYueCharacterTab("COMPONENTS");
+                writeYueWordDetailTab("COMPONENTS");
+              }}
+            >
+              {OAT("Components")}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={yueCharacterTab === "SIMPLE_SCRIPT"}
+              data-selected={
+                yueCharacterTab === "SIMPLE_SCRIPT" ? true : undefined
+              }
+              onClick={() => {
+                setYueCharacterTab("SIMPLE_SCRIPT");
+                writeYueWordDetailTab("SIMPLE_SCRIPT");
+              }}
+            >
+              {OAT("Simple Script")}
+            </button>
+          </div>
+          <div className="lingop-word-detail__character-tab-panel" role="tabpanel">
+            {yueCharacterTab === "COMPONENTS" ? (
+              <HancharComponentsBody
+                decompositions={hancharDecompositions}
+                loading={hancharDecompositionStatus === "LOADING"}
+              />
+            ) : (
+              <SimplifiedChineseText text={l10nWordToken?.text ?? ""} />
+            )}
+          </div>
+        </section>
+      ) : usesTraditionalChineseScript ? (
+        /* ALT MAIN SCRIPT DISPLAY */
         <section className="lingop-word-detail__alternate-script">
           <span>{OAT("Simplified Chinese Script")}:</span>
           <SimplifiedChineseText text={l10nWordToken?.text ?? ""} />
         </section>
-      )}
+      ) : null}
 
       {/* Without a streak provider, details remain useful and the mutation UI is omitted. */}
       {canSetWordStreak && (
@@ -344,6 +509,78 @@ export function L10nWordDetailContent({
         </div>
       )}
     </div>
+  );
+}
+
+function HancharComponentsBody({
+  decompositions,
+  loading,
+}: {
+  decompositions: HancharDecomposition[];
+  loading: boolean;
+}) {
+  if (loading && decompositions.length === 0) {
+    return (
+      <span
+        className="lingop-word-detail__spinner"
+        aria-label="Loading character components"
+      />
+    );
+  }
+
+  return (
+    <div className="lingop-word-detail__character-list">
+      {decompositions.map((decomposition) => (
+        <div
+          className="lingop-word-detail__character-row"
+          key={decomposition.literal}
+        >
+          <span className="lingop-word-detail__character">
+            {decomposition.literal}
+          </span>
+          <span className="lingop-word-detail__decomposition-arrow" aria-hidden>
+            →
+          </span>
+          <HancharComponentList components={decomposition.components} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function HancharComponentList({
+  components,
+}: {
+  components: HancharComponent[];
+}) {
+  const { OAT } = useOAT();
+  const roleLabels: Record<HancharComponent["role"], string> = {
+    semantic: OAT("Semantic"),
+    phonetic: OAT("Phonetic"),
+    structural: OAT("Structural"),
+  };
+
+  return (
+    <ul className="lingop-word-detail__component-list">
+      {components.map((component, index) => (
+        <li key={`${component.literal}-${component.ordinal}-${index}`}>
+          <span
+            className="lingop-word-detail__component"
+            data-role={component.role}
+          >
+            <span className="lingop-word-detail__component-literal">
+              {component.literal}
+            </span>
+            <span className="lingop-word-detail__component-role">
+              {roleLabels[component.role]}
+            </span>
+          </span>
+          {component.components.length > 0 && (
+            <HancharComponentList components={component.components} />
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
 
