@@ -7,7 +7,7 @@ import {
   formatHancharReadings,
   getUniqueHanCharacters,
   readYueWordDetailTab,
-  splitReadingByNativeSpelling,
+  splitReadingByNativeSpellings,
   supportsHancharComponents,
   writeYueWordDetailTab,
   YUE_WORD_DETAIL_TAB_STORAGE_KEY,
@@ -96,13 +96,21 @@ describe("Han-character word details", () => {
   });
 
   it("marks the meaningful spelling shared by a phonetic component", () => {
-    expect(splitReadingByNativeSpelling("geoi6", "keoi5")).toEqual([
+    expect(splitReadingByNativeSpellings("geoi6", ["keoi5"])).toEqual([
       { text: "g", sharedWithNativeSpelling: false },
       { text: "eoi", sharedWithNativeSpelling: true },
       { text: "6", sharedWithNativeSpelling: false },
     ]);
-    expect(splitReadingByNativeSpelling("ng4", "keoi5")).toEqual([
+    expect(splitReadingByNativeSpellings("ng4", ["keoi5"])).toEqual([
       { text: "ng4", sharedWithNativeSpelling: false },
+    ]);
+  });
+
+  it("recognizes individual Japanese morae and multiple native readings", () => {
+    expect(splitReadingByNativeSpellings("ご・われ", ["ご", "われ"], 1)).toEqual([
+      { text: "ご", sharedWithNativeSpelling: true },
+      { text: "・", sharedWithNativeSpelling: false },
+      { text: "われ", sharedWithNativeSpelling: true },
     ]);
   });
 

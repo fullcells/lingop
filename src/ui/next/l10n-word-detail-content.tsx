@@ -22,9 +22,10 @@ import {
   DEFAULT_YUE_WORD_DETAIL_TAB,
   formatHancharReadings,
   formatL10nWordAsAnnotatedText,
+  getHancharReadings,
   getUniqueHanCharacters,
   readYueWordDetailTab,
-  splitReadingByNativeSpelling,
+  splitReadingByNativeSpellings,
   supportsHancharComponents,
   type FormattedL10nWordDetail,
   type YueWordDetailTab,
@@ -355,6 +356,7 @@ export function L10nWordDetailContent({
   const canSetWordStreak = Boolean(setUserWordStreaksToValue);
   const wordLang = l10nWordAnnotatedText.lang.trim().toLowerCase();
   const isYue = wordLang === "yue";
+  const isTraditionalMandarin = wordLang === "cmn-hant";
   const canLoadHancharComponents =
     supportsHancharComponents(wordLang) && hanCharacters.length > 0;
   const hasHancharComponentPanel =
@@ -409,7 +411,7 @@ export function L10nWordDetailContent({
       )}
 
       {/* CHARACTER COMPONENTS */}
-      {!isYue && hasHancharComponentPanel && (
+      {!(isYue || isTraditionalMandarin) && hasHancharComponentPanel && (
         <section className="lingop-word-detail__character-components">
           <h3 className="lingop-word-detail__character-section-title">
             {OAT("Characters' Components")}
@@ -422,8 +424,8 @@ export function L10nWordDetailContent({
         </section>
       )}
 
-      {/* Cantonese combines components and the existing alternate-script view. */}
-      {isYue && hasHancharComponentPanel ? (
+      {/* Cantonese and Traditional Mandarin combine components with simple script. */}
+      {(isYue || isTraditionalMandarin) && hasHancharComponentPanel ? (
         <section className="lingop-word-detail__character-tabs">
           <div
             className="lingop-word-detail__segment"
@@ -551,10 +553,7 @@ function HancharComponentsBody({
           <HancharComponentList
             components={decomposition.components}
             wordLang={wordLang}
-            nativeSpelling={formatHancharReadings(
-              decomposition.readings,
-              wordLang,
-            )}
+            nativeSpellings={getHancharReadings(decomposition.readings, wordLang)}
           />
         </div>
       ))}
@@ -577,11 +576,11 @@ function HancharComponentsBody({
 function HancharComponentList({
   components,
   wordLang,
-  nativeSpelling,
+  nativeSpellings,
 }: {
   components: HancharComponent[];
   wordLang: string;
-  nativeSpelling: string | null;
+  nativeSpellings: string[];
 }) {
   return (
     <ul className="lingop-word-detail__component-list">
@@ -600,7 +599,11 @@ function HancharComponentList({
                 {reading && (
                   <span className="lingop-word-detail__component-reading">
                     {component.role === "phonetic"
-                      ? splitReadingByNativeSpelling(reading, nativeSpelling).map(
+                      ? splitReadingByNativeSpellings(
+                          reading,
+                          nativeSpellings,
+                          wordLang === "ja" ? 1 : 2,
+                        ).map(
                           (part, partIndex) => (
                             <span
                               className={
@@ -628,7 +631,7 @@ function HancharComponentList({
               <HancharComponentList
                 components={component.components}
                 wordLang={wordLang}
-                nativeSpelling={nativeSpelling}
+                nativeSpellings={nativeSpellings}
               />
             )}
           </li>

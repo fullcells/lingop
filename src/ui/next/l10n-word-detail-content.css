@@ -30,8 +30,8 @@
 .lingop-word-detail__component-details { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; gap: 0.1rem; }
 .lingop-word-detail__component-reading { overflow-wrap: anywhere; color: rgb(17 24 39 / 72%); font-size: 0.7rem; line-height: 1.2; }
 .lingop-word-detail__component-gloss { overflow-wrap: anywhere; color: rgb(17 24 39 / 78%); font-size: 0.7rem; line-height: 1.25; }
-.lingop-word-detail__component[data-role="semantic"] .lingop-word-detail__component-gloss { color: rgb(20 83 45); font-size: 0.8rem; font-weight: 650; }
-.lingop-word-detail__component[data-role="phonetic"] .lingop-word-detail__component-reading { color: rgb(88 28 135); font-size: 0.8rem; font-weight: 650; }
+.lingop-word-detail__component[data-role="semantic"] .lingop-word-detail__component-reading { font-style: italic; }
+.lingop-word-detail__component[data-role="phonetic"] .lingop-word-detail__component-gloss { font-style: italic; }
 .lingop-word-detail__component-reading-shared { color: rgb(76 29 149); font-weight: 800; text-decoration: underline; text-decoration-thickness: 0.12em; text-underline-offset: 0.12em; }
 .lingop-word-detail__component-key { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.3rem 0.65rem; width: 100%; margin-top: 0.15rem; color: rgb(17 24 39 / 62%); font-size: 0.625rem; line-height: 1; }
 .lingop-word-detail__component-key > span { display: inline-flex; align-items: center; gap: 0.2rem; }

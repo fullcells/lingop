@@ -35,13 +35,13 @@ export function getUniqueHanCharacters(text: string): string[] {
   return characters;
 }
 
-/** Formats all available readings for the word's language without duplicates. */
-export function formatHancharReadings(
+/** Returns all available readings for the word's language without duplicates. */
+export function getHancharReadings(
   readings: HancharReading[],
   lang: string | undefined,
-): string | null {
+): string[] {
   const normalizedLang = lang?.trim().toLowerCase() ?? "";
-  const values = [
+  return [
     ...new Set(
       readings
         .filter((reading) => reading.lang.trim().toLowerCase() === normalizedLang)
@@ -49,6 +49,15 @@ export function formatHancharReadings(
         .filter(Boolean),
     ),
   ];
+}
+
+/** Formats all available readings for the word's language without duplicates. */
+export function formatHancharReadings(
+  readings: HancharReading[],
+  lang: string | undefined,
+): string | null {
+  const normalizedLang = lang?.trim().toLowerCase() ?? "";
+  const values = getHancharReadings(readings, lang);
   if (values.length === 0) return null;
   return values.join(normalizedLang === "ja" ? "・" : " / ");
 }
@@ -59,49 +68,58 @@ export type ReadingDisplayPart = {
 };
 
 /**
- * Splits a component reading around its longest meaningful contiguous overlap
- * with the character's modern spelling. A match must be at least two
- * characters, so tone values are never emphasized on their own; e.g. keoi5
- * and geoi6 share the spelling "eoi".
+ * Splits a component reading around the parts shared with one or more of the
+ * character's modern spellings. Japanese is allowed one-character matches so
+ * a single-mora reading such as ご is still recognized.
  */
-export function splitReadingByNativeSpelling(
+export function splitReadingByNativeSpellings(
   reading: string,
-  nativeSpelling: string | null,
+  nativeSpellings: string[],
+  minimumMatchLength = 2,
 ): ReadingDisplayPart[] {
-  if (!nativeSpelling) {
+  if (nativeSpellings.length === 0) {
     return [{ text: reading, sharedWithNativeSpelling: false }];
   }
 
-  let longestMatch = "";
-  for (let start = 0; start < reading.length; start += 1) {
-    for (let end = start + 2; end <= reading.length; end += 1) {
+  const parts: ReadingDisplayPart[] = [];
+  let unmatchedStart = 0;
+  let start = 0;
+  while (start < reading.length) {
+    let longestMatch = "";
+    for (let end = start + minimumMatchLength; end <= reading.length; end += 1) {
       const candidate = reading.slice(start, end);
       if (
         candidate.length > longestMatch.length &&
-        nativeSpelling.includes(candidate)
+        nativeSpellings.some((nativeSpelling) =>
+          nativeSpelling.includes(candidate),
+        )
       ) {
         longestMatch = candidate;
       }
     }
+    if (!longestMatch) {
+      start += 1;
+      continue;
+    }
+    if (unmatchedStart < start) {
+      parts.push({
+        text: reading.slice(unmatchedStart, start),
+        sharedWithNativeSpelling: false,
+      });
+    }
+    parts.push({ text: longestMatch, sharedWithNativeSpelling: true });
+    start += longestMatch.length;
+    unmatchedStart = start;
   }
-
-  if (!longestMatch) {
-    return [{ text: reading, sharedWithNativeSpelling: false }];
+  if (unmatchedStart < reading.length) {
+    parts.push({
+      text: reading.slice(unmatchedStart),
+      sharedWithNativeSpelling: false,
+    });
   }
-
-  const matchStart = reading.indexOf(longestMatch);
-  return [
-    ...(matchStart > 0
-      ? [{ text: reading.slice(0, matchStart), sharedWithNativeSpelling: false }]
-      : []),
-    { text: longestMatch, sharedWithNativeSpelling: true },
-    ...(matchStart + longestMatch.length < reading.length
-      ? [{
-          text: reading.slice(matchStart + longestMatch.length),
-          sharedWithNativeSpelling: false,
-        }]
-      : []),
-  ];
+  return parts.length > 0
+    ? parts
+    : [{ text: reading, sharedWithNativeSpelling: false }];
 }
 
 export function readYueWordDetailTab(): YueWordDetailTab {
