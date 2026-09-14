@@ -24,6 +24,7 @@ import {
   formatL10nWordAsAnnotatedText,
   getUniqueHanCharacters,
   readYueWordDetailTab,
+  splitReadingByNativeSpelling,
   supportsHancharComponents,
   type FormattedL10nWordDetail,
   type YueWordDetailTab,
@@ -550,6 +551,10 @@ function HancharComponentsBody({
           <HancharComponentList
             components={decomposition.components}
             wordLang={wordLang}
+            nativeSpelling={formatHancharReadings(
+              decomposition.readings,
+              wordLang,
+            )}
           />
         </div>
       ))}
@@ -572,9 +577,11 @@ function HancharComponentsBody({
 function HancharComponentList({
   components,
   wordLang,
+  nativeSpelling,
 }: {
   components: HancharComponent[];
   wordLang: string;
+  nativeSpelling: string | null;
 }) {
   return (
     <ul className="lingop-word-detail__component-list">
@@ -586,26 +593,42 @@ function HancharComponentList({
               className="lingop-word-detail__component"
               data-role={component.role}
             >
-              <span className="lingop-word-detail__component-heading">
-                <span className="lingop-word-detail__component-literal">
-                  {component.literal}
-                </span>
+              <span className="lingop-word-detail__component-literal">
+                {component.literal}
+              </span>
+              <span className="lingop-word-detail__component-details">
                 {reading && (
                   <span className="lingop-word-detail__component-reading">
-                    {reading}
+                    {component.role === "phonetic"
+                      ? splitReadingByNativeSpelling(reading, nativeSpelling).map(
+                          (part, partIndex) => (
+                            <span
+                              className={
+                                part.sharedWithNativeSpelling
+                                  ? "lingop-word-detail__component-reading-shared"
+                                  : undefined
+                              }
+                              key={`${part.text}-${partIndex}`}
+                            >
+                              {part.text}
+                            </span>
+                          ),
+                        )
+                      : reading}
+                  </span>
+                )}
+                {component.enGloss && (
+                  <span className="lingop-word-detail__component-gloss">
+                    {component.enGloss}
                   </span>
                 )}
               </span>
-              {component.enGloss && (
-                <span className="lingop-word-detail__component-gloss">
-                  {component.enGloss}
-                </span>
-              )}
             </span>
             {component.components.length > 0 && (
               <HancharComponentList
                 components={component.components}
                 wordLang={wordLang}
+                nativeSpelling={nativeSpelling}
               />
             )}
           </li>

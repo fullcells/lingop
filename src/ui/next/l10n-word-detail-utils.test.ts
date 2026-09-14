@@ -7,6 +7,7 @@ import {
   formatHancharReadings,
   getUniqueHanCharacters,
   readYueWordDetailTab,
+  splitReadingByNativeSpelling,
   supportsHancharComponents,
   writeYueWordDetailTab,
   YUE_WORD_DETAIL_TAB_STORAGE_KEY,
@@ -92,6 +93,17 @@ describe("Han-character word details", () => {
     expect(formatHancharReadings(readings, "ja")).toBe("ご・われ");
     expect(formatHancharReadings(readings, "yue")).toBe("ng4");
     expect(formatHancharReadings(readings, "cmn-hant")).toBeNull();
+  });
+
+  it("marks the meaningful spelling shared by a phonetic component", () => {
+    expect(splitReadingByNativeSpelling("geoi6", "keoi5")).toEqual([
+      { text: "g", sharedWithNativeSpelling: false },
+      { text: "eoi", sharedWithNativeSpelling: true },
+      { text: "6", sharedWithNativeSpelling: false },
+    ]);
+    expect(splitReadingByNativeSpelling("ng4", "keoi5")).toEqual([
+      { text: "ng4", sharedWithNativeSpelling: false },
+    ]);
   });
 
   it("defaults and persists the Cantonese character-detail tab", () => {

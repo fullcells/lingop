@@ -53,6 +53,57 @@ export function formatHancharReadings(
   return values.join(normalizedLang === "ja" ? "・" : " / ");
 }
 
+export type ReadingDisplayPart = {
+  text: string;
+  sharedWithNativeSpelling: boolean;
+};
+
+/**
+ * Splits a component reading around its longest meaningful contiguous overlap
+ * with the character's modern spelling. A match must be at least two
+ * characters, so tone values are never emphasized on their own; e.g. keoi5
+ * and geoi6 share the spelling "eoi".
+ */
+export function splitReadingByNativeSpelling(
+  reading: string,
+  nativeSpelling: string | null,
+): ReadingDisplayPart[] {
+  if (!nativeSpelling) {
+    return [{ text: reading, sharedWithNativeSpelling: false }];
+  }
+
+  let longestMatch = "";
+  for (let start = 0; start < reading.length; start += 1) {
+    for (let end = start + 2; end <= reading.length; end += 1) {
+      const candidate = reading.slice(start, end);
+      if (
+        candidate.length > longestMatch.length &&
+        nativeSpelling.includes(candidate)
+      ) {
+        longestMatch = candidate;
+      }
+    }
+  }
+
+  if (!longestMatch) {
+    return [{ text: reading, sharedWithNativeSpelling: false }];
+  }
+
+  const matchStart = reading.indexOf(longestMatch);
+  return [
+    ...(matchStart > 0
+      ? [{ text: reading.slice(0, matchStart), sharedWithNativeSpelling: false }]
+      : []),
+    { text: longestMatch, sharedWithNativeSpelling: true },
+    ...(matchStart + longestMatch.length < reading.length
+      ? [{
+          text: reading.slice(matchStart + longestMatch.length),
+          sharedWithNativeSpelling: false,
+        }]
+      : []),
+  ];
+}
+
 export function readYueWordDetailTab(): YueWordDetailTab {
   try {
     if (typeof window === "undefined") return DEFAULT_YUE_WORD_DETAIL_TAB;
