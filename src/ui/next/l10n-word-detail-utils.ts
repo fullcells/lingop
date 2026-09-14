@@ -3,6 +3,7 @@ import type {
   AnnotatedText,
   ATokenSubMorphemes,
 } from "../../core/annotation/types.js";
+import type { HancharReading } from "../../core/hanchar-decomposition.js";
 
 export type FormattedL10nWordDetail = {
   annotatedText: AnnotatedText;
@@ -32,6 +33,24 @@ export function getUniqueHanCharacters(text: string): string[] {
     characters.push(character);
   }
   return characters;
+}
+
+/** Formats all available readings for the word's language without duplicates. */
+export function formatHancharReadings(
+  readings: HancharReading[],
+  lang: string | undefined,
+): string | null {
+  const normalizedLang = lang?.trim().toLowerCase() ?? "";
+  const values = [
+    ...new Set(
+      readings
+        .filter((reading) => reading.lang.trim().toLowerCase() === normalizedLang)
+        .map((reading) => reading.reading.trim())
+        .filter(Boolean),
+    ),
+  ];
+  if (values.length === 0) return null;
+  return values.join(normalizedLang === "ja" ? "・" : " / ");
 }
 
 export function readYueWordDetailTab(): YueWordDetailTab {

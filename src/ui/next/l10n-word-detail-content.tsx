@@ -20,6 +20,7 @@ import { useLingopClientData } from "./lingop-client-data-provider.js";
 import type { L10nWordDetailData } from "./l10n-word-detail-types.js";
 import {
   DEFAULT_YUE_WORD_DETAIL_TAB,
+  formatHancharReadings,
   formatL10nWordAsAnnotatedText,
   getUniqueHanCharacters,
   readYueWordDetailTab,
@@ -415,6 +416,7 @@ export function L10nWordDetailContent({
           <HancharComponentsBody
             decompositions={hancharDecompositions}
             loading={hancharDecompositionStatus === "LOADING"}
+            wordLang={wordLang}
           />
         </section>
       )}
@@ -461,6 +463,7 @@ export function L10nWordDetailContent({
               <HancharComponentsBody
                 decompositions={hancharDecompositions}
                 loading={hancharDecompositionStatus === "LOADING"}
+                wordLang={wordLang}
               />
             ) : (
               <SimplifiedChineseText text={l10nWordToken?.text ?? ""} />
@@ -515,10 +518,13 @@ export function L10nWordDetailContent({
 function HancharComponentsBody({
   decompositions,
   loading,
+  wordLang,
 }: {
   decompositions: HancharDecomposition[];
   loading: boolean;
+  wordLang: string;
 }) {
+  const { OAT } = useOAT();
   if (loading && decompositions.length === 0) {
     return (
       <span
@@ -541,45 +547,70 @@ function HancharComponentsBody({
           <span className="lingop-word-detail__decomposition-arrow" aria-hidden>
             →
           </span>
-          <HancharComponentList components={decomposition.components} />
+          <HancharComponentList
+            components={decomposition.components}
+            wordLang={wordLang}
+          />
         </div>
       ))}
+      <div className="lingop-word-detail__component-key">
+        {(["semantic", "phonetic", "structural"] as const).map((role) => (
+          <span key={role}>
+            <i data-role={role} aria-hidden />
+            {role === "semantic"
+              ? OAT("Semantic")
+              : role === "phonetic"
+              ? OAT("Phonetic")
+              : OAT("Structural")}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
 
 function HancharComponentList({
   components,
+  wordLang,
 }: {
   components: HancharComponent[];
+  wordLang: string;
 }) {
-  const { OAT } = useOAT();
-  const roleLabels: Record<HancharComponent["role"], string> = {
-    semantic: OAT("Semantic"),
-    phonetic: OAT("Phonetic"),
-    structural: OAT("Structural"),
-  };
-
   return (
     <ul className="lingop-word-detail__component-list">
-      {components.map((component, index) => (
-        <li key={`${component.literal}-${component.ordinal}-${index}`}>
-          <span
-            className="lingop-word-detail__component"
-            data-role={component.role}
-          >
-            <span className="lingop-word-detail__component-literal">
-              {component.literal}
+      {components.map((component, index) => {
+        const reading = formatHancharReadings(component.readings, wordLang);
+        return (
+          <li key={`${component.literal}-${component.ordinal}-${index}`}>
+            <span
+              className="lingop-word-detail__component"
+              data-role={component.role}
+            >
+              <span className="lingop-word-detail__component-heading">
+                <span className="lingop-word-detail__component-literal">
+                  {component.literal}
+                </span>
+                {reading && (
+                  <span className="lingop-word-detail__component-reading">
+                    {reading}
+                  </span>
+                )}
+              </span>
+              {component.enGloss && (
+                <span className="lingop-word-detail__component-gloss">
+                  {component.enGloss}
+                </span>
+              )}
             </span>
-            <span className="lingop-word-detail__component-role">
-              {roleLabels[component.role]}
-            </span>
-          </span>
-          {component.components.length > 0 && (
-            <HancharComponentList components={component.components} />
-          )}
-        </li>
-      ))}
+            {component.components.length > 0 && (
+              <HancharComponentList
+                components={component.components}
+                wordLang={wordLang}
+              />
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
 }

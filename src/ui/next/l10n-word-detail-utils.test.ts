@@ -4,6 +4,7 @@ import type { AnnotatedText } from "../../core/annotation/types.js";
 import {
   DEFAULT_YUE_WORD_DETAIL_TAB,
   formatL10nWordAsAnnotatedText,
+  formatHancharReadings,
   getUniqueHanCharacters,
   readYueWordDetailTab,
   supportsHancharComponents,
@@ -79,6 +80,18 @@ describe("Han-character word details", () => {
       "語",
       "𠄘",
     ]);
+  });
+
+  it("formats unique component readings for the selected language", () => {
+    const readings = [
+      { lang: "ja", reading: "ご", readingType: "on", source: null },
+      { lang: "JA", reading: "われ", readingType: "kun", source: null },
+      { lang: "ja", reading: "ご", readingType: "on", source: null },
+      { lang: "yue", reading: "ng4", readingType: "jyutping", source: null },
+    ];
+    expect(formatHancharReadings(readings, "ja")).toBe("ご・われ");
+    expect(formatHancharReadings(readings, "yue")).toBe("ng4");
+    expect(formatHancharReadings(readings, "cmn-hant")).toBeNull();
   });
 
   it("defaults and persists the Cantonese character-detail tab", () => {

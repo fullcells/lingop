@@ -32,10 +32,10 @@ describe("getHancharDecomposition", () => {
   it("returns an ordered component tree and readings", async () => {
     const tables: Record<string, unknown[]> = {
       hanchars: [
-        { id: 1, literal: "語" },
-        { id: 2, literal: "言" },
-        { id: 3, literal: "吾" },
-        { id: 4, literal: "口" },
+        { id: 1, literal: "語", en_gloss: "language; word" },
+        { id: 2, literal: "言", en_gloss: "speech" },
+        { id: 3, literal: "吾", en_gloss: "I; my" },
+        { id: 4, literal: "口", en_gloss: "mouth" },
       ],
       hanchar_components: [
         {
@@ -74,6 +74,27 @@ describe("getHancharDecomposition", () => {
           reading_type: "jyutping",
           source: "test",
         },
+        {
+          hanchar_id: 2,
+          lang: "ja",
+          reading: "げん",
+          reading_type: "on",
+          source: "test",
+        },
+        {
+          hanchar_id: 2,
+          lang: "yue",
+          reading: "jin4",
+          reading_type: "jyutping",
+          source: "test",
+        },
+        {
+          hanchar_id: 3,
+          lang: "ja",
+          reading: "ご",
+          reading_type: "on",
+          source: "test",
+        },
       ],
     };
     const supabaseClient = {
@@ -86,9 +107,25 @@ describe("getHancharDecomposition", () => {
       getHancharDecomposition("語", { supabaseClient }),
     ).resolves.toEqual({
       literal: "語",
+      enGloss: "language; word",
       components: [
         {
           literal: "言",
+          enGloss: "speech",
+          readings: [
+            {
+              lang: "ja",
+              reading: "げん",
+              readingType: "on",
+              source: "test",
+            },
+            {
+              lang: "yue",
+              reading: "jin4",
+              readingType: "jyutping",
+              source: "test",
+            },
+          ],
           ordinal: 1,
           role: "semantic",
           source: "test",
@@ -96,12 +133,23 @@ describe("getHancharDecomposition", () => {
         },
         {
           literal: "吾",
+          enGloss: "I; my",
+          readings: [
+            {
+              lang: "ja",
+              reading: "ご",
+              readingType: "on",
+              source: "test",
+            },
+          ],
           ordinal: 2,
           role: "phonetic",
           source: "test",
           components: [
             {
               literal: "口",
+              enGloss: "mouth",
+              readings: [],
               ordinal: 1,
               role: "structural",
               source: "test",
