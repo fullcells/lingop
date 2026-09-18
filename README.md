@@ -557,14 +557,18 @@ interaction, and unfamiliar-word styling are disabled. Its `showSpelling`,
 
 ATV resolves all visible emoji glosses as one deduplicated batch. While that
 batch is pending it shows the inline emoji spinner immediately instead of
-briefly showing the English-gloss fallback. Consumers that need to coordinate
+briefly showing the English-gloss fallback. The known fallback text remains as
+an invisible sizing layer, keeping main text and spelling visible without
+recentering the token row when emojis arrive. Consumers that need to coordinate
 screen navigation can use `onEmojiLoadStateChange`; the wrapper also exposes
 the same state as `data-emoji-loading="true"` or `"false"`.
 
 The OmniAccess-compatible play action is enabled with
 `showActionPlayAudio`. `actionsPlacement` accepts `LEFT_RIGHT`, `RIGHT_LEFT`,
 `TOP`, or `BOTTOM`; the wrapper also respects the main language's writing
-direction. A per-ATV `apiVoiceAccessProfile` overrides the value from
+direction. Its requested action slot is reserved before asynchronous voice
+detection completes, preventing the annotation from moving when the play
+button appears. A per-ATV `apiVoiceAccessProfile` overrides the value from
 `LingopClientDataProvider`. The default profile is `NONE`, which permits
 browser voices only.
 

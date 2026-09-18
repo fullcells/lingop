@@ -948,7 +948,9 @@ function TokenGlossView({
           ({ segment }) => (segment === " " ? "\u2002" : segment),
         )
       : Array.from(emoji, (segment) => (segment === " " ? "\u2002" : segment))
-    : [];
+      : [];
+  const emojiSizeReserveText =
+    tipLangGloss ?? enGloss ?? token.gloss ?? visuallyEmpty;
   const tokenIsHinted = shouldDisplayGloss;
   const shouldApplyNonCoreGlossPrefs =
     tokenCoreWordOrUnknownStatus === false &&
@@ -985,6 +987,9 @@ function TokenGlossView({
         <span
           className={`gloss-emoji ${emojiFont}`}
           style={{
+            display: "inline-grid",
+            gridTemplateAreas: '"emoji"',
+            placeItems: "center",
             minHeight: "1em",
             lineHeight: 1,
             fontSize: `${astyle.glossEmojiSize}px`,
@@ -994,37 +999,59 @@ function TokenGlossView({
           // FUTURE CONSIDERATION: CUR: BRUTE Temp Forcing to LTR. FUTURE: For RTL Langs: Emoji Content needs to adopt: (ARROW DIRECTIONS + Reflip Directions of Emojis) - 20260707
           dir="ltr"
         >
-          {!shouldShowGlossEmoji ? (
-            visuallyEmpty
-          ) : isLoadingEmoji ? (
-            <span
-              className="annotated-text-inline-spinner"
-              aria-label="Loading emoji"
-            />
-          ) : emoji ? (
-            emojiGraphemes.map((grapheme, index) => {
-              const flip = shouldFlipEmoji(grapheme);
-              return (
-                <span
-                  key={`${index}-${grapheme}`}
-                  className={`grapheme${
-                    ["Ọ", "Ȯ"].includes(grapheme) ? " reset-font" : ""
-                  }${
-                    flip === "YES"
-                      ? " to-flip"
-                      : flip === "IF_NOTO"
-                        ? " to-flip-for-noto"
-                        : ""
-                  }`}
-                  style={{ display: "inline-block" }}
-                >
-                  {grapheme}
-                </span>
-              );
-            })
-          ) : (
-            tipLangGloss ?? token.gloss ?? visuallyEmpty
-          )}
+          <span
+            className="gloss-emoji-size-reserve"
+            aria-hidden="true"
+            style={{
+              gridArea: "emoji",
+              visibility: "hidden",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {shouldShowGlossEmoji ? emojiSizeReserveText : visuallyEmpty}
+          </span>
+          <span
+            className="gloss-emoji-content"
+            style={{
+              gridArea: "emoji",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              minWidth: "100%",
+            }}
+          >
+            {!shouldShowGlossEmoji ? (
+              visuallyEmpty
+            ) : isLoadingEmoji ? (
+              <span
+                className="annotated-text-inline-spinner"
+                aria-label="Loading emoji"
+              />
+            ) : emoji ? (
+              emojiGraphemes.map((grapheme, index) => {
+                const flip = shouldFlipEmoji(grapheme);
+                return (
+                  <span
+                    key={`${index}-${grapheme}`}
+                    className={`grapheme${
+                      ["Ọ", "Ȯ"].includes(grapheme) ? " reset-font" : ""
+                    }${
+                      flip === "YES"
+                        ? " to-flip"
+                        : flip === "IF_NOTO"
+                          ? " to-flip-for-noto"
+                          : ""
+                    }`}
+                    style={{ display: "inline-block" }}
+                  >
+                    {grapheme}
+                  </span>
+                );
+              })
+            ) : (
+              tipLangGloss ?? token.gloss ?? visuallyEmpty
+            )}
+          </span>
         </span>
       )}
 
@@ -1608,6 +1635,10 @@ function LoadedAnnotatedTextViewComponent({
       triggerSpeechSynthesis={triggerSpeechSynthesis}
     />
   ) : null;
+  const shouldReserveActionSlot = showActionPlayAudio;
+  const actionSlotStyle = actionsAreVertical
+    ? { width: "100%", minHeight: 32 }
+    : { minWidth: 32 };
 
   return (
     <div
@@ -1631,10 +1662,10 @@ function LoadedAnnotatedTextViewComponent({
       {/* Future: Smarter "splitting" of Action Buttons (on LEFT_RIGHT vs TOP),
           as actions increase. They may move into their own wrapper; now that
           Hint is deprecated, Speak is the only action button. - 20260621 */}
-      {actionsAtStart && actionButton && (
+      {actionsAtStart && shouldReserveActionSlot && (
         <div
           className="annotated-text-actions"
-          style={actionsAreVertical ? { width: "100%", minHeight: 28 } : {}}
+          style={actionSlotStyle}
         >
           {actionButton}
         </div>
@@ -1886,8 +1917,10 @@ function LoadedAnnotatedTextViewComponent({
       </div>
 
       {/* ACTION BUTTONS: END (RIGHT) */}
-      {!actionsAtStart && actionButton && (
-        <div className="annotated-text-actions">{actionButton}</div>
+      {!actionsAtStart && shouldReserveActionSlot && (
+        <div className="annotated-text-actions" style={actionSlotStyle}>
+          {actionButton}
+        </div>
       )}
     </div>
   );

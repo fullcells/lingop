@@ -62,6 +62,21 @@ describe("AnnotatedTextView row layout", () => {
     expect(html).toContain("gap:3px");
     expect(html).toContain('class="gloss" style="display:inline-flex');
     expect(html).toContain("gap:2px");
+    expect(html).toContain('class="gloss-emoji-size-reserve"');
+    expect(html).toContain("visibility:hidden");
+  });
+
+  it("reserves the requested audio-action slot before voice detection resolves", () => {
+    const html = renderToStaticMarkup(
+      createElement(AnnotatedTextView, {
+        annotatedText,
+        showActionPlayAudio: true,
+        actionsPlacement: "TOP",
+      }),
+    );
+
+    expect(html).toContain('class="annotated-text-actions"');
+    expect(html).toContain("min-height:32px");
   });
 
   it.each([
