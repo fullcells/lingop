@@ -36,6 +36,8 @@ export type WordChipsArrayViewProps = {
   guiLang: string;
   /** Shows controls when a UserWordStreaksDataProvider is available. */
   showWordStreaks?: boolean;
+  /** Shows shared streak controls inside the built-in word-detail popover. */
+  showWordDetailStreakControls?: boolean;
   /** Override this when a parent owns one popover across several arrays. */
   onL10nWordTap?: L10nWordTapHandler;
   className?: string;
@@ -56,6 +58,7 @@ export function WordChipsArrayView({
   lang,
   guiLang,
   showWordStreaks = false,
+  showWordDetailStreakControls = true,
   onL10nWordTap,
   className,
 }: WordChipsArrayViewProps): ReactNode {
@@ -65,6 +68,7 @@ export function WordChipsArrayView({
   const wordDetailPopover = useL10nWordDetailPopover({
     guiLang,
     focusLang: lang,
+    showWordStreakControls: showWordDetailStreakControls,
   });
   const [canonicalCaseResult, setCanonicalCaseResult] = useState<{
     lang: string;
