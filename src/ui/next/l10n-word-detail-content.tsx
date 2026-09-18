@@ -2,7 +2,10 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 
-import type { ATokenSubMorphemes } from "../../core/annotation/types.js";
+import type {
+  ATokenSubMorphemes,
+  PhoneticToken,
+} from "../../core/annotation/types.js";
 import type {
   HancharComponent,
   HancharDecomposition,
@@ -23,7 +26,9 @@ import {
   formatHancharReadings,
   formatL10nWordAsAnnotatedText,
   getHancharReadings,
+  getJapaneseWordReadingForCharacter,
   getUniqueHanCharacters,
+  isExactJapaneseOnReadingMatch,
   readYueWordDetailTab,
   splitReadingByNativeSpellings,
   supportsHancharComponents,
@@ -420,6 +425,7 @@ export function L10nWordDetailContent({
             decompositions={hancharDecompositions}
             loading={hancharDecompositionStatus === "LOADING"}
             wordLang={wordLang}
+            wordPhoneticToken={l10nWordToken?.phoneticToken}
           />
         </section>
       )}
@@ -467,6 +473,7 @@ export function L10nWordDetailContent({
                 decompositions={hancharDecompositions}
                 loading={hancharDecompositionStatus === "LOADING"}
                 wordLang={wordLang}
+                wordPhoneticToken={l10nWordToken?.phoneticToken}
               />
             ) : (
               <SimplifiedChineseText text={l10nWordToken?.text ?? ""} />
@@ -522,10 +529,12 @@ function HancharComponentsBody({
   decompositions,
   loading,
   wordLang,
+  wordPhoneticToken,
 }: {
   decompositions: HancharDecomposition[];
   loading: boolean;
   wordLang: string;
+  wordPhoneticToken: PhoneticToken | null | undefined;
 }) {
   const { OAT } = useOAT();
   if (loading && decompositions.length === 0) {
@@ -553,7 +562,11 @@ function HancharComponentsBody({
           <HancharComponentList
             components={decomposition.components}
             wordLang={wordLang}
-            nativeSpellings={getHancharReadings(decomposition.readings, wordLang)}
+            nativeReadings={decomposition.readings}
+            wordReading={getJapaneseWordReadingForCharacter(
+              wordPhoneticToken,
+              decomposition.literal,
+            )}
           />
         </div>
       ))}
@@ -576,16 +589,20 @@ function HancharComponentsBody({
 function HancharComponentList({
   components,
   wordLang,
-  nativeSpellings,
+  nativeReadings,
+  wordReading,
 }: {
   components: HancharComponent[];
   wordLang: string;
-  nativeSpellings: string[];
+  nativeReadings: HancharDecomposition["readings"];
+  wordReading: string | null;
 }) {
   return (
     <ul className="lingop-word-detail__component-list">
       {components.map((component, index) => {
+        const readingValues = getHancharReadings(component.readings, wordLang);
         const reading = formatHancharReadings(component.readings, wordLang);
+        const isJapanese = wordLang.trim().toLowerCase() === "ja";
         return (
           <li key={`${component.literal}-${component.ordinal}-${index}`}>
             <span
@@ -599,24 +616,43 @@ function HancharComponentList({
                 {reading && (
                   <span className="lingop-word-detail__component-reading">
                     {component.role === "phonetic"
-                      ? splitReadingByNativeSpellings(
-                          reading,
-                          nativeSpellings,
-                          wordLang === "ja" ? 1 : 2,
-                        ).map(
-                          (part, partIndex) => (
-                            <span
-                              className={
-                                part.sharedWithNativeSpelling
-                                  ? "lingop-word-detail__component-reading-shared"
-                                  : undefined
-                              }
-                              key={`${part.text}-${partIndex}`}
-                            >
-                              {part.text}
-                            </span>
-                          ),
-                        )
+                      ? isJapanese
+                        ? readingValues.map((value, readingIndex) => (
+                            <React.Fragment key={`${value}-${readingIndex}`}>
+                              {readingIndex > 0 && "・"}
+                              <span
+                                className={
+                                  isExactJapaneseOnReadingMatch(
+                                    value,
+                                    component.readings,
+                                    wordReading,
+                                  )
+                                    ? "lingop-word-detail__component-reading-shared"
+                                    : undefined
+                                }
+                              >
+                                {value}
+                              </span>
+                            </React.Fragment>
+                          ))
+                        : splitReadingByNativeSpellings(
+                            reading,
+                            getHancharReadings(nativeReadings, wordLang),
+                            2,
+                          ).map(
+                            (part, partIndex) => (
+                              <span
+                                className={
+                                  part.sharedWithNativeSpelling
+                                    ? "lingop-word-detail__component-reading-shared"
+                                    : undefined
+                                }
+                                key={`${part.text}-${partIndex}`}
+                              >
+                                {part.text}
+                              </span>
+                            ),
+                          )
                       : reading}
                   </span>
                 )}
@@ -631,7 +667,8 @@ function HancharComponentList({
               <HancharComponentList
                 components={component.components}
                 wordLang={wordLang}
-                nativeSpellings={nativeSpellings}
+                nativeReadings={nativeReadings}
+                wordReading={wordReading}
               />
             )}
           </li>

@@ -2,6 +2,7 @@ import { linearizeTemplaticAText } from "../../core/annotation/converters.js";
 import type {
   AnnotatedText,
   ATokenSubMorphemes,
+  PhoneticToken,
 } from "../../core/annotation/types.js";
 import type { HancharReading } from "../../core/hanchar-decomposition.js";
 
@@ -67,11 +68,7 @@ export type ReadingDisplayPart = {
   sharedWithNativeSpelling: boolean;
 };
 
-/**
- * Splits a component reading around the parts shared with one or more of the
- * character's modern spellings. Japanese is allowed one-character matches so
- * a single-mora reading such as ご is still recognized.
- */
+/** Splits a component reading around shared substrings. */
 export function splitReadingByNativeSpellings(
   reading: string,
   nativeSpellings: string[],
@@ -120,6 +117,50 @@ export function splitReadingByNativeSpellings(
   return parts.length > 0
     ? parts
     : [{ text: reading, sharedWithNativeSpelling: false }];
+}
+
+function normalizeJapaneseReading(value: string): string {
+  return value.normalize("NFKC").trim();
+}
+
+/**
+ * Returns the reading aligned to a phonetic part containing exactly the
+ * requested Han character. Larger parts are intentionally skipped because
+ * assigning their reading to one character would be guesswork.
+ */
+export function getJapaneseWordReadingForCharacter(
+  phoneticToken: PhoneticToken | null | undefined,
+  literal: string,
+): string | null {
+  for (const [chars, spelling] of phoneticToken ?? []) {
+    if (
+      chars.normalize("NFKC") === literal.normalize("NFKC") &&
+      spelling?.trim()
+    ) {
+      return normalizeJapaneseReading(spelling);
+    }
+  }
+  return null;
+}
+
+/**
+ * Japanese phonetic relationships are only emphasized when both sides expose
+ * the same complete on-yomi and the selected word actually uses that reading.
+ * Partial kana overlap and unaligned dictionary inventories are too ambiguous.
+ */
+export function isExactJapaneseOnReadingMatch(
+  reading: string,
+  componentReadings: HancharReading[],
+  wordReading: string | null,
+): boolean {
+  if (!wordReading) return false;
+  const normalizedReading = normalizeJapaneseReading(reading);
+  const isMatchingOnReading = (candidate: HancharReading) =>
+    candidate.lang.trim().toLowerCase() === "ja" &&
+    candidate.readingType?.trim().toLowerCase() === "on" &&
+    normalizeJapaneseReading(candidate.reading) === normalizedReading;
+  return componentReadings.some(isMatchingOnReading) &&
+    normalizedReading === normalizeJapaneseReading(wordReading);
 }
 
 export function readYueWordDetailTab(): YueWordDetailTab {

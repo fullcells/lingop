@@ -5,7 +5,9 @@ import {
   DEFAULT_YUE_WORD_DETAIL_TAB,
   formatL10nWordAsAnnotatedText,
   formatHancharReadings,
+  getJapaneseWordReadingForCharacter,
   getUniqueHanCharacters,
+  isExactJapaneseOnReadingMatch,
   readYueWordDetailTab,
   splitReadingByNativeSpellings,
   supportsHancharComponents,
@@ -106,12 +108,56 @@ describe("Han-character word details", () => {
     ]);
   });
 
-  it("recognizes individual Japanese morae and multiple native readings", () => {
-    expect(splitReadingByNativeSpellings("ご・われ", ["ご", "われ"], 1)).toEqual([
-      { text: "ご", sharedWithNativeSpelling: true },
-      { text: "・", sharedWithNativeSpelling: false },
-      { text: "われ", sharedWithNativeSpelling: true },
-    ]);
+  it("only matches a complete Japanese on-reading", () => {
+    const componentReadings = [
+      { lang: "ja", reading: "ご", readingType: "on", source: null },
+      { lang: "ja", reading: "われ", readingType: "kun", source: null },
+    ];
+    expect(getJapaneseWordReadingForCharacter(
+      [["飲", "の"], ["み"]],
+      "飲",
+    )).toBe("の");
+    expect(getJapaneseWordReadingForCharacter(
+      [["今日", "きょう"]],
+      "今",
+    )).toBeNull();
+    expect(getJapaneseWordReadingForCharacter(
+      [["飲み", "のみ"]],
+      "飲",
+    )).toBeNull();
+    expect(isExactJapaneseOnReadingMatch(
+      "ご",
+      componentReadings,
+      "ご",
+    )).toBe(true);
+    expect(isExactJapaneseOnReadingMatch(
+      "われ",
+      componentReadings,
+      "われ",
+    )).toBe(false);
+    expect(isExactJapaneseOnReadingMatch(
+      "けつ",
+      componentReadings,
+      "の",
+    )).toBe(false);
+    const screenshotComponentReadings = [
+      { lang: "ja", reading: "か.ける", readingType: "kun", source: null },
+      { lang: "ja", reading: "けつ", readingType: "on", source: null },
+      { lang: "ja", reading: "けん", readingType: "on", source: null },
+      { lang: "ja", reading: "か.く", readingType: "kun", source: null },
+    ];
+    expect(screenshotComponentReadings.some((candidate) =>
+      isExactJapaneseOnReadingMatch(
+        candidate.reading,
+        screenshotComponentReadings,
+        "の",
+      )
+    )).toBe(false);
+    expect(isExactJapaneseOnReadingMatch(
+      "ご",
+      componentReadings,
+      null,
+    )).toBe(false);
   });
 
   it("defaults and persists the Cantonese character-detail tab", () => {
