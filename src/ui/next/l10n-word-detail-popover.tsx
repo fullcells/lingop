@@ -20,6 +20,8 @@ export type UseL10nWordDetailPopoverOptions = {
   focusLang?: string;
   className?: string;
   offset?: number;
+  /** Shows and enables the shared word-streak and "Learnt" controls. */
+  showWordStreakControls?: boolean;
 };
 
 export type L10nWordDetailPopoverHandle = {
@@ -40,6 +42,7 @@ export function useL10nWordDetailPopover({
   focusLang,
   className,
   offset = 8,
+  showWordStreakControls = true,
 }: UseL10nWordDetailPopoverOptions): L10nWordDetailPopoverHandle {
   const { OAT } = useOAT();
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
@@ -122,6 +125,7 @@ export function useL10nWordDetailPopover({
             l10nWordDetailData={l10nWordDetailData}
             guiLang={guiLang}
             {...(focusLang ? { focusLang } : {})}
+            showWordStreakControls={showWordStreakControls}
             // Keep the body-to-shell close path for actions such as "Learnt";
             // the popover itself no longer needs a permanently visible X.
             onClose={closeL10nWordDetail}

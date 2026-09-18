@@ -57,11 +57,13 @@ export type L10nWordDetailContentProps = {
   focusLang?: string;
   onClose?: () => void;
   className?: string;
+  /** Shows and enables the shared word-streak and "Learnt" controls. */
+  showWordStreakControls?: boolean;
 };
 
 type UseL10nWordDetailInput = Pick<
   L10nWordDetailContentProps,
-  "l10nWordDetailData" | "guiLang" | "focusLang"
+  "l10nWordDetailData" | "guiLang" | "focusLang" | "showWordStreakControls"
 >;
 
 // This hook has no idea it is ever displayed inside a popover: it turns
@@ -70,6 +72,7 @@ export function useL10nWordDetail({
   l10nWordDetailData,
   guiLang,
   focusLang,
+  showWordStreakControls = true,
 }: UseL10nWordDetailInput) {
   const { lingopClient } = useLingopClientData();
   const wordStreaksData = useOptionalUserWordStreaksData();
@@ -172,6 +175,7 @@ export function useL10nWordDetail({
         )
       : [];
   const wordStreak =
+    showWordStreakControls &&
     l10nWordAnnotatedText && l10nWordToken && wordStreaksData
       ? (wordStreaksData.userWordStreaks[l10nWordAnnotatedText.lang]?.[
           l10nWordToken.text.toUpperCase()
@@ -230,6 +234,7 @@ export function useL10nWordDetail({
 
   useEffect(() => {
     if (
+      !showWordStreakControls ||
       !l10nWordAnnotatedText?.lang ||
       !wordStreaksData ||
       wordStreaksForLang !== undefined
@@ -242,6 +247,7 @@ export function useL10nWordDetail({
     void wordStreaksData.ensureUserWordStreaksForLang(l10nWordAnnotatedText.lang);
   }, [
     l10nWordAnnotatedText?.lang,
+    showWordStreakControls,
     wordStreaksData?.ensureUserWordStreaksForLang,
     wordStreaksForLang,
   ]);
@@ -298,7 +304,9 @@ export function useL10nWordDetail({
       resolvedHancharDecompositionKey === hancharDecompositionKey
         ? hancharDecompositionStatus
         : "IDLE",
-    setUserWordStreaksToValue: wordStreaksData?.setUserWordStreaksToValue,
+    setUserWordStreaksToValue: showWordStreakControls
+      ? wordStreaksData?.setUserWordStreaksToValue
+      : undefined,
   };
 }
 
@@ -309,6 +317,7 @@ export function L10nWordDetailContent({
   focusLang,
   onClose,
   className,
+  showWordStreakControls = true,
 }: L10nWordDetailContentProps) {
   const { OAT } = useOAT();
   const [isMarkingLearnt, setIsMarkingLearnt] = useState(false);
@@ -331,6 +340,7 @@ export function L10nWordDetailContent({
     l10nWordDetailData,
     guiLang,
     ...(focusLang ? { focusLang } : {}),
+    showWordStreakControls,
   });
 
   useEffect(() => {

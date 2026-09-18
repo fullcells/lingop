@@ -149,8 +149,12 @@
   cursor: pointer;
 }
 
-.annotated-text-view .token-word-detail:hover {
+.annotated-text-view .token-word-detail:not(.token-word-detail-only):hover {
   background-color: #f6e05e; /* Chakra yellow.300 */
+}
+
+.annotated-text-view .token-word-detail-only:hover {
+  background-color: rgb(148 163 184 / 16%);
 }
 
 .annotated-text-view .token-word-unfamiliar {

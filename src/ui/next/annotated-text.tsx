@@ -196,6 +196,12 @@ export type AnnotatedTextViewProps = {
   shouldPreloadSpeech?: boolean;
 
   l10nWordDetailHandler?: L10nWordDetailHandler;
+  /**
+   * Enables streak-derived hints, unfamiliar-word highlighting, and streak
+   * mutations on word taps. Disable this for consumers with their own learning
+   * model; supplied word-detail handlers remain fully interactive.
+   */
+  enableWordStreaks?: boolean;
   /** @deprecated Configure this once on LingopClientDataProvider instead. */
   supabaseClient?: SupabaseLingoDataClient;
 };
@@ -361,6 +367,7 @@ type TokenSpellingAndMainViewProps = {
   _showMainText: boolean;
   annotatedText: AnnotatedText;
   astyle: ResolvedAnnotatedTextStyle;
+  enableWordStreaks: boolean;
   l10nWordDetailHandler?: AnnotatedTextViewProps["l10nWordDetailHandler"];
   mainLangFont: string | undefined;
   showMainTextReadingGuide: boolean;
@@ -374,6 +381,7 @@ function TokenSpellingAndMainView({
   _showMainText,
   annotatedText,
   astyle,
+  enableWordStreaks,
   l10nWordDetailHandler,
   mainLangFont,
   showMainTextReadingGuide,
@@ -389,6 +397,7 @@ function TokenSpellingAndMainView({
   const wordStreak =
     userWordStreaks?.[annotatedText.lang]?.[token.text.toUpperCase()] ?? null;
   const isWordUnfamiliar =
+    enableWordStreaks &&
     !!userWordStreaksData &&
     (wordStreak == null || wordStreak < WORD_STREAK_LIMIT_FOR_AUTO_HINT);
   const mainScriptHasReadingGuide = doesLangMainScriptHaveReadingGuide(
@@ -757,6 +766,7 @@ type TokenGlossViewProps = {
   glossTextTipLang: string;
   lang: string;
   lingopClient: LingoDataClient;
+  enableWordStreaks: boolean;
   l10nWordDetailHandler?: AnnotatedTextViewProps["l10nWordDetailHandler"];
   localShouldFadeNonCoreWords: boolean;
   token: AnnotatedToken;
@@ -773,6 +783,7 @@ function TokenGlossView({
   glossTextTipLang,
   lang,
   lingopClient,
+  enableWordStreaks,
   l10nWordDetailHandler,
   localShouldFadeNonCoreWords,
   token,
@@ -844,6 +855,7 @@ function TokenGlossView({
     const morphemeStreak =
       userWordStreaks?.[lang]?.[morpheme.toUpperCase()] ?? 0;
     return (
+      enableWordStreaks &&
       !!userWordStreaksData &&
       morphemeStreak < WORD_STREAK_LIMIT_FOR_AUTO_HINT
     );
@@ -1175,6 +1187,7 @@ function LoadedAnnotatedTextViewComponent({
   contentRef_forAPISpeech,
   shouldPreloadSpeech = false,
   l10nWordDetailHandler,
+  enableWordStreaks = true,
   supabaseClient,
 }: LoadedAnnotatedTextViewProps, ref: ForwardedRef<AnnotatedTextViewHandle>): ReactNode {
   const astyle = resolveAnnotatedTextStyle(astyleInput);
@@ -1226,9 +1239,9 @@ function LoadedAnnotatedTextViewComponent({
     : undefined;
   // DISPLAY: FONTS (also used by image exports).
   const mainLangFont = mainTextFontFamiliesByLang[linearizedAText.lang];
-  const streakWordDetailHandler = userWordStreaksData
-    ? l10nWordDetailHandler
-    : undefined;
+  const activeWordDetailHandler = enableWordStreaks
+    ? (userWordStreaksData ? l10nWordDetailHandler : undefined)
+    : l10nWordDetailHandler;
   const providedClientData = useOptionalLingopClientData();
   const lingopClient = useLingopClientDataOrCreate(
     supabaseClient ? { supabaseClient } : {},
@@ -1479,6 +1492,7 @@ function LoadedAnnotatedTextViewComponent({
   // Word Streaks
   useEffect(() => {
     if (
+      enableWordStreaks &&
       userWordStreaks &&
       ensureUserWordStreaksForLang &&
       !userWordStreaks[linearizedAText.lang]
@@ -1488,6 +1502,7 @@ function LoadedAnnotatedTextViewComponent({
       void ensureUserWordStreaksForLang(linearizedAText.lang);
     }
   }, [
+    enableWordStreaks,
     ensureUserWordStreaksForLang,
     linearizedAText.lang,
     userWordStreaks,
@@ -1648,6 +1663,7 @@ function LoadedAnnotatedTextViewComponent({
                         morpheme.toUpperCase()
                       ] ?? 0;
                     return (
+                      enableWordStreaks &&
                       !!userWordStreaksData &&
                       morphemeStreak < WORD_STREAK_LIMIT_FOR_AUTO_HINT
                     );
@@ -1675,11 +1691,18 @@ function LoadedAnnotatedTextViewComponent({
                   <div
                     key={key}
                     className={`token${
-                      streakWordDetailHandler && isWordToken(token)
+                      activeWordDetailHandler && isWordToken(token)
                         ? " token-word-detail"
                         : ""
                     }${
-                      streakWordDetailHandler &&
+                      activeWordDetailHandler &&
+                      !enableWordStreaks &&
+                      isWordToken(token)
+                        ? " token-word-detail-only"
+                        : ""
+                    }${
+                      activeWordDetailHandler &&
+                      enableWordStreaks &&
                       isWordToken(token) &&
                       isWordUnfamiliar
                         ? " token-word-unfamiliar"
@@ -1691,17 +1714,17 @@ function LoadedAnnotatedTextViewComponent({
                         : undefined
                     }
                     role={
-                      streakWordDetailHandler && isWordToken(token)
+                      activeWordDetailHandler && isWordToken(token)
                         ? "button"
                         : undefined
                     }
                     tabIndex={
-                      streakWordDetailHandler && isWordToken(token)
+                      activeWordDetailHandler && isWordToken(token)
                         ? 0
                         : undefined
                     }
                     aria-haspopup={
-                      streakWordDetailHandler && isWordToken(token)
+                      activeWordDetailHandler && isWordToken(token)
                         ? "dialog"
                         : undefined
                     }
@@ -1717,9 +1740,18 @@ function LoadedAnnotatedTextViewComponent({
                       transition: "all 0.1s ease-in-out",
                     }}
                     onClick={
-                      streakWordDetailHandler && isWordToken(token)
+                      activeWordDetailHandler && isWordToken(token)
                         ? (event) => {
                             event.stopPropagation();
+                            if (!enableWordStreaks) {
+                              activeWordDetailHandler(
+                                linearizedAText,
+                                index,
+                                event,
+                                wordSubMorphemes,
+                              );
+                              return;
+                            }
                             if (
                               !isWordUnfamiliar &&
                               setUserWordStreaksToValue
@@ -1735,7 +1767,7 @@ function LoadedAnnotatedTextViewComponent({
                               );
                             }
                             if (isWordUnfamiliar) {
-                              streakWordDetailHandler(
+                              activeWordDetailHandler(
                                 linearizedAText,
                                 index,
                                 event,
@@ -1746,7 +1778,7 @@ function LoadedAnnotatedTextViewComponent({
                         : undefined
                     }
                     onKeyDown={
-                      streakWordDetailHandler && isWordToken(token)
+                      activeWordDetailHandler && isWordToken(token)
                         ? (event) => {
                             if (event.key !== "Enter" && event.key !== " ") {
                               return;
@@ -1765,7 +1797,8 @@ function LoadedAnnotatedTextViewComponent({
                         _showMainText={resolvedShowMainText}
                         annotatedText={linearizedAText}
                         astyle={astyle}
-                        l10nWordDetailHandler={streakWordDetailHandler}
+                        enableWordStreaks={enableWordStreaks}
+                        l10nWordDetailHandler={activeWordDetailHandler}
                         mainLangFont={mainLangFont}
                         showMainTextReadingGuide={
                           resolvedShowMainTextReadingGuide
@@ -1783,14 +1816,15 @@ function LoadedAnnotatedTextViewComponent({
                     {linearizedAText.containsGloss &&
                       (resolvedShowGlossText !== "NEVER" ||
                         resolvedShowGlossEmoji !== "NEVER" ||
-                        streakWordDetailHandler) && (
+                        activeWordDetailHandler) && (
                         <TokenGlossView
                           astyle={astyle}
                           isEmojiBlackWhite={isEmojiBlackWhite}
                           glossTextTipLang={glossTextTipLang}
                           lang={linearizedAText.lang}
                           lingopClient={lingopClient}
-                          l10nWordDetailHandler={streakWordDetailHandler}
+                          enableWordStreaks={enableWordStreaks}
+                          l10nWordDetailHandler={activeWordDetailHandler}
                           localShouldFadeNonCoreWords={
                             resolvedShouldFadeNonCoreWords
                           }
