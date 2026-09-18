@@ -94,9 +94,12 @@ function makeSupabaseClient({
         return {
           select: vi.fn(
             (columns: string, options?: { count?: "exact"; head?: boolean }) => {
-              if (columns === "id") {
+              if (columns === "created_at") {
                 return makeEmojiQuery(emojiRows, () => ({
-                  data: emojiRows.length > 0 ? [{ id: emojiRows.length }] : [],
+                  data:
+                    emojiRows.length > 0
+                      ? [{ created_at: "2026-09-18T00:00:00.000Z" }]
+                      : [],
                   error: null,
                   count: options?.count === "exact" ? emojiRows.length : null,
                 }));

@@ -36,9 +36,12 @@ function makeSupabaseClient(data: EmojiRow[]): {
       columns: string,
       options?: { count?: "exact"; head?: boolean },
     ): SupabaseEmojiQuery => {
-      if (columns === "id") {
+      if (columns === "created_at") {
         return makeQuery(() => ({
-          data: data.length > 0 ? [{ id: data.length }] : [],
+          data:
+            data.length > 0
+              ? [{ created_at: "2026-09-18T00:00:00.000Z" }]
+              : [],
           error: null,
           count: options?.count === "exact" ? data.length : null,
         }));

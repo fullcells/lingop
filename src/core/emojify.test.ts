@@ -47,7 +47,10 @@ function makeQuery(
   return query;
 }
 
-function makeSupabaseClient(data: EmojiRow[]): {
+function makeSupabaseClient(
+  data: EmojiRow[],
+  newestCreatedAt = "2026-09-18T00:00:00.000Z",
+): {
   supabaseClient: SupabaseEmojiClient;
   select: ReturnType<typeof vi.fn>;
 } {
@@ -56,9 +59,12 @@ function makeSupabaseClient(data: EmojiRow[]): {
       columns: string,
       options?: { count?: "exact"; head?: boolean },
     ): SupabaseEmojiQuery => {
-      if (columns === "id") {
+      if (columns === "created_at") {
         return makeQuery(() => ({
-          data: data.length > 0 ? [{ id: data.length }] : [],
+          data:
+            data.length > 0
+              ? [{ created_at: newestCreatedAt }]
+              : [],
           error: null,
           count: options?.count === "exact" ? data.length : null,
         }));
@@ -178,6 +184,45 @@ describe("emojify", () => {
     expect(second.select).not.toHaveBeenCalled();
   });
 
+  it("refreshes cached rows when the newest created_at changes", async () => {
+    const storage = makeMemoryStorage();
+    const cacheKey = "created-at-refresh-test";
+    await storage.set(cacheKey, {
+      schemaVersion: 2,
+      rows: [{ emoji: "🧥", en_gloss: "COAT" }],
+      revision: {
+        count: 1,
+        newestCreatedAt: "2026-09-17T00:00:00.000Z",
+      },
+      checkedAt: 0,
+      refreshedAt: 0,
+    });
+    const latestRows = [{ emoji: "🥼", en_gloss: "coat" }];
+    const latest = makeSupabaseClient(
+      latestRows,
+      "2026-09-18T00:00:00.000Z",
+    );
+
+    await expect(
+      preloadEmojiData({
+        supabaseClient: latest.supabaseClient,
+        cacheKey,
+        storage,
+      }),
+    ).resolves.toEqual([{ emoji: "🧥", en_gloss: "COAT" }]);
+    await vi.waitFor(async () => {
+      await expect(storage.get(cacheKey)).resolves.toMatchObject({
+        rows: [{ emoji: "🥼", en_gloss: "COAT" }],
+        revision: {
+          count: 1,
+          newestCreatedAt: "2026-09-18T00:00:00.000Z",
+        },
+      });
+    });
+
+    expect(latest.select).toHaveBeenCalledTimes(2);
+  });
+
   it("loads emoji batches concurrently", async () => {
     const manyRows = Array.from({ length: 2_001 }, (_, index) => ({
       emoji: "✅",
@@ -187,9 +232,9 @@ describe("emojify", () => {
     let maxActiveBatches = 0;
     const select = vi.fn(
       (columns: string, options?: { count?: "exact" }): SupabaseEmojiQuery => {
-        if (columns === "id") {
+        if (columns === "created_at") {
           return makeQuery(() => ({
-            data: [{ id: manyRows.length }],
+            data: [{ created_at: "2026-09-18T00:00:00.000Z" }],
             error: null,
             count: options?.count === "exact" ? manyRows.length : null,
           }));
@@ -240,13 +285,13 @@ describe("emojify", () => {
     let revisionAttempts = 0;
     const select = vi.fn(
       (columns: string, options?: { count?: "exact" }): SupabaseEmojiQuery => {
-        if (columns === "id") {
+        if (columns === "created_at") {
           revisionAttempts += 1;
           return makeQuery(() =>
             revisionAttempts === 1
               ? { data: null, error: new Error("offline"), count: null }
               : {
-                  data: [{ id: rows.length }],
+                  data: [{ created_at: "2026-09-18T00:00:00.000Z" }],
                   error: null,
                   count: options?.count === "exact" ? rows.length : null,
                 },

@@ -17,11 +17,11 @@ export type EmojiRow = {
 
 export type EmojiDataRevision = {
   count: number;
-  maxId: number | null;
+  newestCreatedAt: string | null;
 };
 
 export type EmojiDataCacheEntry = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   rows: EmojiRow[];
   revision: EmojiDataRevision;
   checkedAt: number;
@@ -86,12 +86,11 @@ const no_emoji_words: { [study_lang: string]: string[] /*study_words*/ } = {
 
 const EMOJI_BATCH_SIZE = 1000;
 const EMOJI_RESULT_CACHE_SIZE = 2000;
-const EMOJI_CACHE_SCHEMA_VERSION = 1;
+const EMOJI_CACHE_SCHEMA_VERSION = 2;
 const EMOJI_CACHE_DB_NAME = "lingop-cache";
 const EMOJI_CACHE_STORE_NAME = "emoji-data";
 const DEFAULT_EMOJI_CACHE_KEY = "default";
 const EMOJI_REVISION_CHECK_INTERVAL_MS = 15 * 60 * 1000;
-const EMOJI_FULL_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const EMOJI_FETCH_TIMEOUT_MS = 15 * 1000;
 const EMOJI_STORAGE_TIMEOUT_MS = 1_500;
 
@@ -274,9 +273,10 @@ async function revalidateEmojiData({
   if (!cacheEntry) return;
 
   const revision = await fetchEmojiDataRevision(supabaseClient);
-  const needsFullRefresh =
-    !areEmojiDataRevisionsEqual(cacheEntry.revision, revision) ||
-    Date.now() - cacheEntry.refreshedAt >= EMOJI_FULL_REFRESH_INTERVAL_MS;
+  const needsFullRefresh = !areEmojiDataRevisionsEqual(
+    cacheEntry.revision,
+    revision,
+  );
   if (needsFullRefresh) {
     await refreshEmojiData({
       cacheKey,
@@ -351,8 +351,8 @@ async function fetchEmojiDataRevision(
   const result = await withTimeout(
     supabaseClient
       .from("emojis")
-      .select("id", { count: "exact" })
-      .order("id", { ascending: false })
+      .select("created_at", { count: "exact" })
+      .order("created_at", { ascending: false })
       .range(0, 0),
     EMOJI_FETCH_TIMEOUT_MS,
     "emoji revision request",
@@ -362,21 +362,27 @@ async function fetchEmojiDataRevision(
   }
 
   const firstRow = Array.isArray(result.data) ? result.data[0] : undefined;
-  const maxId =
+  const newestCreatedAt =
     firstRow &&
     typeof firstRow === "object" &&
-    "id" in firstRow &&
-    typeof firstRow.id === "number"
-      ? firstRow.id
+    "created_at" in firstRow &&
+    typeof firstRow.created_at === "string"
+      ? firstRow.created_at
       : null;
-  return { count: result.count, maxId };
+  if (result.count > 0 && newestCreatedAt === null) {
+    throw new Error("The newest emoji created_at value was unavailable.");
+  }
+  return { count: result.count, newestCreatedAt };
 }
 
 function areEmojiDataRevisionsEqual(
   left: EmojiDataRevision,
   right: EmojiDataRevision,
 ): boolean {
-  return left.count === right.count && left.maxId === right.maxId;
+  return (
+    left.count === right.count &&
+    left.newestCreatedAt === right.newestCreatedAt
+  );
 }
 
 async function fetchEmojiData(
@@ -525,8 +531,9 @@ function isEmojiDataCacheEntry(value: unknown): value is EmojiDataCacheEntry {
     typeof value.revision === "object" &&
     "count" in value.revision &&
     typeof value.revision.count === "number" &&
-    "maxId" in value.revision &&
-    (typeof value.revision.maxId === "number" || value.revision.maxId === null) &&
+    "newestCreatedAt" in value.revision &&
+    (typeof value.revision.newestCreatedAt === "string" ||
+      value.revision.newestCreatedAt === null) &&
     "checkedAt" in value &&
     typeof value.checkedAt === "number" &&
     "refreshedAt" in value &&
