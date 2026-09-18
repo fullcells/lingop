@@ -177,4 +177,81 @@ describe("getHancharDecomposition", () => {
       getHancharDecomposition("𠄘", { supabaseClient }),
     ).resolves.toBeNull();
   });
+
+  it("recursively follows decompositions stored under component characters", async () => {
+    const tables: Record<string, unknown[]> = {
+      hanchars: [
+        { id: 1, literal: "貓", en_gloss: "cat" },
+        { id: 2, literal: "苗", en_gloss: "seedling" },
+        { id: 3, literal: "艹", en_gloss: "grass" },
+        { id: 4, literal: "田", en_gloss: "field" },
+      ],
+      hanchar_components: [
+        {
+          id: 10,
+          hanchar_id: 1,
+          component_hanchar_id: 2,
+          parent_hanchar_component_id: null,
+          ordinal: 1,
+          role: "phonetic",
+          source: "test",
+        },
+        {
+          id: 11,
+          hanchar_id: 2,
+          component_hanchar_id: 3,
+          parent_hanchar_component_id: null,
+          ordinal: 1,
+          role: "structural",
+          source: "test",
+        },
+        {
+          id: 12,
+          hanchar_id: 2,
+          component_hanchar_id: 4,
+          parent_hanchar_component_id: null,
+          ordinal: 2,
+          role: "structural",
+          source: "test",
+        },
+      ],
+      hanchar_readings: [],
+    };
+    const supabaseClient = {
+      from: vi.fn((table: string) => ({
+        select: vi.fn(() => queryFor(tables[table] ?? [])),
+      })),
+    };
+
+    const result = await getHancharDecomposition("貓", { supabaseClient });
+
+    expect(result?.components[0]).toMatchObject({
+      literal: "苗",
+      components: [
+        { literal: "艹", components: [] },
+        { literal: "田", components: [] },
+      ],
+    });
+  });
+
+  it("returns atomic characters so the UI can still show the component", async () => {
+    const tables: Record<string, unknown[]> = {
+      hanchars: [{ id: 1, literal: "一", en_gloss: "one" }],
+      hanchar_components: [],
+      hanchar_readings: [],
+    };
+    const supabaseClient = {
+      from: vi.fn((table: string) => ({
+        select: vi.fn(() => queryFor(tables[table] ?? [])),
+      })),
+    };
+
+    await expect(
+      getHancharDecomposition("一", { supabaseClient }),
+    ).resolves.toMatchObject({
+      literal: "一",
+      enGloss: "one",
+      components: [],
+    });
+  });
 });

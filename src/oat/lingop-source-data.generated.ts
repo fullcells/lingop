@@ -5,6 +5,7 @@ import type { OATSourceData } from "./types.js";
 export const lingopOATSourceData: OATSourceData = {
   "guiTextsByScope": {
     "_": [
+      "(same)",
       "About Word Streaks",
       "Already have an account?",
       "Annotation Error",

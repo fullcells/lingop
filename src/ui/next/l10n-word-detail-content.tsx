@@ -210,7 +210,7 @@ export function useL10nWordDetail({
         setHancharDecompositions(
           results.filter(
             (result): result is HancharDecomposition =>
-              Boolean(result?.components.length),
+              result !== null,
           ),
         );
         setHancharDecompositionStatus("RESOLVED");
@@ -558,28 +558,41 @@ function HancharComponentsBody({
 
   return (
     <div className="lingop-word-detail__character-list">
-      {decompositions.map((decomposition) => (
-        <div
-          className="lingop-word-detail__character-row"
-          key={decomposition.literal}
-        >
-          <span className="lingop-word-detail__character">
-            {decomposition.literal}
-          </span>
-          <span className="lingop-word-detail__decomposition-arrow" aria-hidden>
-            →
-          </span>
-          <HancharComponentList
-            components={decomposition.components}
-            wordLang={wordLang}
-            nativeReadings={decomposition.readings}
-            wordReading={getJapaneseWordReadingForCharacter(
-              wordPhoneticToken,
-              decomposition.literal,
-            )}
-          />
-        </div>
-      ))}
+      {decompositions.map((decomposition) => {
+        const components = decomposition.components.length > 0
+          ? decomposition.components
+          : [{
+            literal: decomposition.literal,
+            enGloss: decomposition.enGloss,
+            readings: decomposition.readings,
+            ordinal: 1,
+            role: "structural" as const,
+            source: null,
+            components: [],
+          }];
+        return (
+          <div
+            className="lingop-word-detail__character-row"
+            key={decomposition.literal}
+          >
+            <span className="lingop-word-detail__character">
+              {decomposition.literal}
+            </span>
+            <span className="lingop-word-detail__decomposition-arrow" aria-hidden>
+              →
+            </span>
+            <HancharComponentList
+              components={components}
+              wordLang={wordLang}
+              nativeReadings={decomposition.readings}
+              wordReading={getJapaneseWordReadingForCharacter(
+                wordPhoneticToken,
+                decomposition.literal,
+              )}
+            />
+          </div>
+        );
+      })}
       <div className="lingop-word-detail__component-key">
         {(["semantic", "phonetic", "structural"] as const).map((role) => (
           <span key={role}>
@@ -601,95 +614,148 @@ function HancharComponentList({
   wordLang,
   nativeReadings,
   wordReading,
+  path = "root",
 }: {
   components: HancharComponent[];
   wordLang: string;
   nativeReadings: HancharDecomposition["readings"];
   wordReading: string | null;
+  path?: string;
 }) {
   return (
     <ul className="lingop-word-detail__component-list">
-      {components.map((component, index) => {
-        const readingValues = getHancharReadings(component.readings, wordLang);
-        const reading = formatHancharReadings(component.readings, wordLang);
-        const isJapanese = wordLang.trim().toLowerCase() === "ja";
-        return (
-          <li key={`${component.literal}-${component.ordinal}-${index}`}>
-            <span
-              className="lingop-word-detail__component"
-              data-role={component.role}
-            >
-              <span className="lingop-word-detail__component-literal">
-                {component.literal}
-              </span>
-              <span className="lingop-word-detail__component-details">
-                {reading && (
-                  <span className="lingop-word-detail__component-reading">
-                    {component.role === "phonetic"
-                      ? isJapanese
-                        ? readingValues.map((value, readingIndex) => (
-                            <React.Fragment key={`${value}-${readingIndex}`}>
-                              {readingIndex > 0 && "・"}
-                              <span
-                                className={
-                                  isExactJapaneseOnReadingMatch(
-                                    value,
-                                    component.readings,
-                                    wordReading,
-                                  )
-                                    ? "lingop-word-detail__component-reading-shared"
-                                    : undefined
-                                }
-                              >
-                                {value}
-                              </span>
-                            </React.Fragment>
-                          ))
-                        : splitReadingByNativeSpellings(
-                            reading,
-                            getHancharReadings(nativeReadings, wordLang),
-                            2,
-                          ).map(
-                            (part, partIndex) => (
-                              <span
-                                className={
-                                  part.sharedWithNativeSpelling
-                                    ? "lingop-word-detail__component-reading-shared"
-                                    : undefined
-                                }
-                                key={`${part.text}-${partIndex}`}
-                              >
-                                {part.text}
-                              </span>
-                            ),
-                          )
-                      : reading}
-                  </span>
-                )}
-                {component.enGloss && (
-                  <span className="lingop-word-detail__component-gloss">
-                    {component.enGloss}
-                  </span>
-                )}
-              </span>
-            </span>
-            {component.components.length > 0 && (
-              <HancharComponentList
-                components={component.components}
-                wordLang={wordLang}
-                nativeReadings={nativeReadings}
-                wordReading={wordReading}
-              />
-            )}
-          </li>
-        );
-      })}
+      {components.map((component, index) => (
+        <HancharComponentItem
+          component={component}
+          wordLang={wordLang}
+          nativeReadings={nativeReadings}
+          wordReading={wordReading}
+          path={`${path}-${component.literal}-${component.ordinal}-${index}`}
+          key={`${component.literal}-${component.ordinal}-${index}`}
+        />
+      ))}
     </ul>
+  );
+}
+
+function HancharComponentItem({
+  component,
+  wordLang,
+  nativeReadings,
+  wordReading,
+  path,
+}: {
+  component: HancharComponent;
+  wordLang: string;
+  nativeReadings: HancharDecomposition["readings"];
+  wordReading: string | null;
+  path: string;
+}) {
+  const [expanded, setExpanded] = useState(true);
+  const readingValues = getHancharReadings(component.readings, wordLang);
+  const reading = formatHancharReadings(component.readings, wordLang);
+  const isJapanese = wordLang.trim().toLowerCase() === "ja";
+  const hasComponents = component.components.length > 0;
+  const content = (
+    <>
+      <span className="lingop-word-detail__component-literal">
+        {component.literal}
+      </span>
+      <span className="lingop-word-detail__component-details">
+        {reading && (
+          <span className="lingop-word-detail__component-reading">
+            {component.role === "phonetic"
+              ? isJapanese
+                ? readingValues.map((value, readingIndex) => (
+                    <React.Fragment key={`${value}-${readingIndex}`}>
+                      {readingIndex > 0 && "・"}
+                      <span
+                        className={
+                          isExactJapaneseOnReadingMatch(
+                            value,
+                            component.readings,
+                            wordReading,
+                          )
+                            ? "lingop-word-detail__component-reading-shared"
+                            : undefined
+                        }
+                      >
+                        {value}
+                      </span>
+                    </React.Fragment>
+                  ))
+                : splitReadingByNativeSpellings(
+                    reading,
+                    getHancharReadings(nativeReadings, wordLang),
+                    2,
+                  ).map((part, partIndex) => (
+                    <span
+                      className={
+                        part.sharedWithNativeSpelling
+                          ? "lingop-word-detail__component-reading-shared"
+                          : undefined
+                      }
+                      key={`${part.text}-${partIndex}`}
+                    >
+                      {part.text}
+                    </span>
+                  ))
+              : reading}
+          </span>
+        )}
+        {component.enGloss && (
+          <span className="lingop-word-detail__component-gloss">
+            {component.enGloss}
+          </span>
+        )}
+      </span>
+      {hasComponents && (
+        <span
+          className="lingop-word-detail__component-expander"
+          aria-hidden
+        >
+          {expanded ? "▾" : "▸"}
+        </span>
+      )}
+    </>
+  );
+
+  return (
+    <li>
+      {hasComponents ? (
+        <button
+          type="button"
+          className="lingop-word-detail__component lingop-word-detail__component-button"
+          data-role={component.role}
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {content}
+        </button>
+      ) : (
+        <span
+          className="lingop-word-detail__component"
+          data-role={component.role}
+        >
+          {content}
+        </span>
+      )}
+      {hasComponents && expanded && (
+        <HancharComponentList
+          components={component.components}
+          wordLang={wordLang}
+          nativeReadings={nativeReadings}
+          wordReading={wordReading}
+          path={path}
+        />
+      )}
+    </li>
   );
 }
 
 // Small helper component: handles the async conversion and its failure state.
 function SimplifiedChineseText({ text }: { text: string }) {
+  const { OAT } = useOAT();
   const [simplified, setSimplified] = useState<string | null>(null);
   const [conversionFailed, setConversionFailed] = useState(false);
 
@@ -713,9 +779,19 @@ function SimplifiedChineseText({ text }: { text: string }) {
     };
   }, [text]);
 
+  const displayedText = conversionFailed ? text : (simplified ?? "…");
+  const isSame = simplified !== null && simplified === text;
   return (
-    <span className="lingop-word-detail__alternate-script-text">
-      {conversionFailed ? text : (simplified ?? "…")}
+    <span
+      className="lingop-word-detail__alternate-script-text"
+      data-same={isSame ? true : undefined}
+    >
+      {displayedText}
+      {isSame && (
+        <span className="lingop-word-detail__alternate-script-same">
+          {" "}{OAT("(same)")}
+        </span>
+      )}
     </span>
   );
 }

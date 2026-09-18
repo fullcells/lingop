@@ -1,4 +1,8 @@
-import { asSupabaseRuntimeClient, type SupabaseClientLike } from "./supabase.js";
+import {
+  asSupabaseRuntimeClient,
+  type SupabaseClientLike,
+  type SupabaseRuntimeClient,
+} from "./supabase.js";
 
 export type HancharComponentRole = "semantic" | "phonetic" | "structural";
 
@@ -98,122 +102,165 @@ export async function getHancharDecomposition(
     return null;
   }
 
-  const hancharResult = await client
-    .from("hanchars")
-    .select("id, literal, en_gloss")
-    .eq("literal", normalizedLiteral);
-  if (hancharResult.error) {
-    console.error("Supabase hanchars select error:", errorMessage(hancharResult.error));
-    return null;
-  }
+  return loadHancharDecomposition(
+    normalizedLiteral,
+    client,
+    new Set<string>(),
+    new Map<string, HancharDecomposition | null>(),
+  );
+}
 
-  const hanchar = Array.isArray(hancharResult.data)
-    ? hancharResult.data.find(isHancharRow)
-    : undefined;
-  if (!hanchar) return null;
+async function loadHancharDecomposition(
+  literal: string,
+  client: SupabaseRuntimeClient,
+  ancestors: ReadonlySet<string>,
+  cache: Map<string, HancharDecomposition | null>,
+): Promise<HancharDecomposition | null> {
+  // Malformed source data must not make the recursive component lookup loop.
+  if (ancestors.has(literal)) return null;
 
-  const componentsResult = await client
-    .from("hanchar_components")
-    .select(
-      "id, component_hanchar_id, parent_hanchar_component_id, ordinal, role, source",
-    )
-    .eq("hanchar_id", hanchar.id)
-    .order("ordinal", { ascending: true });
+  if (cache.has(literal)) return cache.get(literal) ?? null;
 
-  if (componentsResult.error) {
-    console.error(
-      "Supabase hanchar detail select error:",
-      errorMessage(componentsResult.error),
-    );
-    return null;
-  }
+  const result = await (async (): Promise<HancharDecomposition | null> => {
+    const nextAncestors = new Set(ancestors);
+    nextAncestors.add(literal);
 
-  const componentRows = Array.isArray(componentsResult.data)
-    ? componentsResult.data.filter(isComponentRow)
-    : [];
-  const componentHancharIds = [
-    ...new Set(componentRows.map((row) => row.component_hanchar_id)),
-  ];
-  const hancharsById = new Map<number, HancharRow>([[hanchar.id, hanchar]]);
-  const readingsByHancharId = new Map<number, HancharReading[]>();
-  const detailHancharIds = [hanchar.id, ...componentHancharIds];
+    const hancharResult = await client
+      .from("hanchars")
+      .select("id, literal, en_gloss")
+      .eq("literal", literal);
+    if (hancharResult.error) {
+      console.error("Supabase hanchars select error:", errorMessage(hancharResult.error));
+      return null;
+    }
 
-  const [componentHancharsResult, readingsResult] = await Promise.all([
-    componentHancharIds.length > 0
-      ? client
-        .from("hanchars")
-        .select("id, literal, en_gloss")
-        .in("id", componentHancharIds)
-      : Promise.resolve({ data: [], error: null }),
-    client
-      .from("hanchar_readings")
-      .select("hanchar_id, lang, reading, reading_type, source")
-      .in("hanchar_id", detailHancharIds)
-      .order("lang", { ascending: true }),
-  ]);
+    const hanchar = Array.isArray(hancharResult.data)
+      ? hancharResult.data.find(isHancharRow)
+      : undefined;
+    if (!hanchar) return null;
 
-  if (componentHancharsResult.error || readingsResult.error) {
+    const componentsResult = await client
+      .from("hanchar_components")
+      .select(
+        "id, component_hanchar_id, parent_hanchar_component_id, ordinal, role, source",
+      )
+      .eq("hanchar_id", hanchar.id)
+      .order("ordinal", { ascending: true });
+
+    if (componentsResult.error) {
+      console.error(
+        "Supabase hanchar detail select error:",
+        errorMessage(componentsResult.error),
+      );
+      return null;
+    }
+
+    const componentRows = Array.isArray(componentsResult.data)
+      ? componentsResult.data.filter(isComponentRow)
+      : [];
+    const componentHancharIds = [
+      ...new Set(componentRows.map((row) => row.component_hanchar_id)),
+    ];
+    const hancharsById = new Map<number, HancharRow>([[hanchar.id, hanchar]]);
+    const readingsByHancharId = new Map<number, HancharReading[]>();
+    const detailHancharIds = [hanchar.id, ...componentHancharIds];
+
+    const [componentHancharsResult, readingsResult] = await Promise.all([
+      componentHancharIds.length > 0
+        ? client
+          .from("hanchars")
+          .select("id, literal, en_gloss")
+          .in("id", componentHancharIds)
+        : Promise.resolve({ data: [], error: null }),
+      client
+        .from("hanchar_readings")
+        .select("hanchar_id, lang, reading, reading_type, source")
+        .in("hanchar_id", detailHancharIds)
+        .order("lang", { ascending: true }),
+    ]);
+
+    if (componentHancharsResult.error || readingsResult.error) {
       console.error(
         "Supabase component hanchar detail select error:",
         errorMessage(componentHancharsResult.error ?? readingsResult.error),
       );
       return null;
-  }
+    }
 
-  for (const row of Array.isArray(componentHancharsResult.data)
-    ? componentHancharsResult.data
-    : []) {
-    if (isHancharRow(row)) hancharsById.set(row.id, row);
-  }
-  for (const row of Array.isArray(readingsResult.data)
-    ? readingsResult.data.filter(isReadingRow)
-    : []) {
-    const readings = readingsByHancharId.get(row.hanchar_id) ?? [];
-    readings.push({
-      lang: row.lang,
-      reading: row.reading,
-      readingType: row.reading_type,
-      source: row.source,
-    });
-    readingsByHancharId.set(row.hanchar_id, readings);
-  }
+    for (const row of Array.isArray(componentHancharsResult.data)
+      ? componentHancharsResult.data
+      : []) {
+      if (isHancharRow(row)) hancharsById.set(row.id, row);
+    }
+    for (const row of Array.isArray(readingsResult.data)
+      ? readingsResult.data.filter(isReadingRow)
+      : []) {
+      const readings = readingsByHancharId.get(row.hanchar_id) ?? [];
+      readings.push({
+        lang: row.lang,
+        reading: row.reading,
+        readingType: row.reading_type,
+        source: row.source,
+      });
+      readingsByHancharId.set(row.hanchar_id, readings);
+    }
 
-  const componentsById = new Map<number, HancharComponent>();
-  for (const row of componentRows) {
-    const componentHanchar = hancharsById.get(row.component_hanchar_id);
-    if (!componentHanchar) continue;
-    componentsById.set(row.id, {
-      literal: componentHanchar.literal,
-      enGloss: componentHanchar.en_gloss,
-      readings: readingsByHancharId.get(componentHanchar.id) ?? [],
-      ordinal: row.ordinal,
-      role: row.role ?? "structural",
-      source: row.source,
-      components: [],
-    });
-  }
+    const componentsById = new Map<number, HancharComponent>();
+    for (const row of componentRows) {
+      const componentHanchar = hancharsById.get(row.component_hanchar_id);
+      if (!componentHanchar) continue;
+      componentsById.set(row.id, {
+        literal: componentHanchar.literal,
+        enGloss: componentHanchar.en_gloss,
+        readings: readingsByHancharId.get(componentHanchar.id) ?? [],
+        ordinal: row.ordinal,
+        role: row.role ?? "structural",
+        source: row.source,
+        components: [],
+      });
+    }
 
-  const rootComponents: HancharComponent[] = [];
-  for (const row of componentRows) {
-    const component = componentsById.get(row.id);
-    if (!component) continue;
-    const parent = row.parent_hanchar_component_id === null
-      ? undefined
-      : componentsById.get(row.parent_hanchar_component_id);
-    if (parent) parent.components.push(component);
-    else rootComponents.push(component);
-  }
+    const rootComponents: HancharComponent[] = [];
+    for (const row of componentRows) {
+      const component = componentsById.get(row.id);
+      if (!component) continue;
+      const parent = row.parent_hanchar_component_id === null
+        ? undefined
+        : componentsById.get(row.parent_hanchar_component_id);
+      if (parent) parent.components.push(component);
+      else rootComponents.push(component);
+    }
 
-  const sortComponents = (components: HancharComponent[]): void => {
-    components.sort((left, right) => left.ordinal - right.ordinal);
-    for (const component of components) sortComponents(component.components);
-  };
-  sortComponents(rootComponents);
+    const sortComponents = (components: HancharComponent[]): void => {
+      components.sort((left, right) => left.ordinal - right.ordinal);
+      for (const component of components) sortComponents(component.components);
+    };
+    sortComponents(rootComponents);
 
-  return {
-    literal: hanchar.literal,
-    enGloss: hanchar.en_gloss,
-    components: rootComponents,
-    readings: readingsByHancharId.get(hanchar.id) ?? [],
-  };
+    // The prefill stores each character's decomposition canonically under that
+    // character. Follow those records so a component such as 苗 can expose 艹
+    // and 田 even though those rows are not duplicated under 貓.
+    await Promise.all(
+      [...componentsById.values()].map(async (component) => {
+        if (component.components.length > 0) return;
+        const nested = await loadHancharDecomposition(
+          component.literal,
+          client,
+          nextAncestors,
+          cache,
+        );
+        if (nested?.components.length) component.components = nested.components;
+      }),
+    );
+
+    return {
+      literal: hanchar.literal,
+      enGloss: hanchar.en_gloss,
+      components: rootComponents,
+      readings: readingsByHancharId.get(hanchar.id) ?? [],
+    };
+  })();
+
+  cache.set(literal, result);
+  return result;
 }
