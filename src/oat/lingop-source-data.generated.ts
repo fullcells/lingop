@@ -21,6 +21,7 @@ export const lingopOATSourceData: OATSourceData = {
       "Copied",
       "Copy",
       "Copy Spelling",
+      "Core Component",
       "Could not load word details.",
       "Designed for English speakers",
       "Don't have an account?",

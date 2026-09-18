@@ -16,6 +16,7 @@ export type HancharReading = {
 export type HancharComponent = {
   literal: string;
   enGloss: string | null;
+  decomposition: string | null;
   readings: HancharReading[];
   ordinal: number;
   role: HancharComponentRole;
@@ -26,11 +27,17 @@ export type HancharComponent = {
 export type HancharDecomposition = {
   literal: string;
   enGloss: string | null;
+  decomposition: string | null;
   components: HancharComponent[];
   readings: HancharReading[];
 };
 
-type HancharRow = { id: number; literal: string; en_gloss: string | null };
+type HancharRow = {
+  id: number;
+  literal: string;
+  en_gloss: string | null;
+  decomposition: string | null;
+};
 type HancharComponentRow = {
   id: number;
   component_hanchar_id: number;
@@ -60,7 +67,9 @@ function isHancharRow(value: unknown): value is HancharRow {
     typeof (value as HancharRow).id === "number" &&
     typeof (value as HancharRow).literal === "string" &&
     ((value as HancharRow).en_gloss === null ||
-      typeof (value as HancharRow).en_gloss === "string");
+      typeof (value as HancharRow).en_gloss === "string") &&
+    ((value as HancharRow).decomposition === null ||
+      typeof (value as HancharRow).decomposition === "string");
 }
 
 function isComponentRow(value: unknown): value is HancharComponentRow {
@@ -127,7 +136,7 @@ async function loadHancharDecomposition(
 
     const hancharResult = await client
       .from("hanchars")
-      .select("id, literal, en_gloss")
+      .select("id, literal, en_gloss, decomposition")
       .eq("literal", literal);
     if (hancharResult.error) {
       console.error("Supabase hanchars select error:", errorMessage(hancharResult.error));
@@ -169,7 +178,7 @@ async function loadHancharDecomposition(
       componentHancharIds.length > 0
         ? client
           .from("hanchars")
-          .select("id, literal, en_gloss")
+          .select("id, literal, en_gloss, decomposition")
           .in("id", componentHancharIds)
         : Promise.resolve({ data: [], error: null }),
       client
@@ -212,6 +221,7 @@ async function loadHancharDecomposition(
       componentsById.set(row.id, {
         literal: componentHanchar.literal,
         enGloss: componentHanchar.en_gloss,
+        decomposition: componentHanchar.decomposition,
         readings: readingsByHancharId.get(componentHanchar.id) ?? [],
         ordinal: row.ordinal,
         role: row.role ?? "structural",
@@ -250,12 +260,14 @@ async function loadHancharDecomposition(
           cache,
         );
         if (nested?.components.length) component.components = nested.components;
+        if (nested) component.decomposition = nested.decomposition;
       }),
     );
 
     return {
       literal: hanchar.literal,
       enGloss: hanchar.en_gloss,
+      decomposition: hanchar.decomposition,
       components: rootComponents,
       readings: readingsByHancharId.get(hanchar.id) ?? [],
     };

@@ -32,10 +32,10 @@ describe("getHancharDecomposition", () => {
   it("returns an ordered component tree and readings", async () => {
     const tables: Record<string, unknown[]> = {
       hanchars: [
-        { id: 1, literal: "語", en_gloss: "language; word" },
-        { id: 2, literal: "言", en_gloss: "speech" },
-        { id: 3, literal: "吾", en_gloss: "I; my" },
-        { id: 4, literal: "口", en_gloss: "mouth" },
+        { id: 1, literal: "語", en_gloss: "language; word", decomposition: "⿰言吾" },
+        { id: 2, literal: "言", en_gloss: "speech", decomposition: null },
+        { id: 3, literal: "吾", en_gloss: "I; my", decomposition: "⿱五口" },
+        { id: 4, literal: "口", en_gloss: "mouth", decomposition: null },
       ],
       hanchar_components: [
         {
@@ -108,10 +108,12 @@ describe("getHancharDecomposition", () => {
     ).resolves.toEqual({
       literal: "語",
       enGloss: "language; word",
+      decomposition: "⿰言吾",
       components: [
         {
           literal: "言",
           enGloss: "speech",
+          decomposition: null,
           readings: [
             {
               lang: "ja",
@@ -134,6 +136,7 @@ describe("getHancharDecomposition", () => {
         {
           literal: "吾",
           enGloss: "I; my",
+          decomposition: "⿱五口",
           readings: [
             {
               lang: "ja",
@@ -149,6 +152,7 @@ describe("getHancharDecomposition", () => {
             {
               literal: "口",
               enGloss: "mouth",
+              decomposition: null,
               readings: [],
               ordinal: 1,
               role: "structural",
@@ -181,10 +185,10 @@ describe("getHancharDecomposition", () => {
   it("recursively follows decompositions stored under component characters", async () => {
     const tables: Record<string, unknown[]> = {
       hanchars: [
-        { id: 1, literal: "貓", en_gloss: "cat" },
-        { id: 2, literal: "苗", en_gloss: "seedling" },
-        { id: 3, literal: "艹", en_gloss: "grass" },
-        { id: 4, literal: "田", en_gloss: "field" },
+        { id: 1, literal: "貓", en_gloss: "cat", decomposition: "⿰豸苗" },
+        { id: 2, literal: "苗", en_gloss: "seedling", decomposition: "⿱艹田" },
+        { id: 3, literal: "艹", en_gloss: "grass", decomposition: null },
+        { id: 4, literal: "田", en_gloss: "field", decomposition: null },
       ],
       hanchar_components: [
         {
@@ -227,6 +231,7 @@ describe("getHancharDecomposition", () => {
 
     expect(result?.components[0]).toMatchObject({
       literal: "苗",
+      decomposition: "⿱艹田",
       components: [
         { literal: "艹", components: [] },
         { literal: "田", components: [] },
@@ -236,7 +241,7 @@ describe("getHancharDecomposition", () => {
 
   it("returns atomic characters so the UI can still show the component", async () => {
     const tables: Record<string, unknown[]> = {
-      hanchars: [{ id: 1, literal: "一", en_gloss: "one" }],
+      hanchars: [{ id: 1, literal: "一", en_gloss: "one", decomposition: null }],
       hanchar_components: [],
       hanchar_readings: [],
     };

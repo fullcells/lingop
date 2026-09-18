@@ -559,37 +559,37 @@ function HancharComponentsBody({
   return (
     <div className="lingop-word-detail__character-list">
       {decompositions.map((decomposition) => {
-        const components = decomposition.components.length > 0
-          ? decomposition.components
-          : [{
-            literal: decomposition.literal,
-            enGloss: decomposition.enGloss,
-            readings: decomposition.readings,
-            ordinal: 1,
-            role: "structural" as const,
-            source: null,
-            components: [],
-          }];
+        const isCoreComponent = decomposition.components.length === 0;
         return (
           <div
             className="lingop-word-detail__character-row"
+            data-core-component={isCoreComponent || undefined}
             key={decomposition.literal}
           >
             <span className="lingop-word-detail__character">
               {decomposition.literal}
             </span>
-            <span className="lingop-word-detail__decomposition-arrow" aria-hidden>
-              →
-            </span>
-            <HancharComponentList
-              components={components}
-              wordLang={wordLang}
-              nativeReadings={decomposition.readings}
-              wordReading={getJapaneseWordReadingForCharacter(
-                wordPhoneticToken,
-                decomposition.literal,
-              )}
-            />
+            {isCoreComponent ? (
+              <span className="lingop-word-detail__core-component">
+                {OAT("Core Component")}
+              </span>
+            ) : (
+              <>
+                <span className="lingop-word-detail__decomposition-arrow" aria-hidden>
+                  →
+                </span>
+                <HancharComponentList
+                  components={decomposition.components}
+                  decomposition={decomposition.decomposition}
+                  wordLang={wordLang}
+                  nativeReadings={decomposition.readings}
+                  wordReading={getJapaneseWordReadingForCharacter(
+                    wordPhoneticToken,
+                    decomposition.literal,
+                  )}
+                />
+              </>
+            )}
           </div>
         );
       })}
@@ -611,19 +611,26 @@ function HancharComponentsBody({
 
 function HancharComponentList({
   components,
+  decomposition,
   wordLang,
   nativeReadings,
   wordReading,
   path = "root",
 }: {
   components: HancharComponent[];
+  decomposition?: string | null;
   wordLang: string;
   nativeReadings: HancharDecomposition["readings"];
   wordReading: string | null;
   path?: string;
 }) {
+  const layout = getHancharComponentLayout(decomposition);
   return (
-    <ul className="lingop-word-detail__component-list">
+    <ul
+      className="lingop-word-detail__component-list"
+      data-layout={layout.direction}
+      data-operator={layout.operator ?? undefined}
+    >
       {components.map((component, index) => (
         <HancharComponentItem
           component={component}
@@ -636,6 +643,25 @@ function HancharComponentList({
       ))}
     </ul>
   );
+}
+
+function getHancharComponentLayout(
+  decomposition: string | null | undefined,
+): {
+  direction: "horizontal" | "vertical" | "overlay";
+  operator: string | null;
+} {
+  const operator = Array.from(decomposition ?? "")[0] ?? null;
+  if (operator === "⿱" || operator === "⿳") {
+    return { direction: "vertical", operator };
+  }
+  if (operator === "⿰" || operator === "⿲") {
+    return { direction: "horizontal", operator };
+  }
+  if (operator && "⿴⿵⿶⿷⿸⿹⿺⿻⿼⿽⿾⿿".includes(operator)) {
+    return { direction: "overlay", operator };
+  }
+  return { direction: "horizontal", operator: null };
 }
 
 function HancharComponentItem({
@@ -651,7 +677,7 @@ function HancharComponentItem({
   wordReading: string | null;
   path: string;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const readingValues = getHancharReadings(component.readings, wordLang);
   const reading = formatHancharReadings(component.readings, wordLang);
   const isJapanese = wordLang.trim().toLowerCase() === "ja";
@@ -714,7 +740,9 @@ function HancharComponentItem({
           className="lingop-word-detail__component-expander"
           aria-hidden
         >
-          {expanded ? "▾" : "▸"}
+          <svg viewBox="0 0 16 16" focusable="false">
+            <path d={expanded ? "M3 5.5 8 10.5l5-5" : "m5.5 3 5 5-5 5"} />
+          </svg>
         </span>
       )}
     </>
@@ -743,6 +771,7 @@ function HancharComponentItem({
       {hasComponents && expanded && (
         <HancharComponentList
           components={component.components}
+          decomposition={component.decomposition}
           wordLang={wordLang}
           nativeReadings={nativeReadings}
           wordReading={wordReading}
