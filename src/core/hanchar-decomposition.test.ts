@@ -239,6 +239,75 @@ describe("getHancharDecomposition", () => {
     });
   });
 
+  it("recursively resolves supplementary-plane components into displayable parts", async () => {
+    const tables: Record<string, unknown[]> = {
+      hanchars: [
+        { id: 1, literal: "機", en_gloss: "machine", decomposition: "⿰木幾" },
+        { id: 2, literal: "幾", en_gloss: "several", decomposition: "⿹⿻戈𢆶人" },
+        { id: 3, literal: "𢆶", en_gloss: null, decomposition: "⿰幺幺" },
+        { id: 4, literal: "幺", en_gloss: "small", decomposition: null },
+      ],
+      hanchar_components: [
+        {
+          id: 20,
+          hanchar_id: 1,
+          component_hanchar_id: 2,
+          parent_hanchar_component_id: null,
+          ordinal: 1,
+          role: "phonetic",
+          source: "test",
+        },
+        {
+          id: 21,
+          hanchar_id: 2,
+          component_hanchar_id: 3,
+          parent_hanchar_component_id: null,
+          ordinal: 1,
+          role: "structural",
+          source: "test",
+        },
+        {
+          id: 22,
+          hanchar_id: 3,
+          component_hanchar_id: 4,
+          parent_hanchar_component_id: null,
+          ordinal: 1,
+          role: "structural",
+          source: "test",
+        },
+        {
+          id: 23,
+          hanchar_id: 3,
+          component_hanchar_id: 4,
+          parent_hanchar_component_id: null,
+          ordinal: 2,
+          role: "structural",
+          source: "test",
+        },
+      ],
+      hanchar_readings: [],
+    };
+    const supabaseClient = {
+      from: vi.fn((table: string) => ({
+        select: vi.fn(() => queryFor(tables[table] ?? [])),
+      })),
+    };
+
+    const result = await getHancharDecomposition("機", { supabaseClient });
+
+    expect(result?.components[0]).toMatchObject({
+      literal: "幾",
+      components: [{
+        literal: "𢆶",
+        decomposition: "⿰幺幺",
+        components: [
+          { literal: "幺", components: [] },
+          { literal: "幺", components: [] },
+        ],
+      }],
+    });
+  });
+
   it("returns atomic characters so the UI can still show the component", async () => {
     const tables: Record<string, unknown[]> = {
       hanchars: [{ id: 1, literal: "一", en_gloss: "one", decomposition: null }],

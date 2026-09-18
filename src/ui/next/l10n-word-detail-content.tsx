@@ -19,6 +19,10 @@ import { WORD_STREAKS_MASTERY_THRESHOLD } from "../../core/word-lists.js";
 import { ilike } from "../../utils/string.js";
 import { useOAT } from "../../oat/react/index.js";
 import { AnnotatedTextView } from "./annotated-text.js";
+import {
+  getHancharComponentLayout,
+  shouldUseHancharCompositionGlyph,
+} from "./hanchar-component-display.js";
 import { useLingopClientData } from "./lingop-client-data-provider.js";
 import type { L10nWordDetailData } from "./l10n-word-detail-types.js";
 import {
@@ -569,9 +573,10 @@ function HancharComponentsBody({
             data-core-component={isCoreComponent || undefined}
             key={decomposition.literal}
           >
-            <span className="lingop-word-detail__character">
-              {decomposition.literal}
-            </span>
+            <HancharGlyph
+              node={decomposition}
+              className="lingop-word-detail__character"
+            />
             {isCoreComponent ? (
               <span className="lingop-word-detail__core-component">
                 {OAT("Core Component")}
@@ -650,23 +655,66 @@ function HancharComponentList({
   );
 }
 
-function getHancharComponentLayout(
-  decomposition: string | null | undefined,
-): {
-  direction: "horizontal" | "vertical" | "overlay";
-  operator: string | null;
-} {
-  const operator = Array.from(decomposition ?? "")[0] ?? null;
-  if (operator === "⿱" || operator === "⿳") {
-    return { direction: "vertical", operator };
-  }
-  if (operator === "⿰" || operator === "⿲") {
-    return { direction: "horizontal", operator };
-  }
-  if (operator && "⿴⿵⿶⿷⿸⿹⿺⿻⿼⿽⿾⿿".includes(operator)) {
-    return { direction: "overlay", operator };
-  }
-  return { direction: "horizontal", operator: null };
+type HancharGlyphNode = Pick<
+  HancharDecomposition,
+  "literal" | "decomposition" | "components"
+>;
+
+function HancharGlyph({
+  node,
+  className,
+}: {
+  node: HancharGlyphNode;
+  className: string;
+}) {
+  const useComposition = shouldUseHancharCompositionGlyph(
+    node.literal,
+    node.components.length > 0,
+  );
+  return (
+    <span
+      className={className}
+      aria-label={useComposition ? node.literal : undefined}
+      data-decomposed-glyph={useComposition || undefined}
+    >
+      {useComposition ? (
+        <HancharCompositionGlyph node={node} />
+      ) : (
+        node.literal
+      )}
+    </span>
+  );
+}
+
+function HancharCompositionGlyph({ node }: { node: HancharGlyphNode }) {
+  const layout = getHancharComponentLayout(node.decomposition);
+  return (
+    <span
+      className="lingop-word-detail__composition-glyph"
+      data-layout={layout.direction}
+      data-operator={layout.operator ?? undefined}
+      aria-hidden
+    >
+      {node.components.map((component, index) => {
+        const useNestedComposition = shouldUseHancharCompositionGlyph(
+          component.literal,
+          component.components.length > 0,
+        );
+        return (
+          <span
+            className="lingop-word-detail__composition-glyph-part"
+            key={`${component.literal}-${component.ordinal}-${index}`}
+          >
+            {useNestedComposition ? (
+              <HancharCompositionGlyph node={component} />
+            ) : (
+              component.literal
+            )}
+          </span>
+        );
+      })}
+    </span>
+  );
 }
 
 function HancharComponentItem({
@@ -689,9 +737,10 @@ function HancharComponentItem({
   const hasComponents = component.components.length > 0;
   const content = (
     <>
-      <span className="lingop-word-detail__component-literal">
-        {component.literal}
-      </span>
+      <HancharGlyph
+        node={component}
+        className="lingop-word-detail__component-literal"
+      />
       <span className="lingop-word-detail__component-details">
         {reading && (
           <span className="lingop-word-detail__component-reading">
