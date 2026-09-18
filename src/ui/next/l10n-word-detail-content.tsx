@@ -555,6 +555,9 @@ function HancharComponentsBody({
       />
     );
   }
+  const hasDecomposedCharacters = decompositions.some(
+    (decomposition) => decomposition.components.length > 0,
+  );
 
   return (
     <div className="lingop-word-detail__character-list">
@@ -593,18 +596,20 @@ function HancharComponentsBody({
           </div>
         );
       })}
-      <div className="lingop-word-detail__component-key">
-        {(["semantic", "phonetic", "structural"] as const).map((role) => (
-          <span key={role}>
-            <i data-role={role} aria-hidden />
-            {role === "semantic"
-              ? OAT("Semantic")
-              : role === "phonetic"
-              ? OAT("Phonetic")
-              : OAT("Structural")}
-          </span>
-        ))}
-      </div>
+      {hasDecomposedCharacters && (
+        <div className="lingop-word-detail__component-key">
+          {(["semantic", "phonetic", "structural"] as const).map((role) => (
+            <span key={role}>
+              <i data-role={role} aria-hidden />
+              {role === "semantic"
+                ? OAT("Semantic")
+                : role === "phonetic"
+                ? OAT("Phonetic")
+                : OAT("Structural")}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
