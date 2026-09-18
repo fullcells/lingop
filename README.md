@@ -322,7 +322,7 @@ Low-level annotation API calls, `callAnnotate_storedForOwner()` remains public a
 - `loadWordExplicitationsRows()`: loads and caches Supabase `word_explicitations` rows.
 - `getOneWayWordExplicitations({ source_lang, source_word, target_lang })`: filters the cached word-explicitation rows into the legacy one-way shape.
 - `loadWordLists()`, `loadWordListMetaData()`, and `loadSBCacheWordListsForLang(lang)`: load and cache public word-list source and localization rows. They use the injected Supabase client but do not inspect or require an authenticated user.
-- `preloadEmojiData()`, `loadEmojiData()`, and `generateEmoji(en_gloss, study_word?, study_lang?)`: warm Lingop's persistent browser cache, load shared Supabase emoji rows, and generate emoji text for English glosses. Cached rows survive page reloads and browser restarts; stale data is served immediately while Lingop checks the row count and newest `created_at` value in the background. When editing an existing emoji row, advance its `created_at` value so clients detect the revision.
+- `preloadEmojiData()`, `loadEmojiData()`, `generateEmoji(en_gloss, study_word?, study_lang?)`, and `generateEmojis(en_glosses)`: warm Lingop's persistent browser cache, load shared Supabase emoji rows, and generate emoji text for English glosses. `preloadEmojiData()` also warms the small non-core-word dataset used to resolve compound or non-exact glosses. `generateEmojis()` deduplicates a view's glosses, initiates that preload itself, and resolves all results as one keyed batch. Cached emoji rows survive page reloads and browser restarts; stale data is served immediately while Lingop checks the row count and newest `created_at` value in the background. When editing an existing emoji row, advance its `created_at` value so clients detect the revision.
 - `isNotCoreWord(word_lang, word, gloss?)`, `getSBWordsForLangDir(word_lang, gloss_lang)`, `refreshCoreSBWordsCache(word_lang, gloss_lang)`, and `fetchAndGenGloss({ source_lang, source_word, target_lang })`: use the shared SBWords cache for core-word checks and one-word gloss generation.
 - `getHancharDecomposition(literal)`: returns one Unicode character's canonical component tree and available Japanese, Cantonese, and Mandarin readings from the public Han-character dataset. Repeated successful lookups are cached by the client instance.
 - `createWordExposureRow(...)`, `addWORDExposureNow(...)`, `getWORDExposureRow(...)`, and `deleteWORDExposureRow(...)`: manage the authenticated user's per-word exposure rows through the Supabase client already owned by `LingoDataClient`.
@@ -554,6 +554,12 @@ unfamiliar-word hints. Without it, streak-dependent hinting, word-detail
 interaction, and unfamiliar-word styling are disabled. Its `showSpelling`,
 `showGlossText`, and `showGlossEmoji` inputs accept `ON_HINT` in addition to
 `NEVER` and `ALWAYS`.
+
+ATV resolves all visible emoji glosses as one deduplicated batch. While that
+batch is pending it shows the inline emoji spinner immediately instead of
+briefly showing the English-gloss fallback. Consumers that need to coordinate
+screen navigation can use `onEmojiLoadStateChange`; the wrapper also exposes
+the same state as `data-emoji-loading="true"` or `"false"`.
 
 The OmniAccess-compatible play action is enabled with
 `showActionPlayAudio`. `actionsPlacement` accepts `LEFT_RIGHT`, `RIGHT_LEFT`,

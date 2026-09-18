@@ -170,6 +170,8 @@ export type AnnotatedTextViewProps = {
   showMainText?: boolean;
   showGlossText?: TripleDisplayState;
   showGlossEmoji?: TripleDisplayState;
+  /** Reports whether this view is still resolving any visible gloss emojis. */
+  onEmojiLoadStateChange?: (isLoading: boolean) => void;
   isEmojiBlackWhite?: boolean;
   /** Language used for the displayed gloss text. */
   glossTextTipLang?: string;
@@ -775,7 +777,23 @@ type TokenGlossViewProps = {
   showGlossText: TripleDisplayState;
   showGlossEmoji: TripleDisplayState;
   showTokenGlossPrefix_TO__: boolean;
+  resolvedEmoji: string | null | undefined;
 };
+
+function getTokenEnglishGloss(
+  token: AnnotatedToken,
+  showTokenGlossPrefix_TO__: boolean,
+): string | null {
+  let gloss = isWordToken(token) ? token.gloss ?? null : null;
+  if (
+    gloss &&
+    !showTokenGlossPrefix_TO__ &&
+    gloss.toUpperCase().startsWith("TO ")
+  ) {
+    gloss = gloss.slice("TO ".length);
+  }
+  return gloss;
+}
 
 function TokenGlossView({
   astyle,
@@ -792,6 +810,7 @@ function TokenGlossView({
   showGlossText,
   showGlossEmoji,
   showTokenGlossPrefix_TO__,
+  resolvedEmoji,
 }: TokenGlossViewProps): ReactNode {
   // 20260223 Note, updated 20260824: userWordStreaks is optional so ATV
   // consumers without streak-driven behavior do not need the provider.
@@ -802,18 +821,10 @@ function TokenGlossView({
     userLingoPrefsData?.showNonCoreGlossEmoji ?? "ALWAYS";
   const showNonCoreGlossText =
     userLingoPrefsData?.showNonCoreGlossText ?? "ALWAYS";
-  const enGloss = useMemo(() => {
-    // Format the gloss to strip out the "TO " prefix if specified.
-    let gloss = isWordToken(token) ? token.gloss ?? null : null;
-    if (
-      gloss &&
-      !showTokenGlossPrefix_TO__ &&
-      gloss.toUpperCase().startsWith("TO ")
-    ) {
-      gloss = gloss.slice("TO ".length);
-    }
-    return gloss;
-  }, [showTokenGlossPrefix_TO__, token]);
+  const enGloss = useMemo(
+    () => getTokenEnglishGloss(token, showTokenGlossPrefix_TO__),
+    [showTokenGlossPrefix_TO__, token],
+  );
   const [tipLangGlossResult, setTipLangGlossResult] = useState<{
     enGloss: string;
     glossTextTipLang: string;
@@ -834,19 +845,7 @@ function TokenGlossView({
   const tipLangGloss = ilike(glossTextTipLang, "en")
     ? enGloss
     : matchingTipLangGloss ?? enGloss;
-  const [emojiResult, setEmojiResult] = useState<{
-    enGloss: string;
-    emoji: string | null;
-    lang: string;
-    token: AnnotatedToken;
-  } | null>(null);
-  const matchingEmojiResult =
-    emojiResult?.token === token &&
-    emojiResult.enGloss === enGloss &&
-    emojiResult.lang === lang
-      ? emojiResult
-      : null;
-  const generatedEmoji = matchingEmojiResult?.emoji ?? null;
+  const generatedEmoji = resolvedEmoji ?? null;
   const emoji =
     generatedEmoji && isEmojiBlackWhite
       ? convertEmojiTextToBlackWhiteCompatibleEmojiText(generatedEmoji)
@@ -866,35 +865,7 @@ function TokenGlossView({
       (showGlossEmoji === "NEVER" || showGlossEmoji === "ON_HINT") &&
       !l10nWordDetailHandler
     );
-  const isLoadingEmoji = shouldFetchEmoji && matchingEmojiResult === null;
-  const emojiLoadingSignature = `${lang}\u0000${enGloss ?? ""}`;
-  const [emojiLoadingIndicator, setEmojiLoadingIndicator] = useState<{
-    signature: string;
-    visible: boolean;
-  } | null>(null);
-  const shouldShowEmojiLoadingIndicator =
-    isLoadingEmoji &&
-    emojiLoadingIndicator?.signature === emojiLoadingSignature &&
-    emojiLoadingIndicator.visible;
-
-  useEffect(() => {
-    if (!isLoadingEmoji) {
-      setEmojiLoadingIndicator(null);
-      return;
-    }
-
-    setEmojiLoadingIndicator({
-      signature: emojiLoadingSignature,
-      visible: false,
-    });
-    const timeout = setTimeout(() => {
-      setEmojiLoadingIndicator({
-        signature: emojiLoadingSignature,
-        visible: true,
-      });
-    }, 120);
-    return () => clearTimeout(timeout);
-  }, [emojiLoadingSignature, isLoadingEmoji]);
+  const isLoadingEmoji = shouldFetchEmoji && resolvedEmoji === undefined;
 
   // GlossTextTipLang
   useEffect(() => {
@@ -938,46 +909,6 @@ function TokenGlossView({
     glossTextTipLang,
     lingopClient,
     shouldFetchTipLangGloss,
-  ]);
-
-  // Emoji
-  useEffect(() => {
-    let cancelled = false;
-    setEmojiResult(null);
-
-    if (!enGloss || !shouldFetchEmoji) return;
-
-    void lingopClient
-      .generateEmoji(enGloss)
-      .then((generatedEmoji) => {
-        if (!cancelled) {
-          setEmojiResult({
-            enGloss,
-            emoji: generatedEmoji,
-            lang,
-            token,
-          });
-        }
-      })
-      .catch((error: unknown) => {
-        // Fail open: retain the gloss fallback if public emoji data cannot load.
-        if (!cancelled) {
-          console.error("Error determining gloss emoji:", error);
-          setEmojiResult({ enGloss, emoji: null, lang, token });
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    enGloss,
-    lang,
-    lingopClient,
-    l10nWordDetailHandler,
-    showGlossEmoji,
-    shouldFetchEmoji,
-    token,
   ]);
 
   let shouldDisplayGloss = false;
@@ -1065,7 +996,7 @@ function TokenGlossView({
         >
           {!shouldShowGlossEmoji ? (
             visuallyEmpty
-          ) : shouldShowEmojiLoadingIndicator ? (
+          ) : isLoadingEmoji ? (
             <span
               className="annotated-text-inline-spinner"
               aria-label="Loading emoji"
@@ -1201,6 +1132,7 @@ function LoadedAnnotatedTextViewComponent({
   showMainText,
   showGlossText,
   showGlossEmoji,
+  onEmojiLoadStateChange,
   astyle: astyleInput = DEFAULT_ANNOTATED_TEXT_STYLE,
   isEmojiBlackWhite = false,
   glossTextTipLang = "en",
@@ -1274,6 +1206,37 @@ function LoadedAnnotatedTextViewComponent({
   const lingopClient = useLingopClientDataOrCreate(
     supabaseClient ? { supabaseClient } : {},
   );
+  const emojiGlosses = useMemo(() => {
+    const shouldResolveEmojis = !(
+      (resolvedShowGlossEmoji === "NEVER" ||
+        resolvedShowGlossEmoji === "ON_HINT") &&
+      !activeWordDetailHandler
+    );
+    if (!shouldResolveEmojis) return [];
+    return [...new Set(
+      linearizedAText.tokens
+        .map((token) =>
+          getTokenEnglishGloss(token, showTokenGlossPrefix_TO__),
+        )
+        .filter((gloss): gloss is string => !!gloss),
+    )];
+  }, [
+    activeWordDetailHandler,
+    linearizedAText.tokens,
+    resolvedShowGlossEmoji,
+    showTokenGlossPrefix_TO__,
+  ]);
+  const emojiBatchSignature = JSON.stringify(emojiGlosses);
+  const [emojiBatchResult, setEmojiBatchResult] = useState<{
+    signature: string;
+    results: Record<string, string | null>;
+  } | null>(null);
+  const matchingEmojiBatch =
+    emojiBatchResult?.signature === emojiBatchSignature
+      ? emojiBatchResult.results
+      : null;
+  const isLoadingEmojis =
+    emojiGlosses.length > 0 && matchingEmojiBatch === null;
   const speechSupabaseClient =
     supabaseClient ?? providedClientData?.supabaseClient;
   const resolvedAPIVoiceAccessProfile =
@@ -1314,6 +1277,42 @@ function LoadedAnnotatedTextViewComponent({
       signature: string;
       parts: string[][];
     } | null>(null);
+
+  // Resolve one deduplicated emoji batch per view. TokenGlossView receives the
+  // resolved value directly, avoiding one async effect and re-render per token.
+  useEffect(() => {
+    let cancelled = false;
+    setEmojiBatchResult(null);
+
+    if (emojiGlosses.length === 0) return;
+
+    void lingopClient
+      .generateEmojis(emojiGlosses)
+      .then((results) => {
+        if (!cancelled) {
+          setEmojiBatchResult({ signature: emojiBatchSignature, results });
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          console.error("Error determining gloss emojis:", error);
+          setEmojiBatchResult({
+            signature: emojiBatchSignature,
+            results: Object.fromEntries(
+              emojiGlosses.map((gloss) => [gloss, null]),
+            ),
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [emojiBatchSignature, emojiGlosses, lingopClient]);
+
+  useEffect(() => {
+    onEmojiLoadStateChange?.(isLoadingEmojis);
+  }, [isLoadingEmojis, onEmojiLoadStateChange]);
 
   // SPELLING-CONTENT: Pre-format the full annotation for getSpelling(). Token
   // rendering remains local so async conversion cannot delay the whole ATV.
@@ -1613,6 +1612,7 @@ function LoadedAnnotatedTextViewComponent({
   return (
     <div
       className="annotated-text-view-wrapper"
+      data-emoji-loading={isLoadingEmojis ? "true" : "false"}
       dir={mainScript?.is_ltr === false ? "rtl" : undefined}
       data-actions-placement={actionsPlacement}
       style={{
@@ -1679,6 +1679,10 @@ function LoadedAnnotatedTextViewComponent({
             >
               {tokenGroup.map(({ token: unstrippedToken, index }) => {
                 const token = stripDisambiguatorFromToken(unstrippedToken);
+                const tokenEnglishGloss = getTokenEnglishGloss(
+                  token,
+                  showTokenGlossPrefix_TO__,
+                );
                 const wordSubMorphemes =
                   morphemesPerLinearToken[index] ?? [];
                 const key = `${index}-${token.text}`;
@@ -1865,6 +1869,11 @@ function LoadedAnnotatedTextViewComponent({
                           showGlossEmoji={resolvedShowGlossEmoji}
                           showTokenGlossPrefix_TO__={
                             showTokenGlossPrefix_TO__
+                          }
+                          resolvedEmoji={
+                            tokenEnglishGloss
+                              ? matchingEmojiBatch?.[tokenEnglishGloss]
+                              : null
                           }
                         />
                       )}

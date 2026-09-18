@@ -41,6 +41,7 @@ import {
   fetchAndGenGloss,
   getSBWordsForLangDir,
   isNotCoreWord,
+  loadNonCoreWords,
   refreshCoreSBWordsCache,
   type GlossOutputData,
   type SBWordRow2,
@@ -196,7 +197,7 @@ export type LingoDataClient = {
   ): Promise<string[]>;
   /** Loads and caches Supabase emoji rows. */
   loadEmojiData(): Promise<EmojiRow[]>;
-  /** Warms the persistent emoji cache and revalidates stale data in the background. */
+  /** Warms emoji rows and the supporting non-core-word cache. */
   preloadEmojiData(): Promise<EmojiRow[]>;
   /** Generates emoji text for an English gloss using the shared emoji row cache. */
   generateEmoji(
@@ -204,6 +205,10 @@ export type LingoDataClient = {
     study_word?: string,
     study_lang?: string,
   ): Promise<string | null>;
+  /** Generates emoji text for unique English glosses in one shared batch. */
+  generateEmojis(
+    en_glosses: readonly string[],
+  ): Promise<Record<string, string | null>>;
   /** Checks whether a word should be treated as non-core using the shared SBWords cache. */
   isNotCoreWord(word_lang: string, word: string, gloss?: string): Promise<boolean>;
   /** Loads cached SBWords for a word/gloss language direction. */
@@ -1063,6 +1068,50 @@ export function createLingoDataClient({
     });
   }
 
+  async function generateClientEmojis(
+    enGlosses: readonly string[],
+  ): Promise<Record<string, string | null>> {
+    // Kick off all shared support-data work here so callers do not need to
+    // coordinate a separate preload. Exact emoji matches can still resolve
+    // without waiting for the non-core-word request to finish.
+    void preloadClientEmojiData().catch((error: unknown) => {
+      console.warn("Unable to preload emoji support data:", error);
+    });
+
+    const uniqueGlosses = [...new Set(enGlosses.filter(Boolean))];
+    const entries = await Promise.all(
+      uniqueGlosses.map(async (gloss) => [
+        gloss,
+        await generateClientEmoji(gloss),
+      ] as const),
+    );
+    return Object.fromEntries(entries);
+  }
+
+  async function preloadClientEmojiData(): Promise<EmojiRow[]> {
+    const emojiRowsPromise = preloadEmojiData({
+      ...(runtimeSupabaseClient
+        ? { supabaseClient: runtimeSupabaseClient }
+        : {}),
+      cacheKey: emojiCacheKey,
+    });
+    if (!runtimeSupabaseClient) return emojiRowsPromise;
+
+    // Compound/non-exact glosses consult the non-core-word set during emoji
+    // generation. Warm that small shared dependency here so a view does not
+    // discover and fetch it while it is trying to render individual tokens.
+    const [emojiRows] = await Promise.all([
+      emojiRowsPromise,
+      loadNonCoreWords({ supabaseClient: runtimeSupabaseClient }).catch(
+        (error: unknown) => {
+          console.warn("Unable to preload non-core words for emojis:", error);
+          return [];
+        },
+      ),
+    ]);
+    return emojiRows;
+  }
+
   async function fetchAndGenClientGloss(input: {
     source_lang: string;
     source_word: string;
@@ -1189,16 +1238,9 @@ export function createLingoDataClient({
           : {}),
         cacheKey: emojiCacheKey,
       }),
-    preloadEmojiData: () =>
-      preloadEmojiData({
-        ...(runtimeSupabaseClient
-          ? {
-              supabaseClient: runtimeSupabaseClient,
-            }
-          : {}),
-        cacheKey: emojiCacheKey,
-      }),
+    preloadEmojiData: preloadClientEmojiData,
     generateEmoji: generateClientEmoji,
+    generateEmojis: generateClientEmojis,
     isNotCoreWord: (word_lang, word, gloss) =>
       isNotCoreWord(word_lang, word, gloss, {
         ...(runtimeSupabaseClient

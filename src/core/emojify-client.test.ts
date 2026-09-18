@@ -14,6 +14,7 @@ function makeQuery(
   let rangeTo: number | null = null;
 
   const query: SupabaseEmojiQuery = {
+    is: vi.fn(() => query),
     order: vi.fn(() => query),
     range: vi.fn((from: number, to: number) => {
       rangeFrom = from;
@@ -80,7 +81,11 @@ describe("LingoDataClient emoji helpers", () => {
       { emoji: "👍", en_gloss: "GOOD" },
     ]);
     await expect(client.generateEmoji("good")).resolves.toBe("👍");
+    await expect(client.generateEmojis(["good", "good"])).resolves.toEqual({
+      good: "👍",
+    });
 
-    expect(select).toHaveBeenCalledTimes(2);
+    // Two emoji-table reads plus one shared non-core-word warmup.
+    expect(select).toHaveBeenCalledTimes(3);
   });
 });
