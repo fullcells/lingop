@@ -1,8 +1,6 @@
 // 20250904: Elements of this FE emojify are shared with the BE API english-words-to-emoji. FE emojify (originally a port from CampLingo) here has been updated to use MorphologizeEnWords as opposed to the deprecated 'lemmatizeEnglishWord'. no_emoji_words/study_word/study_lang should be abstracted to a higher 'display-oriented' level.
 // 20251015: NOTE: This version is the most up-to-date version of 'emoji.ts'. (BE API english-words-to-emoji - should be updated to this one)
 
-// 20251125: FYI: emojiDataPromise is SINGULAR for each FE BrowserTab the user has open.
-
 import {
   getMorphemeStringsForEnWord,
   type MorphemeStringsByPos,
@@ -15,6 +13,33 @@ export type EmojiRow = {
   emoji: string;
   en_gloss: string;
   // created_at: string;
+};
+
+export type EmojiDataRevision = {
+  count: number;
+  maxId: number | null;
+};
+
+export type EmojiDataCacheEntry = {
+  schemaVersion: 1;
+  rows: EmojiRow[];
+  revision: EmojiDataRevision;
+  checkedAt: number;
+  refreshedAt: number;
+};
+
+export type EmojiDataStorage = {
+  get(cacheKey: string): Promise<EmojiDataCacheEntry | null>;
+  set(cacheKey: string, entry: EmojiDataCacheEntry): Promise<void>;
+};
+
+export type LoadEmojiDataOptions = {
+  supabaseClient?: SupabaseEmojiClient | undefined;
+  forceRefresh?: boolean | undefined;
+  /** Separates persistent caches when one origin uses more than one emoji dataset. */
+  cacheKey?: string | undefined;
+  /** Primarily useful for non-browser runtimes and tests. */
+  storage?: EmojiDataStorage | null | undefined;
 };
 
 export type SupabaseEmojiClient = SupabaseClientLike;
@@ -61,8 +86,23 @@ const no_emoji_words: { [study_lang: string]: string[] /*study_words*/ } = {
 
 const EMOJI_BATCH_SIZE = 1000;
 const EMOJI_RESULT_CACHE_SIZE = 2000;
+const EMOJI_CACHE_SCHEMA_VERSION = 1;
+const EMOJI_CACHE_DB_NAME = "lingop-cache";
+const EMOJI_CACHE_STORE_NAME = "emoji-data";
+const DEFAULT_EMOJI_CACHE_KEY = "default";
+const EMOJI_REVISION_CHECK_INTERVAL_MS = 15 * 60 * 1000;
+const EMOJI_FULL_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const EMOJI_FETCH_TIMEOUT_MS = 15 * 1000;
+const EMOJI_STORAGE_TIMEOUT_MS = 1_500;
 
-let emojiDataPromise: Promise<EmojiRow[]> | undefined;
+type EmojiDataState = {
+  rows?: EmojiRow[];
+  cacheEntry?: EmojiDataCacheEntry;
+  loadPromise: Promise<EmojiRow[]> | undefined;
+  refreshPromise: Promise<void> | undefined;
+};
+
+const emojiDataStates = new WeakMap<object, Map<string, EmojiDataState>>();
 const emojiRowIndexes = new WeakMap<EmojiRow[], ReadonlyMap<string, EmojiRow>>();
 const emojiResultCaches = new WeakMap<
   EmojiRow[],
@@ -73,57 +113,425 @@ async function defaultIsNotCoreWord(): Promise<boolean> {
   return false;
 }
 
+export async function preloadEmojiData(
+  options: LoadEmojiDataOptions = {},
+): Promise<EmojiRow[]> {
+  return loadEmojiData(options);
+}
+
 export async function loadEmojiData({
   supabaseClient,
   forceRefresh = false,
-}: {
-  supabaseClient?: SupabaseEmojiClient | undefined;
-  forceRefresh?: boolean | undefined;
-} = {}): Promise<EmojiRow[]> {
+  cacheKey = DEFAULT_EMOJI_CACHE_KEY,
+  storage = getDefaultEmojiDataStorage(),
+}: LoadEmojiDataOptions = {}): Promise<EmojiRow[]> {
   const runtimeSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
   if (!runtimeSupabaseClient) {
     console.error("A Supabase client is required to load emojis.");
     return [];
   }
 
-  if (!forceRefresh && emojiDataPromise) return emojiDataPromise;
+  const state = getEmojiDataState(runtimeSupabaseClient, cacheKey);
+  if (!forceRefresh && state.rows) {
+    scheduleEmojiDataRevalidation({
+      cacheKey,
+      state,
+      storage,
+      supabaseClient: runtimeSupabaseClient,
+    });
+    return state.rows;
+  }
+  if (!forceRefresh && state.loadPromise) return state.loadPromise;
 
-  emojiDataPromise = fetchEmojiData(runtimeSupabaseClient);
-  return emojiDataPromise;
+  const loadPromise = forceRefresh
+    ? refreshEmojiData({
+        cacheKey,
+        state,
+        storage,
+        supabaseClient: runtimeSupabaseClient,
+      })
+    : initializeEmojiData({
+        cacheKey,
+        state,
+        storage,
+        supabaseClient: runtimeSupabaseClient,
+      });
+  state.loadPromise = loadPromise;
+
+  try {
+    const rows = await loadPromise;
+    if (rows.length > 0) state.rows = rows;
+    return rows;
+  } finally {
+    if (state.loadPromise === loadPromise) state.loadPromise = undefined;
+  }
+}
+
+function getEmojiDataState(
+  supabaseClient: object,
+  cacheKey: string,
+): EmojiDataState {
+  let statesByCacheKey = emojiDataStates.get(supabaseClient);
+  if (!statesByCacheKey) {
+    statesByCacheKey = new Map();
+    emojiDataStates.set(supabaseClient, statesByCacheKey);
+  }
+  let state = statesByCacheKey.get(cacheKey);
+  if (!state) {
+    state = { loadPromise: undefined, refreshPromise: undefined };
+    statesByCacheKey.set(cacheKey, state);
+  }
+  return state;
+}
+
+async function initializeEmojiData({
+  cacheKey,
+  state,
+  storage,
+  supabaseClient,
+}: {
+  cacheKey: string;
+  state: EmojiDataState;
+  storage: EmojiDataStorage | null;
+  supabaseClient: NonNullable<ReturnType<typeof asSupabaseRuntimeClient>>;
+}): Promise<EmojiRow[]> {
+  const persistedEntry = storage
+    ? await withTimeout(
+        storage.get(cacheKey),
+        EMOJI_STORAGE_TIMEOUT_MS,
+        "persistent emoji cache read",
+      ).catch((error: unknown) => {
+        console.warn("Unable to read the persistent emoji cache:", error);
+        return null;
+      })
+    : null;
+
+  if (persistedEntry && isEmojiDataCacheEntry(persistedEntry)) {
+    state.cacheEntry = persistedEntry;
+    state.rows = persistedEntry.rows;
+    scheduleEmojiDataRevalidation({
+      cacheKey,
+      state,
+      storage,
+      supabaseClient,
+    });
+    return persistedEntry.rows;
+  }
+
+  return refreshEmojiData({ cacheKey, state, storage, supabaseClient });
+}
+
+function scheduleEmojiDataRevalidation({
+  cacheKey,
+  state,
+  storage,
+  supabaseClient,
+}: {
+  cacheKey: string;
+  state: EmojiDataState;
+  storage: EmojiDataStorage | null;
+  supabaseClient: NonNullable<ReturnType<typeof asSupabaseRuntimeClient>>;
+}): void {
+  const cacheEntry = state.cacheEntry;
+  if (
+    !cacheEntry ||
+    Date.now() - cacheEntry.checkedAt < EMOJI_REVISION_CHECK_INTERVAL_MS ||
+    state.refreshPromise
+  ) {
+    return;
+  }
+
+  const refreshPromise = revalidateEmojiData({
+    cacheKey,
+    state,
+    storage,
+    supabaseClient,
+  })
+    .catch((error: unknown) => {
+      // Stale data remains useful; a future call will retry the validation.
+      console.warn("Unable to refresh the emoji cache; using cached data:", error);
+    })
+    .finally(() => {
+      if (state.refreshPromise === refreshPromise) {
+        state.refreshPromise = undefined;
+      }
+    });
+  state.refreshPromise = refreshPromise;
+}
+
+async function revalidateEmojiData({
+  cacheKey,
+  state,
+  storage,
+  supabaseClient,
+}: {
+  cacheKey: string;
+  state: EmojiDataState;
+  storage: EmojiDataStorage | null;
+  supabaseClient: NonNullable<ReturnType<typeof asSupabaseRuntimeClient>>;
+}): Promise<void> {
+  const cacheEntry = state.cacheEntry;
+  if (!cacheEntry) return;
+
+  const revision = await fetchEmojiDataRevision(supabaseClient);
+  const needsFullRefresh =
+    !areEmojiDataRevisionsEqual(cacheEntry.revision, revision) ||
+    Date.now() - cacheEntry.refreshedAt >= EMOJI_FULL_REFRESH_INTERVAL_MS;
+  if (needsFullRefresh) {
+    await refreshEmojiData({
+      cacheKey,
+      knownRevision: revision,
+      state,
+      storage,
+      supabaseClient,
+    });
+    return;
+  }
+
+  const checkedEntry: EmojiDataCacheEntry = {
+    ...cacheEntry,
+    checkedAt: Date.now(),
+  };
+  state.cacheEntry = checkedEntry;
+  if (storage) {
+    await withTimeout(
+      storage.set(cacheKey, checkedEntry),
+      EMOJI_STORAGE_TIMEOUT_MS,
+      "persistent emoji cache write",
+    );
+  }
+}
+
+async function refreshEmojiData({
+  cacheKey,
+  knownRevision,
+  state,
+  storage,
+  supabaseClient,
+}: {
+  cacheKey: string;
+  knownRevision?: EmojiDataRevision;
+  state: EmojiDataState;
+  storage: EmojiDataStorage | null;
+  supabaseClient: NonNullable<ReturnType<typeof asSupabaseRuntimeClient>>;
+}): Promise<EmojiRow[]> {
+  try {
+    const revision = knownRevision ?? (await fetchEmojiDataRevision(supabaseClient));
+    const rows = await fetchEmojiData(supabaseClient, revision);
+    const now = Date.now();
+    const cacheEntry: EmojiDataCacheEntry = {
+      schemaVersion: EMOJI_CACHE_SCHEMA_VERSION,
+      rows,
+      revision,
+      checkedAt: now,
+      refreshedAt: now,
+    };
+    state.rows = rows;
+    state.cacheEntry = cacheEntry;
+    if (storage) {
+      await withTimeout(
+        storage.set(cacheKey, cacheEntry),
+        EMOJI_STORAGE_TIMEOUT_MS,
+        "persistent emoji cache write",
+      ).catch((error: unknown) => {
+        console.warn("Unable to persist the emoji cache:", error);
+      });
+    }
+    return rows;
+  } catch (error) {
+    if (state.rows) return state.rows;
+    console.error("Unable to load emoji data:", error);
+    return [];
+  }
+}
+
+async function fetchEmojiDataRevision(
+  supabaseClient: NonNullable<ReturnType<typeof asSupabaseRuntimeClient>>,
+): Promise<EmojiDataRevision> {
+  const result = await withTimeout(
+    supabaseClient
+      .from("emojis")
+      .select("id", { count: "exact" })
+      .order("id", { ascending: false })
+      .range(0, 0),
+    EMOJI_FETCH_TIMEOUT_MS,
+    "emoji revision request",
+  );
+  if (result.error || result.count == null) {
+    throw result.error ?? new Error("Emoji count was unavailable.");
+  }
+
+  const firstRow = Array.isArray(result.data) ? result.data[0] : undefined;
+  const maxId =
+    firstRow &&
+    typeof firstRow === "object" &&
+    "id" in firstRow &&
+    typeof firstRow.id === "number"
+      ? firstRow.id
+      : null;
+  return { count: result.count, maxId };
+}
+
+function areEmojiDataRevisionsEqual(
+  left: EmojiDataRevision,
+  right: EmojiDataRevision,
+): boolean {
+  return left.count === right.count && left.maxId === right.maxId;
 }
 
 async function fetchEmojiData(
   supabaseClient: NonNullable<ReturnType<typeof asSupabaseRuntimeClient>>,
+  revision: EmojiDataRevision,
 ): Promise<EmojiRow[]> {
-  // Get Total Count
-  const { count, error: count_error } = await supabaseClient
-    .from("emojis")
-    .select("id", { count: "exact", head: true });
-  if (count_error || count == null) {
-    console.error(count_error);
-    return [];
-  }
-  // console.log('Total Count: emojis:', count);
-  // Bulk/Batch/Incremental Select
-  const entries: EmojiRow[] = [];
-  for (let i = 0; i < count; i += EMOJI_BATCH_SIZE) {
-    const { data, error } = await supabaseClient
-      .from("emojis")
-      .select("emoji, en_gloss")
-      .order("id", { ascending: true })
-      .range(i, i + EMOJI_BATCH_SIZE - 1);
-    if (error) {
-      console.log("error", error);
-      return [];
-    }
-    entries.push(...((data ?? []).filter(isEmojiRow)));
-  }
-  const uppercased_rows = entries.map((row) => ({
+  const batchStarts = Array.from(
+    { length: Math.ceil(revision.count / EMOJI_BATCH_SIZE) },
+    (_, index) => index * EMOJI_BATCH_SIZE,
+  );
+  const batches = await Promise.all(
+    batchStarts.map(async (start) => {
+      const result = await withTimeout(
+        supabaseClient
+          .from("emojis")
+          .select("emoji, en_gloss")
+          .order("id", { ascending: true })
+          .range(start, start + EMOJI_BATCH_SIZE - 1),
+        EMOJI_FETCH_TIMEOUT_MS,
+        `emoji batch request starting at ${start}`,
+      );
+      if (result.error) throw result.error;
+      return (result.data ?? []).filter(isEmojiRow);
+    }),
+  );
+  return batches.flat().map((row) => ({
     ...row,
     en_gloss: row.en_gloss.toUpperCase(),
   }));
-  // console.log("sb.emojis fetched", entries); // Uncomment to reverify this sb.fetch only happens once.
-  return uppercased_rows;
+}
+
+async function withTimeout<T>(
+  work: PromiseLike<T>,
+  timeoutMs: number,
+  label: string,
+): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve(work),
+      new Promise<T>((_resolve, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error(`${label} timed out after ${timeoutMs}ms.`)),
+          timeoutMs,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+let emojiCacheDatabasePromise: Promise<IDBDatabase> | undefined;
+
+function getDefaultEmojiDataStorage(): EmojiDataStorage | null {
+  if (typeof indexedDB === "undefined") return null;
+  return browserEmojiDataStorage;
+}
+
+const browserEmojiDataStorage: EmojiDataStorage = {
+  async get(cacheKey) {
+    const database = await openEmojiCacheDatabase();
+    const transaction = database.transaction(EMOJI_CACHE_STORE_NAME, "readonly");
+    const request = transaction.objectStore(EMOJI_CACHE_STORE_NAME).get(cacheKey);
+    const storedValue = await requestToPromise<unknown>(request);
+    return isStoredEmojiDataCacheEntry(storedValue) ? storedValue.entry : null;
+  },
+  async set(cacheKey, entry) {
+    const database = await openEmojiCacheDatabase();
+    const transaction = database.transaction(EMOJI_CACHE_STORE_NAME, "readwrite");
+    transaction.objectStore(EMOJI_CACHE_STORE_NAME).put({ cacheKey, entry });
+    await transactionToPromise(transaction);
+  },
+};
+
+function openEmojiCacheDatabase(): Promise<IDBDatabase> {
+  if (emojiCacheDatabasePromise) return emojiCacheDatabasePromise;
+  const databasePromise = new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open(EMOJI_CACHE_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const database = request.result;
+      if (!database.objectStoreNames.contains(EMOJI_CACHE_STORE_NAME)) {
+        database.createObjectStore(EMOJI_CACHE_STORE_NAME, { keyPath: "cacheKey" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () =>
+      reject(
+        request.error ?? new Error("Unable to open the emoji cache database."),
+      );
+  }).catch((error: unknown) => {
+    emojiCacheDatabasePromise = undefined;
+    throw error;
+  });
+  emojiCacheDatabasePromise = databasePromise;
+  return databasePromise;
+}
+
+function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () =>
+      reject(request.error ?? new Error("Emoji cache request failed."));
+  });
+}
+
+function transactionToPromise(transaction: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () =>
+      reject(
+        transaction.error ?? new Error("Emoji cache transaction failed."),
+      );
+    transaction.onabort = () =>
+      reject(
+        transaction.error ??
+          new Error("Emoji cache transaction was aborted."),
+      );
+  });
+}
+
+function isStoredEmojiDataCacheEntry(
+  value: unknown,
+): value is { cacheKey: string; entry: EmojiDataCacheEntry } {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "cacheKey" in value &&
+    typeof value.cacheKey === "string" &&
+    "entry" in value &&
+    isEmojiDataCacheEntry(value.entry)
+  );
+}
+
+function isEmojiDataCacheEntry(value: unknown): value is EmojiDataCacheEntry {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "schemaVersion" in value &&
+    value.schemaVersion === EMOJI_CACHE_SCHEMA_VERSION &&
+    "rows" in value &&
+    Array.isArray(value.rows) &&
+    value.rows.every(isEmojiRow) &&
+    "revision" in value &&
+    !!value.revision &&
+    typeof value.revision === "object" &&
+    "count" in value.revision &&
+    typeof value.revision.count === "number" &&
+    "maxId" in value.revision &&
+    (typeof value.revision.maxId === "number" || value.revision.maxId === null) &&
+    "checkedAt" in value &&
+    typeof value.checkedAt === "number" &&
+    "refreshedAt" in value &&
+    typeof value.refreshedAt === "number"
+  );
 }
 
 // 1. `generateEmoji` is the main call root-level call for generating Emojis.
@@ -134,12 +542,17 @@ export async function generateEmoji(
   {
     supabaseClient,
     isNotCoreWord = defaultIsNotCoreWord,
+    cacheKey,
   }: {
     supabaseClient?: SupabaseEmojiClient | undefined;
     isNotCoreWord?: IsNotCoreWord | undefined;
+    cacheKey?: string | undefined;
   } = {},
 ): Promise<string | null> { // might be better renamed 'determineEmoji' (since 'generate' implies we're actually doing an API call to generate new emoji atm - which we're not)
-  const cachedEmojisData: EmojiRow[] = await loadEmojiData({ supabaseClient });
+  const cachedEmojisData: EmojiRow[] = await loadEmojiData({
+    supabaseClient,
+    ...(cacheKey ? { cacheKey } : {}),
+  });
   if (!cachedEmojisData || cachedEmojisData.length == 0) {
     console.error("cachedEmojisData was nonexistent");
     return null;

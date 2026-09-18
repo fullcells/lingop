@@ -33,11 +33,15 @@ function makeSupabaseClient(data: EmojiRow[]): {
 } {
   const select = vi.fn(
     (
-      _columns: string,
+      columns: string,
       options?: { count?: "exact"; head?: boolean },
     ): SupabaseEmojiQuery => {
-      if (options?.head) {
-        return makeQuery(() => ({ data: null, error: null, count: data.length }));
+      if (columns === "id") {
+        return makeQuery(() => ({
+          data: data.length > 0 ? [{ id: data.length }] : [],
+          error: null,
+          count: options?.count === "exact" ? data.length : null,
+        }));
       }
 
       return makeQuery((from, to) => ({
@@ -67,6 +71,9 @@ describe("LingoDataClient emoji helpers", () => {
 
     await loadEmojiData({ supabaseClient, forceRefresh: true });
     await expect(client.loadEmojiData()).resolves.toEqual([
+      { emoji: "👍", en_gloss: "GOOD" },
+    ]);
+    await expect(client.preloadEmojiData()).resolves.toEqual([
       { emoji: "👍", en_gloss: "GOOD" },
     ]);
     await expect(client.generateEmoji("good")).resolves.toBe("👍");

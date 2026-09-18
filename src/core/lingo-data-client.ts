@@ -33,6 +33,7 @@ import {
 import {
   generateEmoji,
   loadEmojiData,
+  preloadEmojiData,
   type EmojiRow,
   type IsNotCoreWord,
 } from "./emojify.js";
@@ -195,6 +196,8 @@ export type LingoDataClient = {
   ): Promise<string[]>;
   /** Loads and caches Supabase emoji rows. */
   loadEmojiData(): Promise<EmojiRow[]>;
+  /** Warms the persistent emoji cache and revalidates stale data in the background. */
+  preloadEmojiData(): Promise<EmojiRow[]>;
   /** Generates emoji text for an English gloss using the shared emoji row cache. */
   generateEmoji(
     en_gloss: string,
@@ -449,6 +452,9 @@ export function createLingoDataClient({
   useStagingBackend,
 }: CreateLingoDataClientOptions = {}): LingoDataClient {
   const runtimeSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
+  const emojiCacheKey = runtimeSupabaseClient
+    ? getSupabaseClientCacheKey(runtimeSupabaseClient) ?? "default"
+    : "default";
   const emojiCoreWordResolver = runtimeSupabaseClient
     ? getEmojiCoreWordResolver(runtimeSupabaseClient)
     : undefined;
@@ -1053,6 +1059,7 @@ export function createLingoDataClient({
       ...(emojiCoreWordResolver
         ? { isNotCoreWord: emojiCoreWordResolver }
         : {}),
+      cacheKey: emojiCacheKey,
     });
   }
 
@@ -1180,6 +1187,16 @@ export function createLingoDataClient({
               supabaseClient: runtimeSupabaseClient,
             }
           : {}),
+        cacheKey: emojiCacheKey,
+      }),
+    preloadEmojiData: () =>
+      preloadEmojiData({
+        ...(runtimeSupabaseClient
+          ? {
+              supabaseClient: runtimeSupabaseClient,
+            }
+          : {}),
+        cacheKey: emojiCacheKey,
       }),
     generateEmoji: generateClientEmoji,
     isNotCoreWord: (word_lang, word, gloss) =>

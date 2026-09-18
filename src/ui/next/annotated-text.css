@@ -114,6 +114,7 @@
   border-radius: 50%;
   vertical-align: -0.08em;
   animation: lingop-atv-action-spin 0.7s linear infinite;
+  will-change: transform;
 }
 
 @keyframes lingop-atv-action-spin {

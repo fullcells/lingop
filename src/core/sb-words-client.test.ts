@@ -93,12 +93,12 @@ function makeSupabaseClient({
       if (table === "emojis") {
         return {
           select: vi.fn(
-            (_columns: string, options?: { count?: "exact"; head?: boolean }) => {
-              if (options?.head) {
+            (columns: string, options?: { count?: "exact"; head?: boolean }) => {
+              if (columns === "id") {
                 return makeEmojiQuery(emojiRows, () => ({
-                  data: null,
+                  data: emojiRows.length > 0 ? [{ id: emojiRows.length }] : [],
                   error: null,
-                  count: emojiRows.length,
+                  count: options?.count === "exact" ? emojiRows.length : null,
                 }));
               }
 

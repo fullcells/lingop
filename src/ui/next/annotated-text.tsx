@@ -867,6 +867,34 @@ function TokenGlossView({
       !l10nWordDetailHandler
     );
   const isLoadingEmoji = shouldFetchEmoji && matchingEmojiResult === null;
+  const emojiLoadingSignature = `${lang}\u0000${enGloss ?? ""}`;
+  const [emojiLoadingIndicator, setEmojiLoadingIndicator] = useState<{
+    signature: string;
+    visible: boolean;
+  } | null>(null);
+  const shouldShowEmojiLoadingIndicator =
+    isLoadingEmoji &&
+    emojiLoadingIndicator?.signature === emojiLoadingSignature &&
+    emojiLoadingIndicator.visible;
+
+  useEffect(() => {
+    if (!isLoadingEmoji) {
+      setEmojiLoadingIndicator(null);
+      return;
+    }
+
+    setEmojiLoadingIndicator({
+      signature: emojiLoadingSignature,
+      visible: false,
+    });
+    const timeout = setTimeout(() => {
+      setEmojiLoadingIndicator({
+        signature: emojiLoadingSignature,
+        visible: true,
+      });
+    }, 120);
+    return () => clearTimeout(timeout);
+  }, [emojiLoadingSignature, isLoadingEmoji]);
 
   // GlossTextTipLang
   useEffect(() => {
@@ -1037,7 +1065,7 @@ function TokenGlossView({
         >
           {!shouldShowGlossEmoji ? (
             visuallyEmpty
-          ) : isLoadingEmoji ? (
+          ) : shouldShowEmojiLoadingIndicator ? (
             <span
               className="annotated-text-inline-spinner"
               aria-label="Loading emoji"

@@ -5,8 +5,11 @@ import {
   generateEmoji,
   generateEmojiFromRows,
   loadEmojiData,
+  preloadEmojiData,
   shouldBlackWhiteEmojiUseColorEmojiFont,
   shouldFlipEmoji,
+  type EmojiDataCacheEntry,
+  type EmojiDataStorage,
   type EmojiRow,
   type SupabaseEmojiClient,
 } from "./emojify.js";
@@ -50,11 +53,15 @@ function makeSupabaseClient(data: EmojiRow[]): {
 } {
   const select = vi.fn(
     (
-      _columns: string,
+      columns: string,
       options?: { count?: "exact"; head?: boolean },
     ): SupabaseEmojiQuery => {
-      if (options?.head) {
-        return makeQuery(() => ({ data: null, error: null, count: data.length }));
+      if (columns === "id") {
+        return makeQuery(() => ({
+          data: data.length > 0 ? [{ id: data.length }] : [],
+          error: null,
+          count: options?.count === "exact" ? data.length : null,
+        }));
       }
 
       return makeQuery((from, to) => ({
@@ -72,6 +79,16 @@ function makeSupabaseClient(data: EmojiRow[]): {
       from: vi.fn(() => ({ select })),
     },
     select,
+  };
+}
+
+function makeMemoryStorage(): EmojiDataStorage {
+  const entries = new Map<string, EmojiDataCacheEntry>();
+  return {
+    get: vi.fn(async (cacheKey) => entries.get(cacheKey) ?? null),
+    set: vi.fn(async (cacheKey, entry) => {
+      entries.set(cacheKey, structuredClone(entry));
+    }),
   };
 }
 
@@ -134,6 +151,138 @@ describe("emojify", () => {
     );
 
     expect(select).toHaveBeenCalledTimes(2);
+  });
+
+  it("reuses a persistent emoji cache with a new client", async () => {
+    const storage = makeMemoryStorage();
+    const first = makeSupabaseClient(rows);
+    const second = makeSupabaseClient(rows);
+
+    await expect(
+      preloadEmojiData({
+        supabaseClient: first.supabaseClient,
+        cacheKey: "test-project",
+        forceRefresh: true,
+        storage,
+      }),
+    ).resolves.toHaveLength(rows.length);
+    await expect(
+      preloadEmojiData({
+        supabaseClient: second.supabaseClient,
+        cacheKey: "test-project",
+        storage,
+      }),
+    ).resolves.toHaveLength(rows.length);
+
+    expect(first.select).toHaveBeenCalledTimes(2);
+    expect(second.select).not.toHaveBeenCalled();
+  });
+
+  it("loads emoji batches concurrently", async () => {
+    const manyRows = Array.from({ length: 2_001 }, (_, index) => ({
+      emoji: "✅",
+      en_gloss: `WORD ${index}`,
+    }));
+    let activeBatches = 0;
+    let maxActiveBatches = 0;
+    const select = vi.fn(
+      (columns: string, options?: { count?: "exact" }): SupabaseEmojiQuery => {
+        if (columns === "id") {
+          return makeQuery(() => ({
+            data: [{ id: manyRows.length }],
+            error: null,
+            count: options?.count === "exact" ? manyRows.length : null,
+          }));
+        }
+
+        let rangeFrom = 0;
+        let rangeTo = 0;
+        const query: SupabaseEmojiQuery = {
+          order: vi.fn(() => query),
+          range: vi.fn((from: number, to: number) => {
+            rangeFrom = from;
+            rangeTo = to;
+            return query;
+          }),
+          then: (resolve, reject) => {
+            activeBatches += 1;
+            maxActiveBatches = Math.max(maxActiveBatches, activeBatches);
+            return new Promise<SupabaseEmojiQueryResult>((finish) => {
+              setTimeout(() => {
+                activeBatches -= 1;
+                finish({
+                  data: manyRows.slice(rangeFrom, rangeTo + 1),
+                  error: null,
+                });
+              }, 5);
+            }).then(resolve, reject);
+          },
+        };
+        return query;
+      },
+    );
+    const supabaseClient: SupabaseEmojiClient = {
+      from: vi.fn(() => ({ select })),
+    };
+
+    await expect(
+      loadEmojiData({
+        supabaseClient,
+        cacheKey: "parallel-test",
+        forceRefresh: true,
+        storage: null,
+      }),
+    ).resolves.toHaveLength(manyRows.length);
+    expect(maxActiveBatches).toBeGreaterThan(1);
+  });
+
+  it("retries after an initial emoji data failure", async () => {
+    let revisionAttempts = 0;
+    const select = vi.fn(
+      (columns: string, options?: { count?: "exact" }): SupabaseEmojiQuery => {
+        if (columns === "id") {
+          revisionAttempts += 1;
+          return makeQuery(() =>
+            revisionAttempts === 1
+              ? { data: null, error: new Error("offline"), count: null }
+              : {
+                  data: [{ id: rows.length }],
+                  error: null,
+                  count: options?.count === "exact" ? rows.length : null,
+                },
+          );
+        }
+        return makeQuery((from, to) => ({
+          data:
+            from === null || to === null
+              ? rows
+              : rows.slice(from, Math.min(to + 1, rows.length)),
+          error: null,
+        }));
+      },
+    );
+    const supabaseClient: SupabaseEmojiClient = {
+      from: vi.fn(() => ({ select })),
+    };
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      loadEmojiData({
+        supabaseClient,
+        cacheKey: "retry-test",
+        storage: null,
+      }),
+    ).resolves.toEqual([]);
+    await expect(
+      loadEmojiData({
+        supabaseClient,
+        cacheKey: "retry-test",
+        storage: null,
+      }),
+    ).resolves.toHaveLength(rows.length);
+
+    expect(revisionAttempts).toBe(2);
+    consoleError.mockRestore();
   });
 
   it("converts emoji text for black-white compatibility", () => {
