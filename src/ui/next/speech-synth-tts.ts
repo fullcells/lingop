@@ -170,6 +170,7 @@ let inFlightRawBrowserVoices: Promise<SpeechSynthesisVoice[]> | null = null;
 let inFlightBrowserVoices: Promise<SpeechSynthTTSVoice[]> | null = null;
 let inFlightVOICES: Promise<SpeechSynthTTSVoice[]> | null = null;
 let browserVoiceLifecycleListenersInitialized = false;
+let browserSpeechNeedsLifecycleRecovery = false;
 
 function invalidateBrowserVoiceCache(): void {
   inFlightRawBrowserVoices = null;
@@ -181,7 +182,10 @@ function ensureBrowserVoiceLifecycleListeners(): void {
   if (browserVoiceLifecycleListenersInitialized || typeof window === "undefined") return;
   browserVoiceLifecycleListenersInitialized = true;
 
-  const invalidate = () => invalidateBrowserVoiceCache();
+  const invalidate = () => {
+    invalidateBrowserVoiceCache();
+    browserSpeechNeedsLifecycleRecovery = true;
+  };
   window.addEventListener?.("focus", invalidate);
   window.addEventListener?.("pagehide", invalidate);
   window.addEventListener?.("pageshow", invalidate);
@@ -1221,12 +1225,26 @@ export function speakableTextFromDisplayText({
 // Browser speech engines can take more than a second to start on their first
 // use, particularly just after loading or refreshing the system voice list.
 const BROWSER_SPEECH_START_TIMEOUT_MS = 3000;
+const BROWSER_SPEECH_RESET_SETTLE_MS = 120;
 
 class BrowserSpeechStartTimeoutError extends Error {
   constructor() {
     super(`Browser speech synthesis did not start within ${BROWSER_SPEECH_START_TIMEOUT_MS}ms.`);
     this.name = "BrowserSpeechStartTimeoutError";
   }
+}
+
+async function resetBrowserSpeechSynthesis(): Promise<void> {
+  speechSynthesis.cancel();
+  speechSynthesis.resume();
+  browserSpeechNeedsLifecycleRecovery = false;
+
+  // Chrome updates its speech queue asynchronously. Let the canceled queue
+  // settle before submitting the replacement utterance so streamed voices do
+  // not lose their first audio frames.
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, BROWSER_SPEECH_RESET_SETTLE_MS);
+  });
 }
 
 async function speakBrowserUtterance(
@@ -1311,23 +1329,33 @@ async function speakBrowserVoice(
 
   const speed = getUserPreferredVoiceSpeed();
 
-  // Clear the queue before the first attempt. If Chrome accepts the utterance but
-  // never starts it, discard cached voice objects and retry once with a fresh one.
-  speechSynthesis.cancel();
-  speechSynthesis.resume();
+  // An unconditional cancel/restart clips the beginning of some streamed
+  // Google voices on repeated playback. Keep the reset behavior that Chrome
+  // needs after page lifecycle changes and when interrupting an active queue,
+  // while allowing ordinary idle replays to reuse the healthy audio pipeline.
+  if (
+    browserSpeechNeedsLifecycleRecovery ||
+    speechSynthesis.speaking ||
+    speechSynthesis.pending ||
+    speechSynthesis.paused
+  ) {
+    await resetBrowserSpeechSynthesis();
+  }
+
+  // If Chrome accepts the utterance but never starts it, discard cached voice
+  // objects, reset the engine, and retry once with a fresh voice object.
   try {
     await speakBrowserUtterance(text, speechSynthVoice, speed);
   } catch (error) {
     if (!(error instanceof BrowserSpeechStartTimeoutError)) throw error;
 
-    speechSynthesis.cancel();
+    await resetBrowserSpeechSynthesis();
     invalidateBrowserVoiceCache();
     const refreshedBrowserVoices = await getRawBrowserVoices();
     speechSynthVoice = refreshedBrowserVoices.find((bv) => bv.voiceURI == voice.voice_id);
     if (!speechSynthVoice) {
       throw new Error(`Browser voice could not be reacquired: ${voice.voice_id}`, { cause: error });
     }
-    speechSynthesis.resume();
     await speakBrowserUtterance(text, speechSynthVoice, speed);
   }
 }
