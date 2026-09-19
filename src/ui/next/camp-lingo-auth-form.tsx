@@ -164,6 +164,10 @@ function isClassicCampLingoLocation(): boolean {
 
 function forgotPasswordURL(guiLang: string, email: string): string {
   const normalizedGuiLang = guiLang.toLowerCase() || "en";
+  // TODO: Let consumers supply an app id/return destination so recovery can
+  // return users to the originating product. Keep camplingo.com as the shared
+  // recovery host until each consumer has an intentional reset flow and its
+  // redirect URL is allow-listed in Supabase.
   const url = new URL(
     `https://camplingo.com/${encodeURIComponent(normalizedGuiLang)}/auth/forgot-password`,
   );
