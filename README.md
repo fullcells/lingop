@@ -4,6 +4,24 @@ Shared TypeScript code for Lingo projects.
 
 This codebase is intended to be used from both web apps, such as Next.js TypeScript apps, and native apps, such as React Native TypeScript apps.
 
+## Local stroke-order data
+
+`lingop/stroke-order` exposes a unified provider for Japanese Kanji and Kana
+and Traditional Chinese characters. WordDetails uses the same provider for its
+progressive **Strokes** tab. All data is bundled locally in lazy code-point
+buckets; there is no runtime server or network dependency.
+
+The build-time source priority is:
+
+- Japanese Kanji: KanjiVG, then AnimCJK.
+- Japanese Kana: AnimCJK.
+- Traditional Chinese: Make Me a Hanzi / Hanzi Writer Data, then AnimCJK.
+
+Run `npm run generate:stroke-data` after changing source package versions.
+Generated TypeScript is intentionally ignored by Git and recreated before
+build, typecheck, and test. See `THIRD_PARTY_NOTICES.md` and `licenses/` for
+the required source attribution and redistribution terms.
+
 ## Shared Learning Content
 
 Lingop is the source of truth for the static LingoDex and classic CL Learn CEFR datasets. Import the specific dataset subpath so consumers only bundle the content they need:

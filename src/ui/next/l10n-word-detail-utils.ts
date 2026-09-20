@@ -11,11 +11,22 @@ export type FormattedL10nWordDetail = {
   wordSubMorphemes: ATokenSubMorphemes;
 };
 
-export type YueWordDetailTab = "COMPONENTS" | "SIMPLE_SCRIPT";
+export type WordDetailCharacterTab =
+  | "COMPONENTS"
+  | "STROKES"
+  | "SIMPLE_SCRIPT";
+/** @deprecated Use WordDetailCharacterTab. */
+export type YueWordDetailTab = WordDetailCharacterTab;
 
-export const DEFAULT_YUE_WORD_DETAIL_TAB: YueWordDetailTab = "COMPONENTS";
-export const YUE_WORD_DETAIL_TAB_STORAGE_KEY =
+export const DEFAULT_WORD_DETAIL_CHARACTER_TAB: WordDetailCharacterTab =
+  "COMPONENTS";
+/** @deprecated Use DEFAULT_WORD_DETAIL_CHARACTER_TAB. */
+export const DEFAULT_YUE_WORD_DETAIL_TAB = DEFAULT_WORD_DETAIL_CHARACTER_TAB;
+export const WORD_DETAIL_CHARACTER_TAB_STORAGE_KEY =
   "UI_PREF_YUE_WORD_DETAIL_CHARACTER_TAB";
+/** @deprecated Use WORD_DETAIL_CHARACTER_TAB_STORAGE_KEY. */
+export const YUE_WORD_DETAIL_TAB_STORAGE_KEY =
+  WORD_DETAIL_CHARACTER_TAB_STORAGE_KEY;
 
 const HAN_CHARACTER_PATTERN = /\p{Script=Han}/u;
 const HANCHAR_COMPONENT_LANGS = new Set(["ja", "yue", "cmn-hant"]);
@@ -163,27 +174,38 @@ export function isExactJapaneseOnReadingMatch(
     normalizedReading === normalizeJapaneseReading(wordReading);
 }
 
-export function readYueWordDetailTab(): YueWordDetailTab {
+export function readWordDetailCharacterTab(): WordDetailCharacterTab {
   try {
-    if (typeof window === "undefined") return DEFAULT_YUE_WORD_DETAIL_TAB;
-    const stored = window.localStorage.getItem(YUE_WORD_DETAIL_TAB_STORAGE_KEY);
-    return stored === "COMPONENTS" || stored === "SIMPLE_SCRIPT"
+    if (typeof window === "undefined") return DEFAULT_WORD_DETAIL_CHARACTER_TAB;
+    const stored = window.localStorage.getItem(
+      WORD_DETAIL_CHARACTER_TAB_STORAGE_KEY,
+    );
+    return stored === "COMPONENTS" ||
+      stored === "STROKES" ||
+      stored === "SIMPLE_SCRIPT"
       ? stored
-      : DEFAULT_YUE_WORD_DETAIL_TAB;
+      : DEFAULT_WORD_DETAIL_CHARACTER_TAB;
   } catch {
-    return DEFAULT_YUE_WORD_DETAIL_TAB;
+    return DEFAULT_WORD_DETAIL_CHARACTER_TAB;
   }
 }
 
-export function writeYueWordDetailTab(tab: YueWordDetailTab): void {
+export function writeWordDetailCharacterTab(
+  tab: WordDetailCharacterTab,
+): void {
   try {
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(YUE_WORD_DETAIL_TAB_STORAGE_KEY, tab);
+      window.localStorage.setItem(WORD_DETAIL_CHARACTER_TAB_STORAGE_KEY, tab);
     }
   } catch {
     // The in-memory selection still works when browser storage is unavailable.
   }
 }
+
+/** @deprecated Use readWordDetailCharacterTab. */
+export const readYueWordDetailTab = readWordDetailCharacterTab;
+/** @deprecated Use writeWordDetailCharacterTab. */
+export const writeYueWordDetailTab = writeWordDetailCharacterTab;
 
 /**
  * Narrows an annotation to the selected word. Raw root-and-pattern annotation

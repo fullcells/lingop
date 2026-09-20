@@ -16,6 +16,10 @@ import {
   traditionalToSimplifiedChinese,
 } from "../../core/language/index.js";
 import { WORD_STREAKS_MASTERY_THRESHOLD } from "../../core/word-lists.js";
+import {
+  getStrokeCharacters,
+  supportsStrokeOrder,
+} from "../../stroke-order/index.js";
 import { ilike } from "../../utils/string.js";
 import { useOAT } from "../../oat/react/index.js";
 import { AnnotatedTextView } from "./annotated-text.js";
@@ -26,21 +30,22 @@ import {
 import { useLingopClientData } from "./lingop-client-data-provider.js";
 import type { L10nWordDetailData } from "./l10n-word-detail-types.js";
 import {
-  DEFAULT_YUE_WORD_DETAIL_TAB,
+  DEFAULT_WORD_DETAIL_CHARACTER_TAB,
   formatHancharReadings,
   formatL10nWordAsAnnotatedText,
   getHancharReadings,
   getJapaneseWordReadingForCharacter,
   getUniqueHanCharacters,
   isExactJapaneseOnReadingMatch,
-  readYueWordDetailTab,
+  readWordDetailCharacterTab,
   splitReadingByNativeSpellings,
   supportsHancharComponents,
   type FormattedL10nWordDetail,
-  type YueWordDetailTab,
-  writeYueWordDetailTab,
+  type WordDetailCharacterTab,
+  writeWordDetailCharacterTab,
 } from "./l10n-word-detail-utils.js";
 import { useOptionalUserWordStreaksData } from "./user-word-streaks.js";
+import { StrokeOrderView } from "./stroke-order-view.js";
 
 export type L10nWordDetailResolutionStatus =
   | "IDLE"
@@ -325,8 +330,8 @@ export function L10nWordDetailContent({
 }: L10nWordDetailContentProps) {
   const { OAT } = useOAT();
   const [isMarkingLearnt, setIsMarkingLearnt] = useState(false);
-  const [yueCharacterTab, setYueCharacterTab] = useState<YueWordDetailTab>(
-    DEFAULT_YUE_WORD_DETAIL_TAB,
+  const [characterTab, setCharacterTab] = useState<WordDetailCharacterTab>(
+    DEFAULT_WORD_DETAIL_CHARACTER_TAB,
   );
   const {
     l10nWordAnnotatedText,
@@ -348,7 +353,7 @@ export function L10nWordDetailContent({
   });
 
   useEffect(() => {
-    setYueCharacterTab(readYueWordDetailTab());
+    setCharacterTab(readWordDetailCharacterTab());
   }, []);
 
   if (!l10nWordDetailData) return null;
@@ -385,6 +390,25 @@ export function L10nWordDetailContent({
       hancharDecompositions.length > 0);
   const usesTraditionalChineseScript =
     getLang(l10nWordAnnotatedText.lang)?.g_script === "Traditional Chinese";
+  const strokeCharacters = getStrokeCharacters(
+    l10nWordToken?.text ?? "",
+    wordLang,
+  );
+  const hasStrokeView =
+    supportsStrokeOrder(wordLang) && Boolean(l10nWordToken?.text.trim());
+  const hasSimpleScriptView = isYue || isTraditionalMandarin;
+  const characterTabs: WordDetailCharacterTab[] = [
+    ...(hasHancharComponentPanel
+      ? (["COMPONENTS"] as const)
+      : []),
+    ...(hasStrokeView ? (["STROKES"] as const) : []),
+    ...(hasSimpleScriptView
+      ? (["SIMPLE_SCRIPT"] as const)
+      : []),
+  ];
+  const selectedCharacterTab = characterTabs.includes(characterTab)
+    ? characterTab
+    : characterTabs[0];
 
   return (
     <div className={["lingop-word-detail", className].filter(Boolean).join(" ")}>
@@ -429,65 +453,47 @@ export function L10nWordDetailContent({
         </div>
       )}
 
-      {/* CHARACTER COMPONENTS */}
-      {!(isYue || isTraditionalMandarin) && hasHancharComponentPanel && (
-        <section className="lingop-word-detail__character-components">
-          <h3 className="lingop-word-detail__character-section-title">
-            {OAT("Characters' Components")}
-          </h3>
-          <HancharComponentsBody
-            decompositions={hancharDecompositions}
-            loading={hancharDecompositionStatus === "LOADING"}
-            wordLang={wordLang}
-            wordPhoneticToken={l10nWordToken?.phoneticToken}
-          />
-        </section>
-      )}
-
-      {/* Cantonese and Traditional Mandarin combine components with simple script. */}
-      {(isYue || isTraditionalMandarin) && hasHancharComponentPanel ? (
+      {/* Character components, stroke order, and alternate script share one view. */}
+      {characterTabs.length > 0 ? (
         <section className="lingop-word-detail__character-tabs">
           <div
             className="lingop-word-detail__segment"
             role="tablist"
             aria-label={OAT("Character details")}
           >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={yueCharacterTab === "COMPONENTS"}
-              data-selected={
-                yueCharacterTab === "COMPONENTS" ? true : undefined
-              }
-              onClick={() => {
-                setYueCharacterTab("COMPONENTS");
-                writeYueWordDetailTab("COMPONENTS");
-              }}
-            >
-              {OAT("Components")}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={yueCharacterTab === "SIMPLE_SCRIPT"}
-              data-selected={
-                yueCharacterTab === "SIMPLE_SCRIPT" ? true : undefined
-              }
-              onClick={() => {
-                setYueCharacterTab("SIMPLE_SCRIPT");
-                writeYueWordDetailTab("SIMPLE_SCRIPT");
-              }}
-            >
-              {OAT("Simple Script")}
-            </button>
+            {characterTabs.map((tab) => (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={selectedCharacterTab === tab}
+                data-selected={selectedCharacterTab === tab ? true : undefined}
+                onClick={() => {
+                  setCharacterTab(tab);
+                  writeWordDetailCharacterTab(tab);
+                }}
+                key={tab}
+              >
+                {tab === "COMPONENTS"
+                  ? OAT("Components")
+                  : tab === "STROKES"
+                  ? OAT("Strokes")
+                  : OAT("Simple")}
+              </button>
+            ))}
           </div>
           <div className="lingop-word-detail__character-tab-panel" role="tabpanel">
-            {yueCharacterTab === "COMPONENTS" ? (
+            {selectedCharacterTab === "COMPONENTS" ? (
               <HancharComponentsBody
                 decompositions={hancharDecompositions}
                 loading={hancharDecompositionStatus === "LOADING"}
                 wordLang={wordLang}
                 wordPhoneticToken={l10nWordToken?.phoneticToken}
+              />
+            ) : selectedCharacterTab === "STROKES" ? (
+              <StrokeOrderView
+                characters={strokeCharacters}
+                lang={wordLang}
+                key={`${wordLang}:${strokeCharacters.join("")}`}
               />
             ) : (
               <SimplifiedChineseText text={l10nWordToken?.text ?? ""} />

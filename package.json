@@ -60,6 +60,10 @@
       "types": "./dist/speech.d.ts",
       "default": "./dist/speech.js"
     },
+    "./stroke-order": {
+      "types": "./dist/stroke-order/index.d.ts",
+      "default": "./dist/stroke-order/index.js"
+    },
     "./oat": {
       "types": "./dist/oat/index.d.ts",
       "default": "./dist/oat/index.js"
@@ -120,6 +124,8 @@
   "files": [
     "bin",
     "dist",
+    "licenses",
+    "THIRD_PARTY_NOTICES.md",
     "src/ui/next/annotated-text.css",
     "src/ui/next/fonts",
     "src/ui/next/camp-lingo-auth-form.css",
@@ -141,9 +147,12 @@
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "generate:oat-source-data": "node scripts/generate-oat-source-data.mjs",
-    "build": "npm run clean && npm run generate:oat-source-data && tsc -p tsconfig.json",
+    "generate:stroke-data": "node scripts/generate-stroke-data.mjs",
+    "build": "npm run clean && npm run generate:oat-source-data && npm run generate:stroke-data && tsc -p tsconfig.json",
     "prepare": "npm run build",
+    "pretypecheck": "npm run generate:stroke-data",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "pretest": "npm run generate:stroke-data",
     "test": "vitest run"
   },
   "peerDependencies": {
@@ -157,12 +166,15 @@
     }
   },
   "devDependencies": {
+    "@k1low/hanzi-writer-data-jp": "0.8.0",
     "@types/babel__traverse": "^7.20.7",
     "@types/node": "^22.13.11",
     "@types/react": "^19",
     "@types/react-dom": "^19.2.5",
-    "react-dom": "^19.2.8",
+    "hanzi-writer-data-acjk": "1.0.0",
+    "kanjivg-js": "1.1.5",
     "phaser": "^3.90.0",
+    "react-dom": "^19.2.8",
     "typescript": "^5.5.0",
     "vitest": "^3.2.6"
   },

@@ -1,0 +1,13 @@
+AnimCJK project - Copyright 2016-2026 - FM&SH
+
+Project: https://github.com/parsimonhi/animCJK
+
+AnimCJK is derived in part from the Arphic PL KaitiM GB and Big5 fonts and
+from Make Me a Hanzi. Character graphics for Kanji and Hanzi may be
+redistributed or modified under the Arphic Public License. Kana graphics may
+be redistributed or modified under GNU LGPL version 3 or (at your option) a
+later version.
+
+The complete applicable license texts are included in this directory as
+ARPHIC-PUBLIC-LICENSE.txt and LGPL-3.0.txt.
+

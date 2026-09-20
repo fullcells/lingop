@@ -171,6 +171,8 @@ describe("Han-character word details", () => {
 
     try {
       expect(readYueWordDetailTab()).toBe(DEFAULT_YUE_WORD_DETAIL_TAB);
+      writeYueWordDetailTab("STROKES");
+      expect(readYueWordDetailTab()).toBe("STROKES");
       writeYueWordDetailTab("SIMPLE_SCRIPT");
       expect(values.get(YUE_WORD_DETAIL_TAB_STORAGE_KEY)).toBe("SIMPLE_SCRIPT");
       expect(readYueWordDetailTab()).toBe("SIMPLE_SCRIPT");

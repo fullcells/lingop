@@ -18,6 +18,7 @@ export * from "./speech-synth-tts.js";
 export * from "./speech-synth-lang-voice-picker.js";
 export * from "./settings-voices-n-annotations.js";
 export * from "./spelling-system-picker.js";
+export * from "./stroke-order-view.js";
 export * from "./supabase-auth.js";
 export * from "./user-lingo-prefs.js";
 export * from "./user-word-streaks.js";

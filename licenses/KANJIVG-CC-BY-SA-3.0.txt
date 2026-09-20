@@ -1,0 +1,14 @@
+KanjiVG is copyright Ulrich Apel and contributors.
+
+KanjiVG is licensed under the Creative Commons Attribution-ShareAlike 3.0
+Unported License (CC BY-SA 3.0):
+
+https://creativecommons.org/licenses/by-sa/3.0/
+
+Project website: https://kanjivg.tagaini.net/
+Source repository: https://github.com/KanjiVG/kanjivg
+
+The generated KanjiVG stroke-path buckets distributed by lingop are adapted
+from KanjiVG and remain available under CC BY-SA 3.0. The surrounding lingop
+software is a collection and is not relicensed by this notice.
+
