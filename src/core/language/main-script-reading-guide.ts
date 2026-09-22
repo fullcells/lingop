@@ -1,5 +1,8 @@
-import type { PhoneticPart } from "../annotation/types.js";
+import type { PhoneticPart, PhoneticToken } from "../annotation/types.js";
 import { ilike } from "../misc.js";
+
+const KOREAN_AFFIX_MARKER = "‿";
+const KOREAN_SYLLABLE_SEPARATOR = "\u0000";
 
 function normalizeSinglish(input: string): string {
   return input
@@ -79,4 +82,78 @@ export async function getMainScriptReadingGuidePart(
   if (ilike("tok", lang)) return [text, text];
 
   return null;
+}
+
+async function getKoreanMainScriptReadingGuideToken(
+  text: string,
+): Promise<PhoneticToken> {
+  const module = await import("aromanize");
+  const aromanize = module.default ?? module;
+  const normalizedText = text.normalize("NFC");
+  const leadingAffixMarkers =
+    normalizedText.match(new RegExp(`^${KOREAN_AFFIX_MARKER}+`, "u"))?.[0] ?? "";
+  const trailingAffixMarkers =
+    normalizedText.match(new RegExp(`${KOREAN_AFFIX_MARKER}+$`, "u"))?.[0] ?? "";
+  const coreEnd = normalizedText.length - trailingAffixMarkers.length;
+  const coreText = normalizedText.slice(
+    leadingAffixMarkers.length,
+    coreEnd,
+  );
+
+  const graphemes = [
+    ...new Intl.Segmenter("ko", { granularity: "grapheme" }).segment(
+      coreText,
+    ),
+  ].map(({ segment }) => segment);
+  const spellings = aromanize
+    .hangulToLatin(
+      coreText,
+      "rr-translit",
+      KOREAN_SYLLABLE_SEPARATOR,
+    )
+    .split(KOREAN_SYLLABLE_SEPARATOR);
+
+  // Mixed-script or otherwise unusual tokens may not produce one romanized
+  // syllable per grapheme. Preserve the established whole-token guide instead
+  // of returning incorrectly aligned parts.
+  if (
+    graphemes.length === 0 ||
+    graphemes.length !== spellings.length ||
+    spellings.some((spelling) => spelling.length === 0)
+  ) {
+    return [
+      [
+        normalizedText,
+        aromanize.hangulToLatin(normalizedText, "rr-translit"),
+      ],
+    ];
+  }
+
+  return graphemes.map((grapheme, index): PhoneticPart => {
+    const isFirst = index === 0;
+    const isLast = index === graphemes.length - 1;
+    const prefix = isFirst ? leadingAffixMarkers : "";
+    const suffix = isLast ? trailingAffixMarkers : "";
+    return [
+      `${prefix}${grapheme}${suffix}`,
+      `${prefix}${spellings[index]}${suffix}`,
+    ];
+  });
+}
+
+/**
+ * Generates all locally derived reading-guide parts for one annotated token.
+ * Korean is aligned per grapheme; other languages retain their established
+ * whole-token guide as a single part.
+ */
+export async function getMainScriptReadingGuideToken(
+  lang: string,
+  text: string,
+): Promise<PhoneticToken | null> {
+  if (lang === "ko") {
+    return getKoreanMainScriptReadingGuideToken(text);
+  }
+
+  const part = await getMainScriptReadingGuidePart(lang, text);
+  return part ? [part] : null;
 }

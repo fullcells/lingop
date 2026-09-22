@@ -226,6 +226,11 @@ const spelling = await getSpellingContent(
 Sinhala, Greek, Korean, Thai, Egyptian Arabic, and Toki Pona reading guides used
 by `AnnotatedTextView` when backend phonetics are unavailable.
 
+`getMainScriptReadingGuideToken(lang, text)` returns those guides in the full
+`PhoneticToken` shape consumed by annotated-text renderers. Korean readings are
+aligned per grapheme (for example, `선생님` becomes `선/seon`, `생/saeng`,
+`님/nim`); the other local guides remain a single whole-token part.
+
 ## Camp Lingo Auth Form in Next.js
 
 `CampLingoAuthForm` is the shared Camp Lingo browser login/signup UI. It owns the common Camp Lingo branding and labels, email/password flows, Google Identity Services integration, and forgot-password destination. It uses basic DOM elements and stable class names so consumers can override its appearance without taking on a UI-framework dependency.

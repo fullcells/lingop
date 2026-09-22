@@ -8,7 +8,11 @@ declare module "arabic-transliterate" {
 
 declare module "aromanize" {
   const aromanize: {
-    hangulToLatin(input: string, system: "rr-translit"): string;
+    hangulToLatin(
+      input: string,
+      system: "rr-translit",
+      syllableSeparator?: string,
+    ): string;
   };
   export default aromanize;
 }

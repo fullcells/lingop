@@ -19,6 +19,7 @@ import type {
   AnnotatedToken,
   ATokenSubMorphemes,
   PhoneticPart,
+  PhoneticToken,
 } from "../../core/annotation/types.js";
 import {
   convertEmojiTextToBlackWhiteCompatibleEmojiText,
@@ -29,7 +30,7 @@ import {
   doesLangMainScriptHaveReadingGuide,
   getLang,
   getLangScript,
-  getMainScriptReadingGuidePart,
+  getMainScriptReadingGuideToken,
   getSpellingContent,
   getWordExplanationsForWord,
   SpellingSystemsByLang,
@@ -411,10 +412,10 @@ function TokenSpellingAndMainView({
   const readingGuideSignature = `${annotatedText.lang}\u0000${token.text}`;
   const [localReadingGuideResult, setLocalReadingGuideResult] = useState<{
     signature: string;
-    part: PhoneticPart | null;
+    token: PhoneticToken | null;
   } | null>(null);
 
-  // Local Main Script Reading Guide Part.
+  // Local Main Script Reading Guide Token.
   useEffect(() => {
     if (
       token.phoneticToken?.length ||
@@ -425,12 +426,12 @@ function TokenSpellingAndMainView({
     }
 
     let cancelled = false;
-    void getMainScriptReadingGuidePart(annotatedText.lang, token.text)
-      .then((part) => {
+    void getMainScriptReadingGuideToken(annotatedText.lang, token.text)
+      .then((phoneticToken) => {
         if (!cancelled) {
           setLocalReadingGuideResult({
             signature: readingGuideSignature,
-            part,
+            token: phoneticToken,
           });
         }
       })
@@ -439,7 +440,7 @@ function TokenSpellingAndMainView({
         if (!cancelled) {
           setLocalReadingGuideResult({
             signature: readingGuideSignature,
-            part: null,
+            token: null,
           });
         }
       });
@@ -455,9 +456,9 @@ function TokenSpellingAndMainView({
     token.text,
   ]);
 
-  const localMainScriptReadingGuidePart =
+  const localMainScriptReadingGuideToken =
     localReadingGuideResult?.signature === readingGuideSignature
-      ? localReadingGuideResult.part
+      ? localReadingGuideResult.token
       : null;
 
   // BASE TEXT: WHEN ATEXT HAS NO PHONETICS.
@@ -509,6 +510,12 @@ function TokenSpellingAndMainView({
     );
   }
 
+  const phoneticParts: (PhoneticPart | null)[] = token.phoneticToken?.length
+    ? token.phoneticToken
+    : localMainScriptReadingGuideToken?.length
+      ? localMainScriptReadingGuideToken
+      : [null];
+
   return (
     <span
       className="token-phonics"
@@ -520,10 +527,7 @@ function TokenSpellingAndMainView({
           : {}),
       }}
     >
-      {(token.phoneticToken?.length
-        ? token.phoneticToken
-        : [localMainScriptReadingGuidePart]
-      ).map((part, partIndex) => (
+      {phoneticParts.map((part, partIndex) => (
         <TokenPhoneticPartView
           key={`${partIndex}-${part?.[0] ?? token.text}`}
           astyle={astyle}
