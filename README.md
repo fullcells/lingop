@@ -4,6 +4,24 @@ Shared TypeScript code for Lingo projects.
 
 This codebase is intended to be used from both web apps, such as Next.js TypeScript apps, and native apps, such as React Native TypeScript apps.
 
+## Sign-language data
+
+`lingop/sign-language` exposes the shared SignWords language names, available
+gloss languages, and directional supplementary-lexicon relationships used by
+SignWriting products:
+
+```ts
+import {
+  GLOSS_LANGUAGE_NAMES,
+  SIGN_LANGUAGE_GLOSS_LANGUAGES,
+  SIGN_LANGUAGE_NAMES,
+  SIGN_LANGUAGE_SUPPLEMENTARY_LEXICON_SOURCES,
+} from "lingop/sign-language";
+```
+
+Formal SignWriting (`fsw`) remains a searchable notation rather than a gloss
+language, so consumers should add it as a product-specific search option.
+
 ## Local stroke-order data
 
 `lingop/stroke-order` exposes a unified provider for Japanese Kanji and Kana

@@ -1,6 +1,6 @@
 {
   "name": "lingop",
-  "version": "0.7.76",
+  "version": "0.7.77",
   "description": "Shared TypeScript code for Lingo web and native apps.",
   "type": "module",
   "exports": {
@@ -55,6 +55,10 @@
     "./language": {
       "types": "./dist/core/language/index.d.ts",
       "default": "./dist/core/language/index.js"
+    },
+    "./sign-language": {
+      "types": "./dist/core/language/data/sign-languages.d.ts",
+      "default": "./dist/core/language/data/sign-languages.js"
     },
     "./speech": {
       "types": "./dist/speech.d.ts",
