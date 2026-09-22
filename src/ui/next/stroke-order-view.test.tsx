@@ -29,9 +29,11 @@ describe("StrokeCharacterDiagram", () => {
       </OATDataProvider>,
     );
 
-    expect(html.match(/<svg/g)).toHaveLength(3);
-    expect(html.match(/<path/g)).toHaveLength(6);
+    expect(html.match(/<svg[^>]*data-path-kind=/g)).toHaveLength(3);
+    expect(html.match(/<path/g)).toHaveLength(7);
     expect(html.match(/data-active="true"/g)).toHaveLength(3);
-    expect(html).toContain("3 drawing steps · KanjiVG");
+    expect(html).toContain("3 strokes");
+    expect(html).toContain('title="Stroke source: KanjiVG"');
+    expect(html).not.toContain("drawing steps");
   });
 });

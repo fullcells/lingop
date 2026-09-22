@@ -82,32 +82,51 @@ export function StrokeOrderView({
     );
   }
 
-  const available = results.flatMap((result) =>
-    result.data ? [result.data] : [],
-  );
-  const unsupported = results
-    .filter((result) => !result.data && !result.failed)
-    .map((result) => result.character);
-  const failed = results
-    .filter((result) => result.failed)
-    .map((result) => result.character);
-
   return (
     <div className="lingop-word-detail__stroke-results">
-      {available.map((data) => (
-        <StrokeCharacterDiagram data={data} key={data.character} />
-      ))}
-      {unsupported.length > 0 && (
-        <p className="lingop-word-detail__stroke-message">
-          {OAT("Stroke order is not available for")}: {unsupported.join(" ")}
-        </p>
-      )}
-      {failed.length > 0 && (
-        <p className="lingop-word-detail__error" role="alert">
-          {OAT("Could not load stroke order for")}: {failed.join(" ")}
-        </p>
+      {results.map((result) =>
+        result.data ? (
+          <StrokeCharacterDiagram data={result.data} key={result.character} />
+        ) : (
+          <StrokeCharacterStatus
+            character={result.character}
+            failed={result.failed}
+            key={result.character}
+          />
+        ),
       )}
     </div>
+  );
+}
+
+function StrokeCharacterStatus({
+  character,
+  failed,
+}: {
+  character: string;
+  failed: boolean;
+}) {
+  const { OAT } = useOAT();
+  return (
+    <section className="lingop-word-detail__stroke-character">
+      <header className="lingop-word-detail__stroke-character-header">
+        <span className="lingop-word-detail__stroke-character-literal">
+          {character}
+        </span>
+      </header>
+      <p
+        className={
+          failed
+            ? "lingop-word-detail__stroke-error"
+            : "lingop-word-detail__stroke-message"
+        }
+        role={failed ? "alert" : undefined}
+      >
+        {failed
+          ? OAT("Unable to load stroke order.")
+          : OAT("No stroke order information available.")}
+      </p>
+    </section>
   );
 }
 
@@ -125,7 +144,18 @@ export function StrokeCharacterDiagram({
           {data.character}
         </span>
         <span>
-          {data.strokes.length} {OAT("drawing steps")} · {sourceLabel}
+          {data.strokes.length} {OAT("strokes")}
+        </span>
+        <span
+          aria-label={`${OAT("Stroke source")}: ${sourceLabel}`}
+          className="lingop-word-detail__stroke-source"
+          role="img"
+          title={`${OAT("Stroke source")}: ${sourceLabel}`}
+        >
+          <svg aria-hidden="true" viewBox="0 0 16 16">
+            <circle cx="8" cy="4.25" r="2.25" />
+            <path d="M3.5 14c.45-3.25 2-5 4.5-5s4.05 1.75 4.5 5" />
+          </svg>
         </span>
       </header>
       <ol className="lingop-word-detail__stroke-steps">
