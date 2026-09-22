@@ -60,6 +60,10 @@
       "types": "./dist/core/language/data/sign-languages.d.ts",
       "default": "./dist/core/language/data/sign-languages.js"
     },
+    "./sign-language-translation": {
+      "types": "./dist/core/translation/sign-language-api-client.d.ts",
+      "default": "./dist/core/translation/sign-language-api-client.js"
+    },
     "./speech": {
       "types": "./dist/speech.d.ts",
       "default": "./dist/speech.js"

@@ -751,6 +751,92 @@ describe("createLingoDataClient", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  it("creates anonymous Oral-to-Signed and Signed-to-Oral translations through the shared endpoint", async () => {
+    const fetchImpl = vi.fn(async (_input: string, init: { body: string }) => {
+      const body = JSON.parse(init.body) as Record<string, unknown>;
+      if ("source_text" in body) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => "",
+          json: async () => ({
+            direction: "oral-to-signed",
+            source_lang: "en",
+            target_lang: "jsl",
+            source_text: "tea",
+            search_language: "en",
+            signword_source_languages: ["jsl", "kvk"],
+            tokens: [
+              {
+                type: "sign_word",
+                sign_word_id: 101,
+                sign_lang: "kvk",
+                glosses: [{ gloss: "TEA", gloss_lang: "en", position: 0 }],
+                search_query: "tea",
+                from_related_sign_language: true,
+              },
+            ],
+            signword_ids: [101],
+            translator: "AI:OPENAI:test+SIGNWORDS",
+            warnings: [],
+          }),
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        text: async () => "",
+        json: async () => ({
+          direction: "signed-to-oral",
+          source_lang: "jsl",
+          target_lang: "en",
+          source_signword_ids: [101],
+          source_sign_words: [
+            {
+              id: 101,
+              sign_lang: "kvk",
+              glosses: [{ gloss: "TEA", gloss_lang: "en", position: 0 }],
+              from_related_sign_language: true,
+            },
+          ],
+          target_text: "tea",
+          translator: "AI:OPENAI:test+SIGNWORDS",
+          warnings: [],
+        }),
+      };
+    });
+    vi.stubGlobal("fetch", fetchImpl);
+    const client = createLingoDataClient();
+
+    await expect(
+      client.createOralToSignedTranslation({
+        sourceLang: "EN",
+        sourceText: "tea",
+        targetLang: "JSL",
+      }),
+    ).resolves.toMatchObject({
+      direction: "oral-to-signed",
+      targetLang: "jsl",
+      signWordIds: [101],
+    });
+    await expect(
+      client.createSignedToOralTranslation({
+        sourceLang: "JSL",
+        sourceSignWordIds: [101],
+        targetLang: "EN",
+      }),
+    ).resolves.toMatchObject({
+      direction: "signed-to-oral",
+      targetText: "tea",
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    for (const [url, init] of fetchImpl.mock.calls) {
+      expect(url).toMatch(/\/api\/translate-create-limited-anon$/);
+      expect(init.headers).toEqual({ "Content-Type": "application/json" });
+    }
+  });
+
   it("retranslates by translation id and refreshes the cached row", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-03-04T05:06:07.000Z"));

@@ -18,3 +18,16 @@ export type {
   TranslationRow,
 } from "./types.js";
 export { isTranslationDbRef, isTranslationRow } from "./validators.js";
+export {
+  callTranslateOralToSignedLimitedAnon,
+  callTranslateSignedToOralLimitedAnon,
+} from "./sign-language-api-client.js";
+export type {
+  CallTranslateOralToSignedLimitedAnonInput,
+  CallTranslateSignedToOralLimitedAnonInput,
+  OralToSignedToken,
+  OralToSignedTranslation,
+  SignedToOralSourceSignWord,
+  SignedToOralTranslation,
+  SignWordGloss,
+} from "./sign-language-api-client.js";

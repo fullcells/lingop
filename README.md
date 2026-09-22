@@ -356,6 +356,9 @@ Low-level annotation API calls, `callAnnotate_storedForOwner()` remains public a
 - `supabaseUserID`, `userEmail`, `signedInStatus`, and `enabledSubProd`: current Supabase auth/subscription state derived from the injected Supabase client. `signedInStatus` starts as `null` while auth is loading; `enabledSubProd` starts as `undefined` until the first `users_info.enabled_sub_prod` lookup completes.
 - `refreshEnabledSubProd()`: reloads `users_info.enabled_sub_prod` for the current Supabase user and updates `enabledSubProd`.
 - `fetchLocalization({ l10n_lang, sourceContent, isPublic? })`: returns the newest localization for a source-content record, using the client cache first and generating/fetching as needed.
+- `createTransientTranslation({ sourceLang, sourceText, targetLang })`: creates and session-caches a reference-less Oral-to-Oral translation through the limited-anonymous backend.
+- `createOralToSignedTranslation({ sourceLang, sourceText, targetLang })`: creates and session-caches an ordered SignWord/fingerspelling translation. Its rich response preserves related-Sign-Language provenance and warnings.
+- `createSignedToOralTranslation({ sourceLang, sourceSignWordIds, targetLang })`: creates and session-caches natural Oral Language text from an ordered SignWord ID sequence.
 - `updateTranslationsCaches(rows)`: merges translation rows into the owned translation cache and keeps the newest entries first.
 - `getT9nCacheDateBySC(sourceContent)`: reads the last cache timestamp tracked for a source-content record.
 - `_updateT9nCacheDatesBySCs(sourceContents)`: updates cache timestamps for one or more source-content records.

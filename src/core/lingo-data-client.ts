@@ -22,6 +22,12 @@ import utilsFetchLocalization, {
   type TranslationCacheRef,
 } from "./translation/fetch-localization.js";
 import { callTranslateCreateLimitedAnon } from "./translation/api-client.js";
+import {
+  callTranslateOralToSignedLimitedAnon,
+  callTranslateSignedToOralLimitedAnon,
+  type OralToSignedTranslation,
+  type SignedToOralTranslation,
+} from "./translation/sign-language-api-client.js";
 import type { TranslationRow } from "./translation/types.js";
 import { isTranslationRow } from "./translation/validators.js";
 import {
@@ -143,6 +149,18 @@ export type LingoDataClient = {
     sourceText: string;
     targetLang: string;
   }): Promise<Localization | null>;
+  /** Translates Oral Language text into an ordered SignWord/fingerspelling sequence. */
+  createOralToSignedTranslation(input: {
+    sourceLang: string;
+    sourceText: string;
+    targetLang: string;
+  }): Promise<OralToSignedTranslation | null>;
+  /** Translates an ordered SignWord ID sequence into natural Oral Language text. */
+  createSignedToOralTranslation(input: {
+    sourceLang: string;
+    sourceSignWordIds: number[];
+    targetLang: string;
+  }): Promise<SignedToOralTranslation | null>;
   /** Merges translation rows into the owned cache and keeps newest rows first. */
   updateTranslationsCaches(sbTranslationRows: TranslationRow[]): void;
   /** Returns the last cache timestamp recorded for the given source content. */
@@ -473,6 +491,16 @@ export function createLingoDataClient({
     string,
     Promise<Localization | null>
   >();
+  const oralToSignedTranslations = new Map<string, OralToSignedTranslation>();
+  const oralToSignedTranslationRequests = new Map<
+    string,
+    Promise<OralToSignedTranslation | null>
+  >();
+  const signedToOralTranslations = new Map<string, SignedToOralTranslation>();
+  const signedToOralTranslationRequests = new Map<
+    string,
+    Promise<SignedToOralTranslation | null>
+  >();
   const translationsCache = createTranslationCacheRef();
   const t9nCacheDatesBySC: Record<string, string> = {};
   const authState = createAuthState();
@@ -670,6 +698,119 @@ export function createLingoDataClient({
     })();
 
     transientTranslationRequests.set(requestKey, request);
+    return request;
+  }
+
+  function createOralToSignedTranslation({
+    sourceLang,
+    sourceText,
+    targetLang,
+  }: {
+    sourceLang: string;
+    sourceText: string;
+    targetLang: string;
+  }): Promise<OralToSignedTranslation | null> {
+    const normalizedSourceLang = sourceLang.trim().toLowerCase();
+    const normalizedTargetLang = targetLang.trim().toLowerCase();
+    if (!normalizedSourceLang || !normalizedTargetLang || !sourceText.trim()) {
+      console.error(
+        "createOralToSignedTranslation requires source and target languages and non-empty text.",
+      );
+      return Promise.resolve(null);
+    }
+
+    const requestKey = JSON.stringify([
+      normalizedSourceLang,
+      sourceText,
+      normalizedTargetLang,
+    ]);
+    const cached = oralToSignedTranslations.get(requestKey);
+    if (cached) return Promise.resolve(cached);
+    const existingRequest = oralToSignedTranslationRequests.get(requestKey);
+    if (existingRequest) return existingRequest;
+
+    const request = (async (): Promise<OralToSignedTranslation | null> => {
+      try {
+        const accessToken = await resolveAccessToken({
+          supabaseClient: runtimeSupabaseClient,
+        });
+        const translation = await callTranslateOralToSignedLimitedAnon({
+          source_lang: normalizedSourceLang,
+          source_text: sourceText,
+          target_lang: normalizedTargetLang,
+          ...(accessToken ? { accessToken } : {}),
+          ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
+        });
+        oralToSignedTranslations.set(requestKey, translation);
+        return translation;
+      } catch (error) {
+        console.error("callTranslateOralToSignedLimitedAnon failed", error);
+        return null;
+      } finally {
+        oralToSignedTranslationRequests.delete(requestKey);
+      }
+    })();
+
+    oralToSignedTranslationRequests.set(requestKey, request);
+    return request;
+  }
+
+  function createSignedToOralTranslation({
+    sourceLang,
+    sourceSignWordIds,
+    targetLang,
+  }: {
+    sourceLang: string;
+    sourceSignWordIds: number[];
+    targetLang: string;
+  }): Promise<SignedToOralTranslation | null> {
+    const normalizedSourceLang = sourceLang.trim().toLowerCase();
+    const normalizedTargetLang = targetLang.trim().toLowerCase();
+    if (
+      !normalizedSourceLang ||
+      !normalizedTargetLang ||
+      sourceSignWordIds.length === 0 ||
+      !sourceSignWordIds.every((id) => Number.isSafeInteger(id) && id > 0)
+    ) {
+      console.error(
+        "createSignedToOralTranslation requires source and target languages and positive SignWord IDs.",
+      );
+      return Promise.resolve(null);
+    }
+
+    const requestKey = JSON.stringify([
+      normalizedSourceLang,
+      sourceSignWordIds,
+      normalizedTargetLang,
+    ]);
+    const cached = signedToOralTranslations.get(requestKey);
+    if (cached) return Promise.resolve(cached);
+    const existingRequest = signedToOralTranslationRequests.get(requestKey);
+    if (existingRequest) return existingRequest;
+
+    const request = (async (): Promise<SignedToOralTranslation | null> => {
+      try {
+        const accessToken = await resolveAccessToken({
+          supabaseClient: runtimeSupabaseClient,
+        });
+        const translation = await callTranslateSignedToOralLimitedAnon({
+          source_lang: normalizedSourceLang,
+          source_signword_ids: sourceSignWordIds,
+          target_lang: normalizedTargetLang,
+          ...(accessToken ? { accessToken } : {}),
+          ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
+        });
+        signedToOralTranslations.set(requestKey, translation);
+        return translation;
+      } catch (error) {
+        console.error("callTranslateSignedToOralLimitedAnon failed", error);
+        return null;
+      } finally {
+        signedToOralTranslationRequests.delete(requestKey);
+      }
+    })();
+
+    signedToOralTranslationRequests.set(requestKey, request);
     return request;
   }
 
@@ -1179,6 +1320,8 @@ export function createLingoDataClient({
     t9nCacheDatesBySC,
     fetchLocalization,
     createTransientTranslation,
+    createOralToSignedTranslation,
+    createSignedToOralTranslation,
     updateTranslationsCaches,
     getT9nCacheDateBySC,
     _updateT9nCacheDatesBySCs,
