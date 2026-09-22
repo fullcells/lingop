@@ -40,6 +40,10 @@ const SOURCE_PRESENTATION: Record<
     pathKind: "OUTLINE",
     transform: "translate(0 900) scale(1 -1)",
   },
+  CANTONESE_GLYPHWIKI: {
+    viewBox: "0 0 200 200",
+    pathKind: "OUTLINE",
+  },
 };
 
 export const STROKE_SOURCE_LABELS: Record<StrokeDataSource, string> = {
@@ -47,6 +51,7 @@ export const STROKE_SOURCE_LABELS: Record<StrokeDataSource, string> = {
   ANIMCJK_JA: "AnimCJK",
   ANIMCJK_ZH_HANT: "AnimCJK",
   MAKEMEAHANZI: "Make Me a Hanzi",
+  CANTONESE_GLYPHWIKI: "CNS11643/Rime + GlyphWiki",
 };
 
 export function supportsStrokeOrder(lang: string | undefined): boolean {
@@ -93,7 +98,14 @@ function sourceOrder(character: string, lang: string): StrokeDataSource[] {
     return [];
   }
   if (TRADITIONAL_CHINESE_LANGS.has(normalized) && HAN_PATTERN.test(character)) {
-    return ["MAKEMEAHANZI", "ANIMCJK_ZH_HANT"];
+    const sources: StrokeDataSource[] = [
+      "MAKEMEAHANZI",
+      "ANIMCJK_ZH_HANT",
+    ];
+    if (normalized === "yue" || normalized === "zh-hk") {
+      sources.push("CANTONESE_GLYPHWIKI");
+    }
+    return sources;
   }
   return [];
 }

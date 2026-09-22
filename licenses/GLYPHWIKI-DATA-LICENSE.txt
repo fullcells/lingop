@@ -1,0 +1,13 @@
+GlyphWiki data files
+
+These data files are free software.
+Unlimited permission is hereby granted to use, copy, and distribute
+these files, with or without modification, either commercially
+or non-commercially.
+
+THIS DATA IS PROVIDED "AS IS" WITHOUT ANY WARRANTY.
+License of this document is the same as the data files.
+
+Copyright 2009 GlyphWiki Project.
+
+Source: https://glyphwiki.org/

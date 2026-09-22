@@ -47,6 +47,15 @@ const sources = [
     characterPattern: hanPattern,
     traditionalOnly: true,
   },
+  {
+    id: "CANTONESE_GLYPHWIKI",
+    file: path.join(
+      repositoryRoot,
+      "data/stroke-order/cantonese-glyphwiki.json",
+    ),
+    kind: "prebuilt-json",
+    characterPattern: hanPattern,
+  },
 ];
 
 function bucketForCharacter(character) {
@@ -70,6 +79,24 @@ function pathsFromKanjiVG(svg) {
 }
 
 async function readSourceEntries(source) {
+  if (source.kind === "prebuilt-json") {
+    const parsed = JSON.parse(await readFile(source.file, "utf8"));
+    const entries = [];
+    for (const [character, entry] of Object.entries(parsed.entries ?? {})) {
+      if (
+        !source.characterPattern.test(character) ||
+        !Array.isArray(entry.strokes) ||
+        entry.strokes.length === 0 ||
+        entry.strokeOrder?.length !== entry.strokes.length ||
+        !entry.strokes.every((stroke) => typeof stroke === "string")
+      ) {
+        throw new Error(`Invalid prebuilt stroke data for ${character}.`);
+      }
+      entries.push([character, entry.strokes]);
+    }
+    return entries;
+  }
+
   const filenames = (await readdir(source.directory)).sort((a, b) =>
     a.localeCompare(b, "en"),
   );

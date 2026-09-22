@@ -43,3 +43,24 @@ Only path geometry needed for progressive display is copied into generated
 buckets. Medians, dictionaries, source SVG metadata, and unsupported scripts
 are not redistributed by lingop.
 
+## Cantonese fallback: CNS11643, Rime Stroke, and GlyphWiki/KAGE
+
+- Scope: a curated supplement of common colloquial Cantonese characters that
+  are absent from the primary Traditional Chinese datasets.
+- Stroke order: pinned `rime/rime-stroke` data (LGPL v3), with exact sequences
+  validated against the CNS11643 Full Character Library where available.
+- Geometry: Hong Kong or Traditional KAGE glyph records from GlyphWiki. The
+  committed source snapshot records every GlyphWiki component version used.
+- Conversion: `@kurgm/kage-engine@0.7.0` (GPL v3) is a maintenance-time tool
+  that renders and separates KAGE geometry. It is not used by lingop consumers.
+- Licenses: Rime Stroke is covered by `licenses/LGPL-3.0.txt`. GlyphWiki grants
+  unlimited commercial and non-commercial use, copying, distribution, and
+  modification of its data; see `licenses/GLYPHWIKI-DATA-LICENSE.txt`.
+- CNS11643: [Full Character Library open data](https://data.gov.tw/en/datasets/5961),
+  used as a validation source under the Taiwan Government Open Data License
+  v1.0. No CNS font files are redistributed.
+
+The update script joins adjacent KAGE font fragments into the logical pen
+strokes required by the validated Rime/CNS sequence and commits only the final
+path data. Normal builds and consumer devices perform no KAGE conversion and
+make no network requests.

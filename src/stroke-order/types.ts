@@ -2,7 +2,8 @@ export type StrokeDataSource =
   | "KANJIVG"
   | "ANIMCJK_JA"
   | "ANIMCJK_ZH_HANT"
-  | "MAKEMEAHANZI";
+  | "MAKEMEAHANZI"
+  | "CANTONESE_GLYPHWIKI";
 
 export type StrokeCharacterData = {
   character: string;
@@ -25,4 +26,3 @@ export type StrokeBucketModule = {
 };
 
 export type StrokeBucketLoader = () => Promise<StrokeBucketModule>;
-

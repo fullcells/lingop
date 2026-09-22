@@ -20,6 +20,7 @@ function stubLoaders(
     "ANIMCJK_JA",
     "ANIMCJK_ZH_HANT",
     "MAKEMEAHANZI",
+    "CANTONESE_GLYPHWIKI",
   ];
   const loaders = Object.fromEntries(
     sources.map((source) => [
@@ -91,6 +92,28 @@ describe("stroke-data provider", () => {
     expect(calls).toEqual(["MAKEMEAHANZI"]);
   });
 
+  it("uses the Cantonese supplement only after the generic sources", async () => {
+    const { loaders, calls } = stubLoaders({
+      CANTONESE_GLYPHWIKI: { 嚟: ["glyphwiki"] },
+    });
+    const provider = createStrokeDataProvider(loaders);
+
+    await expect(provider.get("嚟", "yue")).resolves.toMatchObject({
+      source: "CANTONESE_GLYPHWIKI",
+      strokes: ["glyphwiki"],
+      viewBox: "0 0 200 200",
+      pathKind: "OUTLINE",
+    });
+    await expect(provider.get("嚟", "zh-hk")).resolves.toMatchObject({
+      source: "CANTONESE_GLYPHWIKI",
+    });
+    await expect(provider.get("嚟", "zh-tw")).resolves.toBeNull();
+    expect(calls).toEqual([
+      "CANTONESE_GLYPHWIKI",
+      "CANTONESE_GLYPHWIKI",
+    ]);
+  });
+
   it("filters display text to unique supported-script characters", () => {
     expect(getStrokeCharacters("日本語かな語！", "ja")).toEqual([
       "日",
@@ -118,5 +141,15 @@ describe("stroke-data provider", () => {
     await expect(
       localStrokeDataProvider.get("喫", "cmn-hant"),
     ).resolves.toMatchObject({ source: "ANIMCJK_ZH_HANT" });
+    for (const [character, strokeCount] of Object.entries({
+      嚟: 18,
+      㗎: 12,
+      嗰: 13,
+      喺: 14,
+    })) {
+      const data = await localStrokeDataProvider.get(character, "yue");
+      expect(data).toMatchObject({ source: "CANTONESE_GLYPHWIKI" });
+      expect(data?.strokes).toHaveLength(strokeCount);
+    }
   });
 });

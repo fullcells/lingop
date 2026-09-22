@@ -148,6 +148,7 @@
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "generate:oat-source-data": "node scripts/generate-oat-source-data.mjs",
     "generate:stroke-data": "node scripts/generate-stroke-data.mjs",
+    "update:stroke-data:cantonese": "node scripts/update-cantonese-stroke-data.mjs",
     "build": "npm run clean && npm run generate:oat-source-data && npm run generate:stroke-data && tsc -p tsconfig.json",
     "prepare": "npm run build",
     "pretypecheck": "npm run generate:stroke-data",
@@ -167,6 +168,7 @@
   },
   "devDependencies": {
     "@k1low/hanzi-writer-data-jp": "0.8.0",
+    "@kurgm/kage-engine": "0.7.0",
     "@types/babel__traverse": "^7.20.7",
     "@types/node": "^22.13.11",
     "@types/react": "^19",
