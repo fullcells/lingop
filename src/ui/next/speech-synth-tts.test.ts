@@ -367,6 +367,91 @@ describe("speech synth TTS", () => {
     vi.unstubAllGlobals();
   });
 
+  it("keeps browser voices available and retries after a temporary API voice failure", async () => {
+    vi.resetModules();
+    const browserVoice = {
+      default: true,
+      lang: "en-US",
+      localService: true,
+      name: "Android English",
+      voiceURI: "android-english",
+    } as SpeechSynthesisVoice;
+    vi.stubGlobal("window", {
+      speechSynthesis: {
+        getVoices: vi.fn(() => [browserVoice]),
+        onvoiceschanged: null,
+      },
+    });
+    const apiVoice = {
+      service: "MICROSOFT",
+      voice_id: "en-US-JennyNeural",
+      voice_lang: "en-US",
+    };
+    const fetchImpl: NonNullable<SpeechSynthTTSOptions["fetchImpl"]> = vi.fn()
+      .mockRejectedValueOnce(new Error("temporary network failure"))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => "",
+        json: async () => [apiVoice],
+      });
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { getVoiceOptionsForLang } = await import("./speech-synth-tts.js");
+
+    const first = await getVoiceOptionsForLang("en", "ONE_PER_LANG", { fetchImpl });
+    expect(first.available.voices).toEqual([
+      { service: "BROWSER", voice_id: "android-english", voice_lang: "en-US" },
+    ]);
+    const second = await getVoiceOptionsForLang("en", "ONE_PER_LANG", { fetchImpl });
+    expect(second.available.voices).toEqual([
+      { service: "BROWSER", voice_id: "android-english", voice_lang: "en-US" },
+      apiVoice,
+    ]);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+
+    consoleWarn.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
+  it("retries an unsuccessful API voice response", async () => {
+    vi.resetModules();
+    vi.stubGlobal("window", {});
+    const fetchImpl: NonNullable<SpeechSynthTTSOptions["fetchImpl"]> = vi.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        text: async () => "unavailable",
+        json: async () => ({}),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => "",
+        json: async () => [{
+          service: "MICROSOFT",
+          voice_id: "en-US-JennyNeural",
+          voice_lang: "en-US",
+        }],
+      });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { getVoiceOptionsForLang } = await import("./speech-synth-tts.js");
+
+    const first = await getVoiceOptionsForLang("en", "ONE_PER_LANG", { fetchImpl });
+    expect(first.available.voices).toEqual([]);
+    const second = await getVoiceOptionsForLang("en", "ONE_PER_LANG", { fetchImpl });
+    expect(second.available.voices).toEqual([{
+      service: "MICROSOFT",
+      voice_id: "en-US-JennyNeural",
+      voice_lang: "en-US",
+    }]);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+
+    consoleError.mockRestore();
+    consoleWarn.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
   it("returns each voice once when language and locale searches overlap", async () => {
     vi.resetModules();
     const japaneseVoice = {

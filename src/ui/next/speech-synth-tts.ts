@@ -462,7 +462,7 @@ let inFlightAPIVoices: Promise<SpeechSynthTTSVoice[]> | null = null;
 async function getAPIVoices(options: SpeechSynthTTSOptions = {}): Promise<SpeechSynthTTSVoice[]> {
   if (inFlightAPIVoices) return inFlightAPIVoices;
 
-  inFlightAPIVoices = (async () => {
+  const request = (async () => {
     const fetchUrl = `${getBEApiBaseUrl(options)}/api/get-api-voices`; // `${apiHost}/api/lingoprocessor/translate` // Future: May need to change BE API in future so that it delivers one voice with multiple languages (to make it significantly more compact - as new API Voices (e.g. ElevenLabs, OpenAI, Google, etc. are added))
     const res = await getFetch(options.fetchImpl)(fetchUrl, {
       method: "POST",
@@ -479,7 +479,7 @@ async function getAPIVoices(options: SpeechSynthTTSOptions = {}): Promise<Speech
         jsonResponse = { raw: text };
       }
       console.error(`${fetchUrl} failed on \n > ${res.status} - Data: ${JSON.stringify(jsonResponse)}`);
-      return [];
+      throw new Error(`API voice request failed with status ${res.status}.`);
     }
     const data = await res.json();
     const voices = Array.isArray(data) ? data.filter(isSpeechSynthTTSVoice) : [];
@@ -487,20 +487,40 @@ async function getAPIVoices(options: SpeechSynthTTSOptions = {}): Promise<Speech
     return voices;
   })();
 
-  return inFlightAPIVoices;
+  inFlightAPIVoices = request;
+  try {
+    return await request;
+  } catch (error) {
+    // A temporary network/backend failure must not poison later voice lookups.
+    if (inFlightAPIVoices === request) inFlightAPIVoices = null;
+    throw error;
+  }
 }
 
 // VOICES - i.e. Browser + API Voices
 async function getVOICES(options: SpeechSynthTTSOptions = {}): Promise<SpeechSynthTTSVoice[]> { // ~10,000+ Voices
   if (inFlightVOICES) return inFlightVOICES;
-  inFlightVOICES = (async () => {
-    const [browserVoices, apiVoices] = await Promise.all([
+  let request!: Promise<SpeechSynthTTSVoice[]>;
+  request = (async () => {
+    const [browserResult, apiResult] = await Promise.allSettled([
       getBrowserVoices(),
       getAPIVoices(options),
     ]);
+    const browserVoices = browserResult.status === "fulfilled" ? browserResult.value : [];
+    const apiVoices = apiResult.status === "fulfilled" ? apiResult.value : [];
+    if (browserResult.status === "rejected") {
+      console.warn("Could not load browser voices:", browserResult.reason);
+      if (inFlightVOICES === request) invalidateBrowserVoiceCache();
+    }
+    if (apiResult.status === "rejected") {
+      console.warn("Could not load API voices:", apiResult.reason);
+      // Return browser voices now, but let the next lookup retry cloud voices.
+      if (inFlightVOICES === request) inFlightVOICES = null;
+    }
     return [...browserVoices, ...apiVoices];
   })();
-  return inFlightVOICES;
+  inFlightVOICES = request;
+  return request;
 }
 
 function getVoiceSearchLangSuffixes(lang: string): string[] {
