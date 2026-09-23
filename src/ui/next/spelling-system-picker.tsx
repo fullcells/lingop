@@ -205,7 +205,7 @@ export function SpellingSystemPicker({
               }
               onClick={() =>
                 setPrefShowSpelling(
-                  prefShowSpelling === "ALWAYS" ? "NEVER" : "ALWAYS",
+                  prefShowSpelling === "NEVER" ? "ALWAYS" : "NEVER",
                 )
               }
             >
@@ -260,7 +260,7 @@ export function SpellingSystemPicker({
           </div>
 
           <section className="spelling-system-picker-preview">
-            <div className="spelling-system-picker-preview-label">Preview</div>
+            <div className="spelling-system-picker-preview-label">{OAT("Preview")}</div>
             <div className="spelling-system-picker-preview-content">
               {exampleAText && (
                 <AnnotatedTextView

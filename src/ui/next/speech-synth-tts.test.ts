@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   DEFAULT_USER_PREFERRED_VOICE_SPEED,
+  filterLowQualityMacVoices,
   fetchSpeech,
   getUserPreferredVoiceSpeed,
   MAX_USER_PREFERRED_VOICE_SPEED,
@@ -14,6 +15,23 @@ import {
   type SpeechSynthSupabaseClient,
   type SpeechSynthTTSOptions,
 } from "./speech-synth-tts.js";
+
+describe("Mac voice choices", () => {
+  it("keeps Alex and a natural alternative while hiding poor voices in the same locale", () => {
+    const voices = [
+      { name: "Alex (English (US))", lang: "en-US" },
+      { name: "Anika Robot", lang: "en-US" },
+      { name: "Female 1", lang: "en_US" },
+      { name: "Grandpa (English (UK))", lang: "en-GB" },
+    ];
+    expect(filterLowQualityMacVoices(voices)).toEqual([voices[0], voices[3]]);
+  });
+
+  it("keeps the only available voice for a locale", () => {
+    const voices = [{ name: "Grandpa (English (UK))", lang: "en-GB" }];
+    expect(filterLowQualityMacVoices(voices)).toEqual(voices);
+  });
+});
 import { BE_API_PRODUCTION_URL, BE_API_STAGING_URL } from "../../core/backend-api.js";
 
 type SpeechSupabaseSelectResult = {

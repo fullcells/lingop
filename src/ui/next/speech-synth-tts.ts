@@ -224,6 +224,18 @@ const DEPRIORITIZED_BROWSER_VOICE_NAME_PARTS = [
   "Zarvox",
 ] as const;
 
+// Web Speech does not expose macOS's novelty-voice trait. Keep this list
+// conservative and only hide a voice when another option for its exact locale
+// remains. Alex is deliberately retained: its age alone is not a quality test.
+const LOW_QUALITY_MAC_VOICE_NAME_PARTS = [
+  ...DEPRIORITIZED_BROWSER_VOICE_NAME_PARTS,
+  "Anika", "Anima Robot", "Anxious Andy", "Fast Test",
+  "Female 1", "Female 2", "Female 3", "Female 4", "Female 5",
+  "Male 1", "Male 2", "Male 3", "Male 4", "Male 5", "Male 6", "Male 7", "Male 8",
+  "Grandpa", "Croak", "Demonic", "ESpeak", "Half-Life Announcement System",
+  "Jester", "Klatt", "Mr Serious", "Organ", "Robosoft", "Wobble",
+] as const;
+
 function getIntlDisplayName(
   locale: string,
   type: "language" | "region",
@@ -360,6 +372,18 @@ function sortAndDedupeBrowserVoices(voices: SpeechSynthesisVoice[]): SpeechSynth
   return dedupeBrowserVoices(sortBrowserVoices(voices));
 }
 
+export function filterLowQualityMacVoices<T extends Pick<SpeechSynthesisVoice, "name" | "lang">>(voices: T[]): T[] {
+  const hasBetterVoiceForLocale = new Set(
+    voices.filter((voice) => !hasVoiceNamePart(voice.name, LOW_QUALITY_MAC_VOICE_NAME_PARTS))
+      .map((voice) => voice.lang.replaceAll("_", "-").toLowerCase()),
+  );
+  return voices.filter((voice) => {
+    const locale = voice.lang.replaceAll("_", "-").toLowerCase();
+    return !hasBetterVoiceForLocale.has(locale) ||
+      !hasVoiceNamePart(voice.name, LOW_QUALITY_MAC_VOICE_NAME_PARTS);
+  });
+}
+
 async function getRawBrowserVoices(timeoutMs = 2000): Promise<SpeechSynthesisVoice[]> {
   if (typeof window === "undefined" || typeof window.speechSynthesis === "undefined") {
     return Promise.resolve([]);
@@ -413,7 +437,10 @@ async function getBrowserVoices(): Promise<SpeechSynthTTSVoice[]> {
   const rawBrowserVoices = await getRawBrowserVoices();
   if (inFlightBrowserVoices) return inFlightBrowserVoices;
   inFlightBrowserVoices = (async () => {
-    return rawBrowserVoices.map((bv) => ({
+    const isMac = typeof navigator !== "undefined" &&
+      (/Macintosh|Mac OS X/.test(navigator.userAgent) || /Mac/.test(navigator.platform));
+    const selectableVoices = isMac ? filterLowQualityMacVoices(rawBrowserVoices) : rawBrowserVoices;
+    return selectableVoices.map((bv) => ({
       service: "BROWSER",
       voice_id: bv.voiceURI,
       voice_lang: bv.lang,

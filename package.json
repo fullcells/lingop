@@ -193,6 +193,7 @@
     "@babel/traverse": "^7.28.0",
     "@dehoist/romanize-thai": "^1.0.0",
     "@floating-ui/react": "^0.27.20",
+    "@tabler/icons-react": "3.46.0",
     "arabic-transliterate": "^1.0.1",
     "aromanize": "^0.1.5",
     "chinese-conv": "^4.0.0",

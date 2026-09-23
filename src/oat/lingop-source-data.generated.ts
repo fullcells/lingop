@@ -47,6 +47,7 @@ export const lingopOATSourceData: OATSourceData = {
       "Learnt",
       "Loading Annotations",
       "Loading stroke order",
+      "Loading voices",
       "Log in",
       "More",
       "No characters with stroke-order data were found.",

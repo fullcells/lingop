@@ -6,6 +6,7 @@ import {
   getSpeechVoiceLocaleLabel,
   groupSpeechVoicesByLocale,
 } from "./speech-synth-lang-voice-picker-utils.js";
+import { detectBrowserBrand } from "./speech-synth-lang-voice-picker.js";
 
 const browserVoice = (
   voiceId: string,
@@ -17,6 +18,13 @@ const browserVoice = (
 });
 
 describe("speech synth language voice picker utilities", () => {
+  it("identifies the browser brand before a shared Chrome or Safari signature", () => {
+    expect(detectBrowserBrand("Mozilla/5.0 Edg/120.0 Chrome/120.0 Safari/537.36")).toBe("edge");
+    expect(detectBrowserBrand("Mozilla/5.0 OPR/106.0 Chrome/120.0 Safari/537.36")).toBe("opera");
+    expect(detectBrowserBrand("Mozilla/5.0 Firefox/120.0 Safari/537.36")).toBe("firefox");
+    expect(detectBrowserBrand("Mozilla/5.0 Chrome/120.0 Safari/537.36")).toBe("chrome");
+    expect(detectBrowserBrand("Mozilla/5.0 Version/17.0 Safari/605.1.15")).toBe("safari");
+  });
   it("uses service, id, and language to identify voices", () => {
     const browser = browserVoice("Shared", "en-US");
     const cloud: SpeechSynthTTSVoice = {

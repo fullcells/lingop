@@ -6,6 +6,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import {
+  IconBrandChrome, IconBrandEdge, IconBrandFirefox, IconBrandOpera,
+  IconBrandSafari, IconBrowser,
+} from "@tabler/icons-react";
 
 import { getLang } from "../../core/language/index.js";
 import type { ContentReference } from "../../core/misc.js";
@@ -41,13 +45,21 @@ export type SpeechSynthLangVoicePickerProps = {
   onVoiceChange?: (voice: SpeechSynthTTSVoice) => void;
 };
 
-function BrowserIcon(): ReactNode {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <path d="M3 8h18M7 6h.01M10 6h.01" />
-    </svg>
-  );
+export function detectBrowserBrand(userAgent: string): "edge" | "opera" | "firefox" | "chrome" | "safari" | "other" {
+  if (/Edg(e|A|iOS)?\//i.test(userAgent)) return "edge";
+  if (/OPR\/|Opera|OPiOS\//i.test(userAgent)) return "opera";
+  if (/Firefox\/|FxiOS\//i.test(userAgent)) return "firefox";
+  if (/Chrome\/|CriOS\//i.test(userAgent)) return "chrome";
+  if (/Safari\//i.test(userAgent)) return "safari";
+  return "other";
+}
+
+function BrowserIcon({ brand }: { brand: ReturnType<typeof detectBrowserBrand> }): ReactNode {
+  const Icon = {
+    edge: IconBrandEdge, opera: IconBrandOpera, firefox: IconBrandFirefox,
+    chrome: IconBrandChrome, safari: IconBrandSafari, other: IconBrowser,
+  }[brand];
+  return <Icon size={20} stroke={1.8} aria-hidden="true" />;
 }
 
 function CloudIcon(): ReactNode {
@@ -120,6 +132,11 @@ export function SpeechSynthLangVoicePicker({
   const [isLoading, setIsLoading] = useState(true);
   const [previewingVoiceKey, setPreviewingVoiceKey] =
     useState<string | null>(null);
+  const [browserBrand, setBrowserBrand] = useState<ReturnType<typeof detectBrowserBrand>>("other");
+
+  useEffect(() => {
+    setBrowserBrand(detectBrowserBrand(navigator.userAgent));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -227,7 +244,7 @@ export function SpeechSynthLangVoicePicker({
             <div
               className="speech-voice-picker-loading"
               role="status"
-              aria-label="Loading voices"
+              aria-label={OAT("Loading voices")}
             >
               <LoadingSpinner />
             </div>
@@ -257,7 +274,7 @@ export function SpeechSynthLangVoicePicker({
                         >
                           <span className="speech-voice-picker-service-icon">
                             {voice.service === "BROWSER" ? (
-                              <BrowserIcon />
+                              <BrowserIcon brand={browserBrand} />
                             ) : (
                               <CloudIcon />
                             )}
@@ -275,7 +292,7 @@ export function SpeechSynthLangVoicePicker({
                           <button
                             type="button"
                             className="speech-voice-picker-preview"
-                            aria-label={`Preview ${prettifyVoiceId(voice.voice_id)}`}
+                            aria-label={`${OAT("Preview")} ${prettifyVoiceId(voice.voice_id)}`}
                             aria-busy={previewing}
                             disabled={previewingVoiceKey !== null}
                             onClick={() => void previewVoice(voice)}
@@ -296,7 +313,7 @@ export function SpeechSynthLangVoicePicker({
         <div className="speech-voice-picker-footer-inner">
           <div className="speech-voice-picker-notes">
             <p>
-              <span className="speech-voice-picker-note-icon"><BrowserIcon /></span>
+              <span className="speech-voice-picker-note-icon"><BrowserIcon brand={browserBrand} /></span>
               {" = "}{OAT("Browser Voices")}{". "}
               <span className="speech-voice-picker-note-icon"><CloudIcon /></span>
               {" = "}{OAT("Cloud Voices")}{"."}
