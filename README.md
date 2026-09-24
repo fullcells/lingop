@@ -672,8 +672,20 @@ const spelling = annotatedTextRef.current?.getSpelling();
 await annotatedTextRef.current?.triggerSpeechSynthesis();
 ```
 
-The optional stylesheet supplies the default color and monochrome emoji font
-handling. Critical layout remains built into the component, so importing the
+As of 2026-09-24, color emojis use the browser's default font selection. The
+old automatic Noto preference and its coupled flip rule remain as disabled code
+in the stylesheet: consistent artwork is no longer a priority for Camp Lingo
+products. Noto-only color flips now use a cached, lightweight platform estimate
+applied after hydration: Android/ChromeOS/Linux are likely Noto; Apple/Windows
+are not. This does not inspect actual glyph fonts; Android OEM fonts, Linux
+configuration and user overrides can differ. Set `colorEmojiFontIsNoto={true}`
+or `{false}` on `AnnotatedTextView` when the consumer knows its color font.
+This prop changes only Noto-specific flips, not font selection. Explicit
+monochrome mode still uses Noto Emoji and retains its flips independently.
+No font downloads, canvas measurements or permission prompts are added.
+
+The optional stylesheet supplies color and monochrome emoji font handling.
+Critical layout remains built into the component, so importing the
 stylesheet is not required when an application provides its own ATV styles.
 Consumers can override its font stacks with CSS custom properties:
 

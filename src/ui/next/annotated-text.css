@@ -163,6 +163,20 @@
 }
 
 /*
+ * Historical color-font tradeoffs (retained 2026-09-24):
+ * Dec 2025 OmniAccess sought consistent artwork, but Google's WOFF delivery
+ * intermittently left blank glyphs. Moving the stylesheet to _document reduced
+ * but did not eliminate it; LingoDex/CL Translate switched to a local ~25 MB TTF
+ * outside the Safari feature check, with font-display: swap. System fonts or
+ * local SVGs were the documented alternatives if reliability remained poor.
+ *
+ * 2026-09-24 human Chrome/macOS tests also found repeatable ~0.5-2.5 s perceived
+ * freezes with the non-default color-font path. Placeholders and an explicit
+ * Apple Color Emoji override appeared instantly; disabling flips did not help.
+ * This implicates font-dependent rendering, not just download time. The exact
+ * original face and engine-level cost (fallback/shaping/rasterization) were not
+ * traced; do not claim that every custom font or browser necessarily freezes.
+ *
  * 20260821: Noto Color Emoji's CBDT/CBLC format can be slow or unreliable in
  * Safari/WebKit, so retain system-font default there. Consumers
  * can override either font stack through the custom properties below without
@@ -200,9 +214,13 @@
   );
 }
 
-/* Direction and font fixes are applied per grapheme, as in OmniAccess. */
+/* Direction fixes are per grapheme. BW explicitly uses Noto. For default color
+ * fonts, the view supplies a cheap platform estimate after hydration (Android,
+ * ChromeOS/Linux: likely Noto; Apple/Windows: not Noto). OEM/user fonts can differ;
+ * colorEmojiFontIsNoto overrides the estimate without selecting a font. */
 .annotated-text-view .gloss-emoji .grapheme.to-flip,
-.annotated-text-view .emoji-bw-font .grapheme.to-flip-for-noto {
+.annotated-text-view .emoji-bw-font .grapheme.to-flip-for-noto,
+.annotated-text-view-wrapper[data-color-emoji-is-noto="true"] .emoji-color-font .grapheme.to-flip-for-noto {
   transform: scaleX(-1);
 }
 
@@ -210,7 +228,14 @@
   font-family: "Noto Sans", system-ui, serif;
 }
 
-/* Not iOS/macOS Safari: prefer the platform's Noto color emoji font. */
+/* 2026-09-24: Disabled legacy color-font preference. Emojis now play a smaller
+ * role in Camp Lingo products; consistent Noto artwork no longer justifies a
+ * non-default font. Let the browser choose color emoji naturally. Explicit
+ * monochrome styling above remains supported. Keep this rule for reference,
+ * including the old coupled flips. Default color fonts can themselves be Noto;
+ * the active rule above now handles those flips independently of font selection.
+ * Previously: outside the Safari feature check, prefer platform Noto. That CSS
+ * capability check never established which font actually rendered a glyph.
 @supports not (font: -apple-system-body) {
   .annotated-text-view .emoji-color-font {
     font-family: var(
@@ -225,3 +250,4 @@
     transform: scaleX(-1);
   }
 }
+*/

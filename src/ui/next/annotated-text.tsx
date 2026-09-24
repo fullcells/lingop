@@ -13,6 +13,8 @@ import {
   type ReactNode,
 } from "react";
 
+import { browserLikelyUsesNotoColorEmoji } from "./emoji-platform.js";
+
 import { linearizeTemplaticAText } from "../../core/annotation/converters.js";
 import type {
   AnnotatedText,
@@ -174,6 +176,9 @@ export type AnnotatedTextViewProps = {
   /** Reports whether this view is still resolving any visible gloss emojis. */
   onEmojiLoadStateChange?: (isLoading: boolean) => void;
   isEmojiBlackWhite?: boolean;
+  /** Override the platform estimate for Noto-only color-glyph flips. Does not
+   * select/load a font or affect explicit monochrome Noto styling. */
+  colorEmojiFontIsNoto?: boolean;
   /** Language used for the displayed gloss text. */
   glossTextTipLang?: string;
   /** OmniAccess-compatible per-instance annotated-text styling. */
@@ -1166,6 +1171,7 @@ function LoadedAnnotatedTextViewComponent({
   onEmojiLoadStateChange,
   astyle: astyleInput = DEFAULT_ANNOTATED_TEXT_STYLE,
   isEmojiBlackWhite = false,
+  colorEmojiFontIsNoto,
   glossTextTipLang = "en",
   showTokenGlossPrefix_TO__ = true,
   showLocalMainTextReadingGuide,
@@ -1181,6 +1187,13 @@ function LoadedAnnotatedTextViewComponent({
   enableWordStreaks = true,
   supabaseClient,
 }: LoadedAnnotatedTextViewProps, ref: ForwardedRef<AnnotatedTextViewHandle>): ReactNode {
+  // Keep SSR and first hydration render identical; estimate once after mount.
+  const [platformUsesNoto, setPlatformUsesNoto] = useState(false);
+  useEffect(() => {
+    if (colorEmojiFontIsNoto === undefined) {
+      setPlatformUsesNoto(browserLikelyUsesNotoColorEmoji());
+    }
+  }, [colorEmojiFontIsNoto]);
   const astyle = resolveAnnotatedTextStyle(astyleInput);
   const userLingoPrefsData = useOptionalUserLingoPrefsData();
   // Explicit per-instance inputs take precedence over shared user preferences.
@@ -1647,6 +1660,7 @@ function LoadedAnnotatedTextViewComponent({
   return (
     <div
       className="annotated-text-view-wrapper"
+      data-color-emoji-is-noto={colorEmojiFontIsNoto ?? platformUsesNoto}
       data-emoji-loading={isLoadingEmojis ? "true" : "false"}
       dir={mainScript?.is_ltr === false ? "rtl" : undefined}
       data-actions-placement={actionsPlacement}
