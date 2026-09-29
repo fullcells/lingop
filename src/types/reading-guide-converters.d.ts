@@ -6,17 +6,6 @@ declare module "arabic-transliterate" {
   ): string;
 }
 
-declare module "aromanize" {
-  const aromanize: {
-    hangulToLatin(
-      input: string,
-      system: "rr-translit",
-      syllableSeparator?: string,
-    ): string;
-  };
-  export default aromanize;
-}
-
 declare module "greek-utils" {
   const greekUtils: {
     toPhoneticLatin(input: string): string;

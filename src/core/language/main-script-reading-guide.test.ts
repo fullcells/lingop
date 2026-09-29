@@ -13,7 +13,7 @@ describe("getMainScriptReadingGuidePart", () => {
     ]);
     await expect(getMainScriptReadingGuidePart("ko", "한국")).resolves.toEqual([
       "한국",
-      "hangug",
+      "hanguk",
     ]);
     await expect(getMainScriptReadingGuidePart("th", "ไทย")).resolves.toEqual([
       "ไทย",
@@ -62,5 +62,61 @@ describe("getMainScriptReadingGuidePart", () => {
     await expect(
       getMainScriptReadingGuideToken("en", "hello"),
     ).resolves.toBeNull();
+  });
+});
+
+
+describe("Korean contextual spelling guides", () => {
+  it.each([
+    ["학교", ["hak", "gyo"]],
+    ["국물", ["gung", "mul"]],
+    ["같이", ["ga", "chi"]],
+    ["먹어요", ["meo", "geo", "yo"]],
+    ["신라", ["sil", "la"]],
+    ["좋다", ["jo", "ta"]],
+    ["좋아", ["jo", "a"]],
+    ["닭이", ["dal", "gi"]],
+    ["꽃잎", ["kkon", "nip"]],
+    ["나뭇잎", ["na", "mun", "nip"]],
+    ["잎", ["ip"]],
+    ["깻잎", ["kkaen", "nip"]],
+    ["감사합니다", ["gam", "sa", "ham", "ni", "da"]],
+    ["와왜외워웨위의", ["wa", "wae", "oe", "wo", "we", "wi", "ui"]],
+  ])("aligns %s after whole-sequence conversion", async (text, spellings) => {
+    const token = await getMainScriptReadingGuideToken("ko", text);
+    expect(token).toEqual([...text].map((char, i) => [char, spellings[i]]));
+    expect(token?.map((part) => part[1]).join("")).toBe(
+      (await getMainScriptReadingGuidePart("ko", text))?.[1],
+    );
+  });
+
+  it("normalizes decomposed Hangul before applying contextual rules", async () => {
+    await expect(getMainScriptReadingGuideToken("ko", "같이".normalize("NFD")))
+      .resolves.toEqual([["같", "ga"], ["이", "chi"]]);
+    await expect(getMainScriptReadingGuidePart("ko", "같이".normalize("NFD")))
+      .resolves.toEqual(["같이".normalize("NFD"), "gachi"]);
+  });
+
+  it("preserves affix markers around contextual guides", async () => {
+    await expect(getMainScriptReadingGuideToken("ko", "‿같이‿"))
+      .resolves.toEqual([["‿같", "‿ga"], ["이‿", "chi‿"]]);
+  });
+
+  it.each(["", "‿", "ㄱ", "학교 😊", "한국ABC", "3개", "같이 가요"])(
+    "uses a whole-token fallback for %s", async (text) => {
+      const part = await getMainScriptReadingGuidePart("ko", text);
+      expect(await getMainScriptReadingGuideToken("ko", text)).toEqual([part]);
+    },
+  );
+
+  it("does not inherit mutable Koroman dictionaries from other consumers", async () => {
+    const { setCustomDictionary, clearCustomDictionary } = await import("koroman");
+    try {
+      setCustomDictionary({ 한국: "unexpected" });
+      await expect(getMainScriptReadingGuideToken("ko", "한국"))
+        .resolves.toEqual([["한", "han"], ["국", "guk"]]);
+    } finally {
+      clearCustomDictionary();
+    }
   });
 });

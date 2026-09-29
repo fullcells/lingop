@@ -249,6 +249,18 @@ by `AnnotatedTextView` when backend phonetics are unavailable.
 aligned per grapheme (for example, `선생님` becomes `선/seon`, `생/saeng`,
 `님/nim`); the other local guides remain a single whole-token part.
 
+Korean local guides use lazily loaded `koroman@1.0.16`. The entire Hangul token
+is converted before splitting its pronunciation into syllables, preserving
+contextual changes: `국물` → `국/gung`, `물/mul`; `같이` → `같/ga`, `이/chi`.
+These are Koroman romanizations, not exhaustive phonetic transcriptions.
+NFC normalization and edge `‿` markers are preserved. Mixed-script tokens or
+unrecognized intermediate structures receive a whole-token guide instead of
+speculative alignment. Joined syllable guides must equal the full conversion.
+The version is pinned because alignment uses Koroman's intermediate jamo
+representation; upgrade it together with the Korean alignment regression tests.
+Mutable custom dictionaries are disabled to keep the local output deterministic.
+Backend-provided phonetics still take precedence over these local fallbacks.
+
 ## Camp Lingo Auth Form in Next.js
 
 `CampLingoAuthForm` is the shared Camp Lingo browser login/signup UI. It owns the common Camp Lingo branding and labels, email/password flows, Google Identity Services integration, and forgot-password destination. It uses basic DOM elements and stable class names so consumers can override its appearance without taking on a UI-framework dependency.

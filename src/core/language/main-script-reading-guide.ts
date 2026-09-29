@@ -2,7 +2,6 @@ import type { PhoneticPart, PhoneticToken } from "../annotation/types.js";
 import { ilike } from "../misc.js";
 
 const KOREAN_AFFIX_MARKER = "‿";
-const KOREAN_SYLLABLE_SEPARATOR = "\u0000";
 
 function normalizeSinglish(input: string): string {
   return input
@@ -49,9 +48,8 @@ export async function getMainScriptReadingGuidePart(
 
   // Korean.
   if (lang === "ko") {
-    const module = await import("aromanize");
-    const aromanize = module.default ?? module;
-    return [text, aromanize.hangulToLatin(text, "rr-translit")];
+    const { romanizeKorean } = await import("./korean-reading-guide.js");
+    return [text, romanizeKorean(text.normalize("NFC"))];
   }
 
   // Thai. All reading-guide converters are lazy-loaded now so consumers that
@@ -87,8 +85,9 @@ export async function getMainScriptReadingGuidePart(
 async function getKoreanMainScriptReadingGuideToken(
   text: string,
 ): Promise<PhoneticToken> {
-  const module = await import("aromanize");
-  const aromanize = module.default ?? module;
+  const { romanizeKorean, getKoreanSyllableSpellings } = await import(
+    "./korean-reading-guide.js"
+  );
   const normalizedText = text.normalize("NFC");
   const leadingAffixMarkers =
     normalizedText.match(new RegExp(`^${KOREAN_AFFIX_MARKER}+`, "u"))?.[0] ?? "";
@@ -105,28 +104,12 @@ async function getKoreanMainScriptReadingGuideToken(
       coreText,
     ),
   ].map(({ segment }) => segment);
-  const spellings = aromanize
-    .hangulToLatin(
-      coreText,
-      "rr-translit",
-      KOREAN_SYLLABLE_SEPARATOR,
-    )
-    .split(KOREAN_SYLLABLE_SEPARATOR);
+  const spellings = getKoreanSyllableSpellings(coreText);
 
-  // Mixed-script or otherwise unusual tokens may not produce one romanized
-  // syllable per grapheme. Preserve the established whole-token guide instead
-  // of returning incorrectly aligned parts.
-  if (
-    graphemes.length === 0 ||
-    graphemes.length !== spellings.length ||
-    spellings.some((spelling) => spelling.length === 0)
-  ) {
-    return [
-      [
-        normalizedText,
-        aromanize.hangulToLatin(normalizedText, "rr-translit"),
-      ],
-    ];
+  // Mixed scripts and structures that cannot be confidently aligned retain a
+  // whole-token guide. Never silently attach a sound to the wrong grapheme.
+  if (!spellings || spellings.length !== graphemes.length) {
+    return [[normalizedText, romanizeKorean(normalizedText)]];
   }
 
   return graphemes.map((grapheme, index): PhoneticPart => {
