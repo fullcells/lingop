@@ -228,6 +228,12 @@
   font-family: "Noto Sans", system-ui, serif;
 }
 
+/* Plain numbers in emoji glosses need text glyphs and compact spacing. */
+.annotated-text-view .gloss-emoji .grapheme.text-number {
+  font-family: Arial, sans-serif;
+  letter-spacing: -0.12em;
+}
+
 /* 2026-09-24: Disabled legacy color-font preference. Emojis now play a smaller
  * role in Camp Lingo products; consistent Noto artwork no longer justifies a
  * non-default font. Let the browser choose color emoji naturally. Explicit

@@ -14,6 +14,7 @@ import {
 } from "react";
 
 import { browserLikelyUsesNotoColorEmoji } from "./emoji-platform.js";
+import { segmentGlossEmoji } from "./gloss-emoji-graphemes.js";
 
 import { linearizeTemplaticAText } from "../../core/annotation/converters.js";
 import type {
@@ -948,16 +949,8 @@ function TokenGlossView({
   ) {
     emojiFont = "emoji-bw-font";
   }
-  // Split into emoji graphemes so direction-sensitive symbols can be flipped
-  // independently and exceptional text-like graphemes can reset their font.
-  const emojiGraphemes = emoji
-    ? typeof Intl.Segmenter === "function"
-      ? Array.from(
-          new Intl.Segmenter("en", { granularity: "grapheme" }).segment(emoji),
-          ({ segment }) => (segment === " " ? "\u2002" : segment),
-        )
-      : Array.from(emoji, (segment) => (segment === " " ? "\u2002" : segment))
-      : [];
+  // Keep number runs together; other emoji remain separate for direction fixes.
+  const emojiGraphemes = emoji ? segmentGlossEmoji(emoji) : [];
   const emojiSizeReserveText =
     tipLangGloss ?? enGloss ?? token.gloss ?? visuallyEmpty;
   const tokenIsHinted = shouldDisplayGloss;
@@ -1039,12 +1032,13 @@ function TokenGlossView({
             ) : emoji ? (
               emojiGraphemes.map((grapheme, index) => {
                 const flip = shouldFlipEmoji(grapheme);
+                const isPlainNumber = /^[0-9]+$/.test(grapheme);
                 return (
                   <span
                     key={`${index}-${grapheme}`}
                     className={`grapheme${
                       ["Ọ", "Ȯ"].includes(grapheme) ? " reset-font" : ""
-                    }${
+                    }${isPlainNumber ? " text-number" : ""}${
                       flip === "YES"
                         ? " to-flip"
                         : flip === "IF_NOTO"
