@@ -231,7 +231,7 @@
 /* Plain numbers in emoji glosses need text glyphs and compact spacing. */
 .annotated-text-view .gloss-emoji .grapheme.text-number {
   font-family: Arial, sans-serif;
-  letter-spacing: -0.12em;
+  letter-spacing: -0.10em;
 }
 
 /* 2026-09-24: Disabled legacy color-font preference. Emojis now play a smaller
