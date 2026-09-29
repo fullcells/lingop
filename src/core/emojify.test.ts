@@ -110,6 +110,44 @@ describe("emojify", () => {
     );
   });
 
+  it("matches a phrase before emojifying a parenthesized note", async () => {
+    const kinshipRows: EmojiRow[] = [
+      { emoji: "【👶🏻➦🧓🏻】↥", en_gloss: "OLDER" },
+      { emoji: "👬", en_gloss: "BROTHER" },
+      { emoji: "👬↥", en_gloss: "OLDER BROTHER" },
+      { emoji: "♔", en_gloss: "HONORIFIC" },
+    ];
+
+    await expect(generateEmojiFromRows("older brother", kinshipRows)).resolves.toBe(
+      "👬↥",
+    );
+    await expect(
+      generateEmojiFromRows("older brother (honorific)", kinshipRows),
+    ).resolves.toBe("👬↥ (♔)");
+  });
+
+  it("splits slashes outside brackets and keeps notes with their phrase", async () => {
+    const kinshipRows: EmojiRow[] = [
+      { emoji: "👬↥", en_gloss: "OLDER BROTHER" },
+      { emoji: "♔", en_gloss: "HONORIFIC / RESPECTFUL" },
+      { emoji: "♔", en_gloss: "[HONORIFIC / RESPECTFUL]" },
+      { emoji: "👬↧", en_gloss: "YOUNGER BROTHER" },
+    ];
+
+    await expect(
+      generateEmojiFromRows(
+        "older brother (honorific / respectful) / younger brother",
+        kinshipRows,
+      ),
+    ).resolves.toBe("👬↥ (♔) / 👬↧");
+    await expect(
+      generateEmojiFromRows(
+        "older brother [honorific / respectful] / younger brother",
+        kinshipRows,
+      ),
+    ).resolves.toBe("👬↥ [♔] / 👬↧");
+  });
+
   it("indexes emoji rows instead of repeatedly scanning them", async () => {
     const indexedRows = [...rows];
     const find = vi.spyOn(indexedRows, "find");

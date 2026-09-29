@@ -646,8 +646,8 @@ async function generateEmojiFromRowsUncached(
     return exact_match.emoji;
   }
 
-  // 2. SPLIT BY "/" DASH - Split the en_gloss, then by "word_sense | [explicitation,…]"
-  const slashGroups: string[] = en_gloss.split("/").map((g) => g.trim());
+  // 2. Split alternatives at top-level slashes, then separate bracketed notes.
+  const slashGroups = splitTopLevelSlashGroups(en_gloss);
   const slashGroupsEmoji: string[] = [];
   for (const slashGroup of slashGroups) {
     // 0. EXACT MATCH CHECK FIRST
@@ -657,56 +657,80 @@ async function generateEmojiFromRowsUncached(
       continue;
     }
 
-    // 1. Detect EXPLICITATIONS - e.g. "brother [honorific,older]"
-    // 20251014: As of today, the introduction of this code no existing gloss uses "[", so the following logic will work.
-    const word_sense: string = slashGroup.split("[")[0]!.trim();
-    let explicitations_string: string = slashGroup.split("[")[1] || "";
-    explicitations_string = explicitations_string.replace(/[\[\]]/g, "");
-    let explicitations: string[] = [];
-    if (explicitations_string.length) {
-      explicitations = explicitations_string.split(",").map((e) => e.trim());
-    }
+    // 1. Keep the phrase together before emojifying notes such as
+    // "older brother (honorific)" or "brother [honorific,older]".
+    const { wordSense, annotations } = splitTrailingGlossAnnotations(slashGroup);
 
     // 2. STANDARD GENERATE EMOJI ON WORD_SENSE
     const wordSenseEmoji = await generateEmoji_standard2(
-      word_sense,
+      wordSense,
       cachedEmojisData,
       isNotCoreWord,
     );
 
-    // 3. Emojis for EXPLICITATIONS:
-    const explicitationsEmojis: string[] = [];
-    for (const explicitation of explicitations) {
-      // a. Look for Exact Match for Explicitation - with [Square Brackets notation]
-      const exactMatch = findCaseInsensitiveEmojiRowMatch(
-        `[${explicitation}]`,
-        cachedEmojisData,
-      );
-      if (exactMatch) {
-        explicitationsEmojis.push(exactMatch.emoji);
-        continue;
+    // 3. Emojis for bracketed notes.
+    const annotationPrints: string[] = [];
+    for (const { bracket, text } of annotations) {
+      const emojis: string[] = [];
+      for (const part of text.split(",").map((item) => item.trim())) {
+        const exactMatch = findCaseInsensitiveEmojiRowMatch(
+          `${bracket}${part}${bracket === "[" ? "]" : ")"}`,
+          cachedEmojisData,
+        );
+        emojis.push(
+          exactMatch?.emoji ??
+            (await generateEmoji_standard2(part, cachedEmojisData, isNotCoreWord)),
+        );
       }
-      // b. Standard Emoji Search for Explicitation
-      const standardEmoji: string = await generateEmoji_standard2(
-        explicitation,
-        cachedEmojisData,
-        isNotCoreWord,
+      annotationPrints.push(
+        `${bracket}${emojis.join(",")}${bracket === "[" ? "]" : ")"}`,
       );
-      explicitationsEmojis.push(standardEmoji);
-    }
-    let explicitationEmojisPrint: string = "";
-    if (explicitationsEmojis.length > 0) {
-      explicitationEmojisPrint = ` [${explicitationsEmojis.join(",")}]`;
     }
 
     // 4. Altogether
-    const slashGroupEmoji: string = wordSenseEmoji + explicitationEmojisPrint;
+    const slashGroupEmoji = [wordSenseEmoji, ...annotationPrints].join(" ");
     slashGroupsEmoji.push(slashGroupEmoji);
   }
 
   const output = slashGroupsEmoji.join(" / ");
 
   return output;
+}
+
+function splitTopLevelSlashGroups(gloss: string): string[] {
+  const groups: string[] = [];
+  let start = 0;
+  let squareDepth = 0;
+  let roundDepth = 0;
+  for (let index = 0; index < gloss.length; index += 1) {
+    const char = gloss[index];
+    if (char === "[") squareDepth += 1;
+    else if (char === "]") squareDepth = Math.max(0, squareDepth - 1);
+    else if (char === "(") roundDepth += 1;
+    else if (char === ")") roundDepth = Math.max(0, roundDepth - 1);
+    else if (char === "/" && squareDepth === 0 && roundDepth === 0) {
+      groups.push(gloss.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  groups.push(gloss.slice(start).trim());
+  return groups;
+}
+
+function splitTrailingGlossAnnotations(gloss: string): {
+  wordSense: string;
+  annotations: { bracket: "[" | "("; text: string }[];
+} {
+  let wordSense = gloss.trim();
+  const annotations: { bracket: "[" | "("; text: string }[] = [];
+  while (wordSense) {
+    const match = wordSense.match(/(\[[^\[\]]*\]|\([^()]*\))$/);
+    if (!match || match.index === undefined || match.index === 0) break;
+    const bracket = match[0][0] as "[" | "(";
+    annotations.unshift({ bracket, text: match[0].slice(1, -1) });
+    wordSense = wordSense.slice(0, match.index).trimEnd();
+  }
+  return { wordSense, annotations };
 }
 
 // 2. `generateEmoji_standard` is typically Run after splitting gloss by " / " and "[explicitations]"
