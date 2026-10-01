@@ -135,6 +135,10 @@
     "./speech/expo": {
       "types": "./dist/speech/expo.d.ts",
       "default": "./dist/speech/expo.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "default": "./dist/react/index.js"
     }
   },
   "files": [

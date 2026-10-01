@@ -161,7 +161,7 @@ function ContentLabel() {
 ## Shared Lingop client data in React
 
 `LingopClientDataProvider` creates one `LingoDataClient` for its React subtree.
-Configure the consumer's existing browser Supabase client, production/staging
+Configure the consumer's existing platform-configured Supabase client, production/staging
 choice, and optional cloud-voice access profile once; compatible Lingop UI
 components then share that configuration and the client's in-memory caches.
 The consumer still owns entitlement/account policy—Lingop does not infer it
@@ -171,7 +171,8 @@ from a host or route.
 import {
   LingopClientDataProvider,
   useLingopClientData,
-} from "lingop/ui/next";
+  useSupabaseSignedInStatus,
+} from "lingop/react";
 
 <LingopClientDataProvider
   supabaseClient={supabaseClient}
@@ -183,11 +184,29 @@ import {
 
 function Example() {
   const { lingopClient } = useLingopClientData();
-  // The same client instance is available to custom consumer components.
+  const { signedInStatus, userEmail, enabledSubProd } = useSupabaseSignedInStatus();
+  // The same client and account state are available to web and native components.
 }
 ```
 
 `WordListsSelector`, `WordListVisualLeafNode`, `AnnotatedTextView`, `CampLingoAuthForm`, `UserWordStreaksDataProvider`, and `useSupabaseSignedInStatus()` use the provider when present. Their explicit Supabase-client inputs remain temporarily available for migration or intentional overrides. Non-React APIs, including `speechSynthTTS`, cannot read React context and retain explicit client options.
+
+`lingop/react` works with Next.js and React Native and imports no UI renderer,
+CSS, browser speech, or Expo modules. Its `"use client"` directive preserves the
+Next.js client boundary; native React can use the same exports. Existing
+`lingop/ui/next` provider and account-hook imports remain compatibility exports
+of this implementation, so mixing the two paths does not create separate contexts.
+The client remains stable when only `apiVoiceAccessProfile` changes; replacing
+the Supabase client or backend environment creates a new client and caches.
+
+The host creates its Supabase client and owns platform-specific auth persistence,
+auto-refresh lifecycle, and sign-in redirects. Pass that client to the provider
+on either platform. No browser globals or native storage modules are configured
+by this entry point. Native Lingop views that accept `lingopClient` as a prop can
+receive it from `useLingopClientData()`; their existing prop APIs are unchanged.
+`useSupabaseSignedInStatus()` uses the provider by default, accepts an explicit
+Supabase client for standalone auth state, and accepts `null` to disable auth.
+Its subscription fields use the provider's client only when no override is passed.
 
 ## Shared user language-display preferences
 
