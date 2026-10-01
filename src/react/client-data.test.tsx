@@ -118,3 +118,16 @@ it("supports standalone auth, client replacement, explicit null, and subscriptio
   tree = undefined;
   expect(first.listeners.size).toBe(0);
 });
+
+it("ignores a late initial auth lookup after a newer sign-in event", async () => {
+  const sb = makeSupabase();
+  let resolve!: (value: { data: { user: null } }) => void;
+  sb.client.auth.getUser.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+  let state!: SupabaseSignedInStatusState;
+  function Consumer() { state = useSupabaseSignedInStatus(sb.client); return null; }
+  await act(async () => { tree = create(createElement(Consumer)); });
+  await act(async () => sb.emit("SIGNED_IN", { id: "current", email: "current@example.test" }));
+  await act(async () => resolve({ data: { user: null } }));
+  expect(state.supabaseUserID).toBe("current");
+  expect(state.signedInStatus).toBe(true);
+});

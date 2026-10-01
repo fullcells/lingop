@@ -11,3 +11,5 @@ export {
   type SupabaseSignedInStatus,
   type SupabaseSignedInStatusState,
 } from "./supabase-auth.js";
+
+export * from "./user-word-streaks.js";

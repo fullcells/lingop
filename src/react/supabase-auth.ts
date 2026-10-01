@@ -35,6 +35,7 @@ export function useSupabaseSignedInStatus(
   // Supabase client continues to support auth-only use outside the provider.
   const lingopClient =
     supabaseClient === undefined ? providedClientData?.lingopClient : undefined;
+  const [authClient, setAuthClient] = useState(runtimeSupabaseClient);
   const [signedInStatus, setSignedInStatus] =
     useState<SupabaseSignedInStatus>(null);
   const [supabaseUserID, setSupabaseUserID] = useState<string | null>(null);
@@ -51,6 +52,8 @@ export function useSupabaseSignedInStatus(
 
   useEffect(() => {
     let isCurrent = true;
+    let receivedAuthEvent = false;
+    setAuthClient(runtimeSupabaseClient);
     setSignedInStatus(null);
     setSupabaseUserID(null);
     setUserEmail(null);
@@ -70,10 +73,10 @@ export function useSupabaseSignedInStatus(
       try {
         const result = await runtimeSupabaseClient.auth?.getUser?.();
         const data = result?.data ?? { user: null };
-        if (isCurrent) setAuthUser(data.user);
+        if (isCurrent && !receivedAuthEvent) setAuthUser(data.user);
       } catch (error) {
         console.error("Error getting Supabase user:", error);
-        if (isCurrent) setAuthUser(null);
+        if (isCurrent && !receivedAuthEvent) setAuthUser(null);
       }
     }
 
@@ -81,6 +84,7 @@ export function useSupabaseSignedInStatus(
     const authListener = runtimeSupabaseClient?.auth?.onAuthStateChange?.(
       (_event, session) => {
         if (!isCurrent) return;
+        receivedAuthEvent = true;
         setAuthUser(session?.user);
         setAuthChangeCount((count) => count + 1);
       },
@@ -115,9 +119,9 @@ export function useSupabaseSignedInStatus(
   }, [authChangeCount, lingopClient, signedInStatus, supabaseUserID]);
 
   return {
-    signedInStatus,
-    supabaseUserID,
-    userEmail,
+    signedInStatus: authClient === runtimeSupabaseClient ? signedInStatus : null,
+    supabaseUserID: authClient === runtimeSupabaseClient ? supabaseUserID : null,
+    userEmail: authClient === runtimeSupabaseClient ? userEmail : null,
     authChangeCount,
     enabledSubProd,
     refreshEnabledSubProd,

@@ -253,7 +253,8 @@ export function useL10nWordDetail({
     // Word-detail bodies remount each time their popover opens. Only initialize
     // a missing language: re-ensuring an existing one can replay an older
     // server snapshot over optimistic "Learnt" changes made by the prior body.
-    void wordStreaksData.ensureUserWordStreaksForLang(l10nWordAnnotatedText.lang);
+    void wordStreaksData.ensureUserWordStreaksForLang(l10nWordAnnotatedText.lang)
+      .catch((error: unknown) => console.warn("Could not load word streaks for word details.", error));
   }, [
     l10nWordAnnotatedText?.lang,
     showWordStreakControls,

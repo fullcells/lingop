@@ -139,6 +139,10 @@
     "./react": {
       "types": "./dist/react/index.d.ts",
       "default": "./dist/react/index.js"
+    },
+    "./ui/react-native/user-word-streaks": {
+      "types": "./dist/ui/react-native/user-word-streaks.d.ts",
+      "default": "./dist/ui/react-native/user-word-streaks.js"
     }
   },
   "files": [

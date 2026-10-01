@@ -7,3 +7,5 @@ export type { L10nWordDetailData, WordDetailClient, NativeWordStreaksData, Nativ
 
 export { SpeechControls, SpeechVoicePicker } from "./speech-controls.js";
 export type { SpeechControlsProps } from "./speech-controls.js";
+
+export * from "./user-word-streaks.js";

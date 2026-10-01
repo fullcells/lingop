@@ -438,53 +438,102 @@ const localization = await lingoData.fetchLocalization({
 const annotation = await lingoData.fetchAnnotation({ localization });
 ```
 
-## User Word Streaks in Next.js
+## User Word Streaks in React and React Native
 
-User word streaks are exposed through the Next UI provider and hook, not through `lingop/core`. Consumers read and write one unified `userWordStreaks` value regardless of whether the backing store is currently localStorage or Supabase.
+`UserWordStreaksDataProvider`, `useUserWordStreaksData`, and
+`useOptionalUserWordStreaksData` are available from `lingop/react`. They share
+one context with the existing Next and native entry points. Place the provider
+beneath `LingopClientDataProvider`, or pass `supabaseClient` explicitly (`null`
+selects anonymous storage). Mutations reject while account loading is pending; wait for auth to be ready.
 
-Wrap streak-aware parts of the app with this provider beneath
-`LingopClientDataProvider`. `focusLang` may be `null`; the provider waits to
-hydrate or sync until a language exists. Components that do not use word-streak
-state do not need this provider.
+For Next.js, existing imports and props continue working. The Next wrapper
+supplies localStorage and browser visibility/online events:
 
 ```tsx
 import { UserWordStreaksDataProvider } from "lingop/ui/next";
 
-<UserWordStreaksDataProvider
-  focusLang={focusLang}
->
-  <Component {...pageProps} />
+<UserWordStreaksDataProvider focusLang={focusLang}>
+  <App />
 </UserWordStreaksDataProvider>;
 ```
 
-The provider uses `useSupabaseSignedInStatus()` internally, which checks `supabaseClient.auth.getUser()` and follows later sign-in/sign-out events through `supabaseClient.auth.onAuthStateChange()`. While auth status is pending, it waits to hydrate streak data. Signed-out users hydrate from `localStorage` and write changes back there. Signed-in users hydrate from Supabase, migrate existing localStorage data for a language when Supabase has no row, and queue Supabase syncs after changes.
-
-Downstream components use the hook:
+For native apps, supply an asynchronous storage implementation and AppState.
+These modules are owned by the host; Lingop adds no Expo or AsyncStorage dependency.
+The narrow native subpath avoids loading the native UI and stroke datasets:
 
 ```tsx
-import { useUserWordStreaksData } from "lingop/ui/next";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AppState } from "react-native";
+import {
+  UserWordStreaksDataProvider,
+  createNativeWordStreaksLifecycle,
+} from "lingop/ui/react-native/user-word-streaks";
 
-const {
-  userWordStreaks,
-  setUserWordStreaksToValue,
-  setUserWordStreaksByDelta,
-  setUserWordStreaksToMin1,
-  deleteUserWordStreaks,
-} = useUserWordStreaksData();
+// Keep adapters stable across renders.
+const streakLifecycle = createNativeWordStreaksLifecycle(AppState);
 
-const spanishStreaks = userWordStreaks.es ?? {};
-
-await setUserWordStreaksToValue("es", ["hola"], 1);
-await setUserWordStreaksByDelta("es", [{ word: "hola", streakDelta: 1 }]);
-await setUserWordStreaksToMin1("es", ["adios"]);
-await deleteUserWordStreaks("es", ["hola"]);
+<UserWordStreaksDataProvider
+  focusLang={focusLang}
+  storage={AsyncStorage}
+  lifecycle={streakLifecycle}
+>
+  <App />
+</UserWordStreaksDataProvider>;
 ```
+
+`WordStreaksStorage` needs asynchronous `getItem`, `setItem`, and `removeItem`
+methods; replacing a key must be atomic. `WordStreaksLifecycle` supplies
+`subscribe(listener)` returning an unsubscribe function. Both foreground and
+background events attempt sync for every loaded language. Native apps can also
+call `syncUserWordStreaks(lang)` when network connectivity returns.
+
+```tsx
+import { useUserWordStreaksData } from "lingop/react";
+
+const streaks = useUserWordStreaksData();
+await streaks.ensureUserWordStreaksForLang("es");
+await streaks.setUserWordStreaksToValue("es", ["hola"], 1);
+await streaks.setUserWordStreaksByDelta("es", [{ word: "hola", streakDelta: 1 }]);
+await streaks.setUserWordStreaksToMin1("es", ["adios"]);
+await streaks.deleteUserWordStreaks("es", ["hola"]);
+// Pass streaks directly as wordStreaksData to native word chips/details.
+```
+
+Mutations (including `deleteAllUserWordStreaksForLang`) return promises that
+resolve only after the local save succeeds. Storage errors reject the operation
+and are exposed as `streaks.error`; the provider also accepts `onError`.
+Signed-in accounts keep a durable local snapshot and pending word changes.
+A failed network request keeps those changes queued; retries occur after
+`syncDelayMs` (default 30 seconds), on lifecycle events, and after restart.
+The current language may be null: existing pending changes still resume, and
+explicit ensure/mutation calls can load other languages. Await ensure before
+performing changes that depend on the latest counts; a failed refresh retains
+the local snapshot and reports an error.
+
+Caches are isolated by account and `storageNamespace` (the Supabase URL by
+default). Supply a namespace when a custom client does not expose its URL, or
+when multiple apps sharing storage require separate data. Keep one provider per
+account/storage scope. Existing anonymous `USER_VOCAB_STREAKS_<lang>` keys are
+read as a fallback. On the first successful server read for an account/language,
+guest words are adopted only if the server is empty; the pending account copy
+is saved locally before the guest copy is removed.
+
+Sync applies changed words to a freshly read server map and conditionally writes
+only if `updated_at` still matches. Conflicts retry without discarding unrelated
+words from another device. Failed reads never become empty server snapshots.
+Concurrent edits to the same word use the last successful pending value;
+deltas are local count changes, not distributed additive counters. Reset-all
+intentionally clears the whole language. These conflict protections apply to
+consumers using this provider; older clients that upload whole maps can still
+overwrite data. The existing table/RLS is used without a schema migration.
+A background sync remains best effort; restart recovery relies on the completed
+local save, not on iOS granting time to finish a network request.
 
 ## User Word Exposures
 
 Word exposures complement word streaks with per-word encounter counts and recent
-timestamps. Unlike the Next.js word-streak provider, exposure methods are
-platform-neutral and available on the long-lived `LingoDataClient`. Supply the
+timestamps. Exposure methods are
+also platform-neutral and available on the long-lived `LingoDataClient`. Supply the
 Supabase client once when creating `lingoData`, then reuse that client instance.
 
 ```ts
@@ -714,7 +763,8 @@ uses `EXPO_NO_METRO_LAZY=1` to avoid dev-server paths outside its project root.
 
 Optional `wordStreaksData` accepts `NativeWordStreaksData`, structurally matching
 the existing provider's counts, ensure, set-to-value, and delete methods. The
-host owns persistence and passes updated counts. `showWordStreaks` enables chip
+host can pass the shared `useUserWordStreaksData()` result directly, or supply
+its own persistence adapter. `showWordStreaks` enables chip
 indicators; `showWordDetailStreakControls` / `showWordStreakControls` control
 sheet/body actions. Learnt updates all selected morphemes to the shared mastery
 threshold and closes only after success. Reset clears the selected entries;
@@ -1072,7 +1122,7 @@ For `MEMBER_CONTENT`, pass the app's Supabase client: `speak({ ..., contentConte
 - `src/core/sb-words.ts` ports the legacy Supabase `words2` cache, core-word checks, and one-word gloss generation through a shared module cache.
 - `src/core/translation/` contains platform-neutral translation types and internal table/localization helpers used by `createLingoDataClient()`.
 - `src/core/user-word-exposures.ts` contains the platform-neutral Supabase helpers for creating, reading, incrementing, and deleting per-user word exposure rows. It is exported from `lingop/core`.
-- `src/core/user-word-streaks.ts` contains internal helpers used by the Next user-word-streaks provider. It is intentionally not exported from `lingop/core`; app code should use `lingop/ui/next`.
+- `src/core/user-word-streaks.ts` contains internal helpers used by the shared word-streaks provider. It is intentionally not exported from `lingop/core`; app code should use the provider/hooks from `lingop/react` or the platform wrappers.
 - `src/core/word-explicitations.ts` loads and filters Supabase `word_explicitations` rows through a shared module cache.
 - `src/core/word-lists.ts` loads public Supabase word-list source and localization rows through shared module caches.
 - `src/ui/next/cookies.ts` contains browser cookie helpers separated from platform-neutral core utilities.
