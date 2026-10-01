@@ -127,6 +127,14 @@
     "./ui/react-native": {
       "types": "./dist/ui/react-native/index.d.ts",
       "default": "./dist/ui/react-native/index.js"
+    },
+    "./ui/react-native/stroke-order-view": {
+      "types": "./dist/ui/react-native/stroke-order-view.d.ts",
+      "default": "./dist/ui/react-native/stroke-order-view.js"
+    },
+    "./speech/expo": {
+      "types": "./dist/speech/expo.d.ts",
+      "default": "./dist/speech/expo.js"
     }
   },
   "files": [
@@ -167,10 +175,21 @@
   "peerDependencies": {
     "phaser": ">=3.80",
     "react": ">=18",
-    "react-dom": ">=18"
+    "react-dom": ">=18",
+    "react-native": ">=0.81",
+    "react-native-svg": ">=15.13"
   },
   "peerDependenciesMeta": {
     "phaser": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    },
+    "react-native": {
+      "optional": true
+    },
+    "react-native-svg": {
       "optional": true
     }
   },
@@ -185,6 +204,9 @@
     "kanjivg-js": "1.1.5",
     "phaser": "^3.90.0",
     "react-dom": "^19.2.8",
+    "react-native": "^0.83.10",
+    "react-native-svg": "^15.15.4",
+    "react-test-renderer": "^19.2.8",
     "typescript": "^5.5.0",
     "vitest": "^3.2.6"
   },

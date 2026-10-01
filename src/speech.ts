@@ -10,3 +10,22 @@ export type {
   SpeechSynthTTSVoice,
   SpeechSynthVoiceOptions,
 } from "./ui/next/speech-synth-tts.js";
+
+export { createSpeechController } from "./speech/controller.js";
+export type {
+  SpeechController,
+  SpeechControllerOptions,
+  SpeechRequest,
+  SpeechState,
+  SpeechPreferences,
+  SpeechVoiceList,
+  LingopSpeechVoice,
+  DeviceSpeechVoice,
+  DeviceSpeechAdapter,
+  SpeechAudioAdapter,
+} from "./speech/controller.js";
+export type {
+  ContentContext,
+  APIVoiceAccessProfile,
+  SpeechSynthTTSOptions,
+} from "./speech/shared.js";

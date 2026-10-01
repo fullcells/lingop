@@ -535,6 +535,247 @@ data: for example, `Obama` remains stored as `Obama`, while later calls using
 
 `line_idx` and `seg_idx` are optional and identify a `LocalizationSegment` within the larger document. Annotation helpers preserve them when creating the stored annotation ref. Omit `line_idx` and `seg_idx` when annotating the whole localization.
 
+## Rendering Annotation in React Native (iOS and Android)
+
+`lingop/ui/react-native` exports a native `AnnotatedTextView` using React Native
+`View`, `Text`, `Pressable`, and `ActivityIndicator`. It accepts the same
+`AnnotatedText` data as the web renderer and does not import the Next.js UI,
+CSS, DOM, browser speech, or web data providers. Use it inside a bounded-width
+native view so token groups can wrap.
+
+The app supplies React and React Native (supported peer range: React Native
+0.81+; development type checks use 0.83). React Native and React DOM are optional
+peers, so consumers only need the renderer used by their app. No Expo-specific
+dependencies or CSS imports are required for annotated text. The word-detail
+stroke diagrams additionally use the optional `react-native-svg` peer.
+
+```tsx
+import { useState } from "react";
+import { View } from "react-native";
+import type { AnnotatedText } from "lingop/annotation";
+import { AnnotatedTextView } from "lingop/ui/react-native";
+
+const sentence: AnnotatedText = {
+  lang: "ja",
+  lang_text: "猫。",
+  tokens: [
+    { text: "猫", isWord: 1, gloss: "cat", phoneticToken: [["猫", "ねこ"]] },
+    { text: "。", isWord: 0 },
+  ],
+  containsGloss: true,
+  containsPhonetics: true,
+  ref: null,
+  owner_id: null,
+};
+
+export function ReadingExample({ lingopClient }: { lingopClient: import("lingop/core").LingoDataClient }) {
+  const [hintedIndex, setHintedIndex] = useState<number | null>(null);
+  return (
+    <View style={{ padding: 16 }}>
+      <AnnotatedTextView
+        annotatedText={sentence}
+        showSpelling="ALWAYS"
+        showGlossText="ON_HINT"
+        showGlossEmoji="ON_HINT"
+        isTokenHinted={({ index }) => index === hintedIndex}
+        lingopClient={lingopClient}
+        onTokenPress={({ index }) => setHintedIndex(index)}
+        tokenAccessibilityHint="Show a word hint"
+        astyle={{ mainTextSize: 24, spellingSize: 14, glossPlacement: "bottom" }}
+      />
+    </View>
+  );
+}
+```
+
+Pass a stable `createLingoDataClient({ supabaseClient })` instance from `lingop/core`
+through `lingopClient` to use the same cached `generateEmojis` batch pipeline as the
+web renderer. Only visible emoji glosses are requested, duplicates are removed,
+and stale responses cannot overwrite another annotation or client's results.
+`onEmojiLoadStateChange` reports pending work. While resolving, an inline spinner
+occupies the emoji slot; missing/failed results fall back to the English gloss,
+as on web. Without a client, the English fallback is shown immediately.
+`getTokenEmoji` remains an optional synchronous override that bypasses the client.
+All tokens reserve matching emoji/text slots, including punctuation, unhinted
+words and missing annotations, for every gloss placement and row order.
+
+This initial native surface supports:
+
+- Per-part spelling/furigana, main text, text glosses, and shared Lingop emoji resolution.
+  Defaults match standalone web display preferences: spelling and text glosses
+  `ALWAYS`, main text enabled, and emoji `ON_HINT`.
+- `NEVER`, `ON_HINT`, and `ALWAYS` display controls. `ON_HINT` depends solely on
+  `isTokenHinted`; without that callback, hints remain hidden. Word taps and long
+  presses call `onTokenPress`/`onTokenLongPress`. Callbacks receive the original
+  annotation, display token, linearized token index, and source morphemes.
+- Punctuation grouping, explicit line breaks (including blank lines), Japanese
+  duplicate-reading suppression, disambiguator removal, and root/pattern
+  linearization. Wrapping happens between token groups; words and their attached
+  punctuation remain together, so exceptionally wide groups can overflow.
+- Language-derived LTR/RTL layout, with a `textDirection` override. Gloss text
+  defaults to LTR; override `glossTextStyle.writingDirection` for an RTL gloss.
+- `astyle` sizes, colors, word/line spacing, spelling above/below, and gloss on
+  any side. Dimensions are native layout units. `mainTextStyle`, `spellingStyle`,
+  `glossTextStyle`, and `glossEmojiStyle` accept native `StyleProp<TextStyle>`
+  overrides, including app-registered fonts. The outer `style` and other native
+  `ViewProps` (such as `testID`, accessibility props, and `onLayout`) are forwarded.
+- Accessible word controls, font scaling enabled by default (configurable with
+  `allowFontScaling`/`maxFontSizeMultiplier`), and an accessible loading indicator
+  for `annotatedText={null}` with a customizable `loadingLabel`.
+
+This is a rendering foundation, not full web API parity. The app currently owns
+annotation fetching, client configuration, local reading-guide/spelling conversion,
+translated glosses and learning preferences/streaks. Optional native word details
+and shared speech controls are described below. Browser actions, CSS-specific styling, monochrome emoji font
+handling, and image/HTML/ref exports are not part of this native API. Custom fonts
+must be registered by the host app; the web stylesheet's fonts are not loaded
+automatically. Native tests cover component structure and callbacks with mocked
+primitives; device font metrics, wrapping, and VoiceOver/TalkBack require app QA.
+
+## Native word chips and word details
+
+`lingop/ui/react-native` also exports `WordChipsArrayView`,
+`L10nWordDetailContent`, `L10nWordDetailModal`, and `useL10nWordDetailModal`.
+They use native views and one scrollable modal per chip array, with close,
+backdrop, accessibility escape, and Android Back dismissal. Pass the same stable
+`createLingoDataClient({ supabaseClient })` instance used by annotations.
+
+```tsx
+import {
+  AnnotatedTextView,
+  WordChipsArrayView,
+  useL10nWordDetailModal,
+} from "lingop/ui/react-native";
+
+function Vocabulary({ annotatedText, words, lang, lingopClient }) {
+  const details = useL10nWordDetailModal({ lingopClient, guiLang: "en" });
+  return <>
+    <AnnotatedTextView
+      annotatedText={annotatedText}
+      lingopClient={lingopClient}
+      onTokenPress={details.onTokenPress}
+    />
+    <WordChipsArrayView
+      words={words}
+      lang={lang}
+      guiLang="en"
+      lingopClient={lingopClient}
+    />
+    {details.ModalComponent}
+  </>;
+}
+```
+
+Chips restore canonical casing from the existing SBWords cache for scripts with
+case, retain duplicates and input order, and wrap in the language's direction.
+`onL10nWordTap(word, nativeEvent)` overrides built-in details when a parent owns
+the presentation. `style`, `chipStyle`, `wordStyle`, and `emptyLabel` customize
+the array. Large lists should be paginated by the host app.
+
+Details accept the shared `L10nWordDetailData` shape. Supplied annotations and
+linearized token indices preserve the original reading, gloss, and morphemes.
+Raw words use the existing public `WORDS` localization/annotation pipeline,
+which may generate missing data under the client's existing policy. Dictionary
+glosses, curated explanations, Han-character components/readings, nested
+components, and simplified Chinese all reuse existing Lingop helpers and data.
+Non-English GUI glosses use `fetchAndGenGloss`; `translate` accepts an app-owned
+OAT function for interface labels (English by default). Component dictionary
+readings/glosses retain their source language. Failed requests expose retry;
+changing selection hides old results immediately and ignores late responses.
+
+The Strokes tab uses `react-native-svg` with the existing local stroke provider
+and progressive diagrams. Native apps should install `react-native-svg` (15.13+;
+Expo: `npx expo install react-native-svg`). It is an optional peer for non-native
+consumers. The standalone diagram is also exported from
+`lingop/ui/react-native/stroke-order-view`. `strokeDataProvider` can override data
+resolution. Metro includes local stroke datasets in native bundles (the demo's
+Android bundle is approximately 54 MB); lazy JavaScript imports do not provide
+web-style production code splitting on native. The linked temporary Expo demo
+uses `EXPO_NO_METRO_LAZY=1` to avoid dev-server paths outside its project root.
+
+Optional `wordStreaksData` accepts `NativeWordStreaksData`, structurally matching
+the existing provider's counts, ensure, set-to-value, and delete methods. The
+host owns persistence and passes updated counts. `showWordStreaks` enables chip
+indicators; `showWordDetailStreakControls` / `showWordStreakControls` control
+sheet/body actions. Learnt updates all selected morphemes to the shared mastery
+threshold and closes only after success. Reset clears the selected entries;
+failed saves remain visible. Controls are omitted without this adapter.
+
+`speechController` connects details to shared Lingop speech (see below). The legacy
+`onPlayAudio(annotation)` callback remains available when no controller is supplied.
+Without either, no audio button is shown. Browser speech, browser localStorage tab
+preferences, and anchored HTML popovers are not used. Native character-tab
+selection lasts for the mounted word detail. `L10nWordDetailContent` can be
+embedded in an app-owned screen instead of the supplied modal.
+
+### Shared native speech
+
+Create one `createSpeechController` from `lingop/speech` per app. Native device
+voices occupy the same role as browser voices: actual device voice identifiers
+are discovered at runtime, matched using Lingop's language/locale rules, and
+listed alongside permitted API voices. Automatic selection prefers device speech;
+a selected voice that disappears reports an error instead of silently changing
+provider or accent. Device playback does not wait for a cloud request.
+
+Expo apps can supply their installed modules without making Expo a dependency
+of Lingop:
+
+```tsx
+import * as Speech from "expo-speech";
+import * as Audio from "expo-audio";
+import { createSpeechController } from "lingop/speech";
+import { createExpoSpeechAdapter, createExpoAudioAdapter } from "lingop/speech/expo";
+
+// Run once during app startup, before enabling playback.
+await Audio.setAudioModeAsync({
+  playsInSilentMode: true,
+  interruptionMode: "duckOthers",
+  shouldPlayInBackground: false,
+});
+const speechController = createSpeechController({
+  device: createExpoSpeechAdapter(Speech, { useApplicationAudioSession: true }),
+  audio: createExpoAudioAdapter(Audio),
+  apiVoiceAccessProfile: "ONE_PER_LANG", // NONE (default), ONE_PER_LANG, or ALL
+  // supabaseClient: appSupabaseClient, // required for MEMBER_CONTENT
+  // preferences: restoredPreferences,
+  // onPreferencesChange: preferences => savePreferences(preferences),
+});
+
+<AnnotatedTextView
+  annotatedText={annotation}
+  speechController={speechController}
+  speechContext={{ contentContext: "PUBLIC_CONTENT", ref: { file: "lingodex" } }}
+/>;
+```
+
+Use the real content context/reference for the sentence; the example ref applies
+to Lingodex content. Annotation prebake metadata is not a public speech reference.
+Pass the same controller to `WordChipsArrayView`, `L10nWordDetailContent`, or
+`useL10nWordDetailModal`. Individual words use the existing public `WORDS` speech
+reference rather than the containing sentence's reference.
+
+Each view includes Play/Stop, voice choice, speed, and error/retry controls.
+`showActionPlayAudio={false}` hides sentence controls. `SpeechControls` and
+`SpeechVoicePicker` are also exported for custom layouts. Playback cancels on
+view dismissal/content change, when the app leaves the foreground, and when a
+new utterance starts. An older view cannot stop playback owned by a newer view.
+Preferences are shared in memory; persist the callback snapshot in the app's
+settings store and supply it on startup. `controller.dispose()` releases playback
+when the app no longer needs the controller.
+
+Other native stacks can implement `DeviceSpeechAdapter` and `SpeechAudioAdapter`
+without Expo. The shared resolver owns cloud voice access, text preparation,
+metadata caching, content references and authentication; adapters only enumerate
+voices or play audio. The existing web speech API retains browser playback and
+uses the same extracted language/API logic.
+
+The host owns the iOS audio session. The Expo device adapter defaults to the
+system-managed session; the example explicitly uses the application's configured
+session. Verify silent mode, calls, headphones and pronunciation on a real iPhone;
+simulator completion callbacks cannot prove audible output or dialect quality.
+For playback-only Expo builds, disable microphone/recording permissions and
+background playback in the `expo-audio` config plugin. No recording is needed.
+
 ## Rendering Annotation in Next.js
 
 ```tsx
