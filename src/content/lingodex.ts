@@ -1,4 +1,4 @@
-export const LingoDexData_lastUpdated:string = "2026-07-22"
+export const LingoDexData_lastUpdated:string = "2026-10-03"
 export const LingoDexData_ownerSbId:string = "87a351b1-2321-4ff3-acd1-debe08e2d093";
 
 export const LingoDexImgFolderURL:string = "https://designjams.s3.amazonaws.com/lingoframe-20240718/lingoframe-compressed-jpgs-v3/";
@@ -56,25 +56,6 @@ export interface LingoDexEntry {
 // --------------------------------------------------------
 
 export const LingoDexData:LingoDexEntry[] = [
- {
-   "devref": "#00001",
-   "ostage": "m1-_start_",
-   "q1": "A cat. A dog. ___ ?",
-   "q2": "A dog. A cat. ___ ?",
-   "q3": "",
-   "q4": "",
-   "q5": "",
-   "a1": "a cat",
-   "a2": "a dog",
-   "a3": "",
-   "a4": "",
-   "a5": "",
-   "i1": "cat-dog-cat-indoors",
-   "i2": "dog-cat-dog-outdoors",
-   "i3": "",
-   "i4": "",
-   "i5": ""
- },
  {
    "devref": "#00002",
    "ostage": "m1-_start_",
@@ -1086,7 +1067,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "devref": "#00039",
    "ostage": "m1-boy-ball-clr1",
    "q1": "What does the boy have?",
-   "q2": "What does girl have?",
+   "q2": "What does the girl have?",
    "q3": "",
    "q4": "",
    "q5": "",
@@ -8882,7 +8863,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "q5": "",
    "a1": "planning",
    "a2": "reading a book",
-   "a3": "eating dinner with a woman",
+   "a3": "eating dinner with a man",
    "a4": "farming",
    "a5": "",
    "i1": "h-week-days-woman",
@@ -10210,11 +10191,11 @@ export const LingoDexData:LingoDexEntry[] = [
    "q3": "How many people are there here?",
    "q4": "How many fruits is the woman holding?",
    "q5": "How many legs does this have?",
-   "a1": "twelve basketballs",
-   "a2": "eight basketballs",
-   "a3": "two basketballs",
-   "a4": "two basketballs",
-   "a5": "four basketballs",
+   "a1": "twelve",
+   "a2": "eight",
+   "a3": "two",
+   "a4": "two",
+   "a5": "four",
    "i1": "count-basketballs",
    "i2": "count-number-of-sheep",
    "i3": "m3-town-_238a22c6-b2bb-4f65-a0c1-15846d6333ca",
@@ -10399,7 +10380,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "q2": "What color are the man's shoes?",
    "q3": "What color are the woman's shoes?",
    "q4": "What color are the woman's shoes?",
-   "q5": "What color are the man's shoes?",
+   "q5": "",
    "a1": "blue",
    "a2": "white",
    "a3": "yellow",
@@ -19539,8 +19520,8 @@ export const LingoDexData:LingoDexEntry[] = [
    "q3": "",
    "q4": "",
    "q5": "",
-   "a1": "The restaurant on the right.",
-   "a2": "The restaurant on the left.",
+   "a1": "The one on the right.",
+   "a2": "The one on the left.",
    "a3": "None.",
    "a4": "",
    "a5": "",
@@ -20110,9 +20091,9 @@ export const LingoDexData:LingoDexEntry[] = [
    "q4": "",
    "q5": "",
    "a1": "twenty-four hours",
-   "a2": "twenty-four hours",
+   "a2": "twenty-four months",
    "a3": "twelve hours",
-   "a4": "fifty hours",
+   "a4": "twelve months",
    "a5": "thirty-six hours",
    "i1": "m2-trvl2-time-_164e9282-b05b-4a41-b395-16cbf1601dcd",
    "i2": "m5-num_adjs-calendar-year-july4",
