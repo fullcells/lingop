@@ -14,3 +14,4 @@ export * from "./translation/index.js";
 export * from "./user-word-exposures.js";
 export * from "./word-explicitations.js";
 export * from "./word-lists.js";
+export * from "./word-lists-v3.js";

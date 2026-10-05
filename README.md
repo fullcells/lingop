@@ -402,6 +402,8 @@ Low-level annotation API calls, `callAnnotate_storedForOwner()` remains public a
 - `loadWordExplicitationsRows()`: loads and caches Supabase `word_explicitations` rows.
 - `getOneWayWordExplicitations({ source_lang, source_word, target_lang })`: filters the cached word-explicitation rows into the legacy one-way shape.
 - `loadWordLists()`, `loadWordListMetaData()`, and `loadSBCacheWordListsForLang(lang)`: load and cache public word-list source and localization rows. They use the injected Supabase client but do not inspect or require an authenticated user.
+- `loadWordListMetaDataV3()`, `loadWordListsV3(lang)`, `getWordListL10nV3(listId, lang)`, and `getDescendantL10nsOfWordListsV3(listIds, lang)`: read exclusively from `word_lists_v3`, `word_list_words`, and `word_list_sublists`. These functions have no dependency on `word_lists` or `cache_word_list_l10n_words` and will continue working when those legacy tables are removed. See the v3 migration example below.
+- `clearWordListsV3Cache()`: invalidate this Supabase client's v3 catalog and language data after editing lists, words, or sublist relationships.
 - `preloadEmojiData()`, `loadEmojiData()`, `generateEmoji(en_gloss, study_word?, study_lang?)`, and `generateEmojis(en_glosses)`: warm Lingop's persistent browser cache, load shared Supabase emoji rows, and generate emoji text for English glosses. `preloadEmojiData()` also warms the small non-core-word dataset used to resolve compound or non-exact glosses. `generateEmojis()` deduplicates a view's glosses, initiates that preload itself, and resolves all results as one keyed batch. Cached emoji rows survive page reloads and browser restarts; stale data is served immediately while Lingop checks the row count and newest `created_at` value in the background. When editing an existing emoji row, advance its `created_at` value so clients detect the revision.
 - `isNotCoreWord(word_lang, word, gloss?)`, `getSBWordsForLangDir(word_lang, gloss_lang)`, `refreshCoreSBWordsCache(word_lang, gloss_lang)`, and `fetchAndGenGloss({ source_lang, source_word, target_lang })`: use the shared SBWords cache for core-word checks and one-word gloss generation.
 - `getHancharDecomposition(literal)`: returns one Unicode character's canonical component tree and available Japanese, Cantonese, and Mandarin readings from the public Han-character dataset. Repeated successful lookups are cached by the client instance.
@@ -414,6 +416,87 @@ Additional core helpers:
 - `getBinderDocsByMinL10nsOrder([{ doc_id, l10ns }], priorityDocIds?)`: recommends a learning order for already-loaded binder doc localization caches. It normally minimizes new words, with one narrow recurring-word exception for vocabularies above 1,000 unique l10ns. Omitted priorities default to doc `179` (for LingoTrivia); pass `[]` to disable defaults.
 - `fetchBinderDocsByMinL10nsOrder({ supabaseClient, binder_id, lang, priorityDocIds? })`: loads `cache_binder_doc_l10ns` rows for a binder/language pair and returns the same recommended ordering.
 - Low-level `loadWordExplicitationsRows({ supabaseClient })` and `getOneWayWordExplicitations(input, { supabaseClient })` remain exported for gradual migration, but app code should prefer the existing `LingoDataClient`.
+
+### Word lists v3: gradual migration
+
+The v3 readers use only `word_lists_v3`, `word_list_words`, and `word_list_sublists`.
+They do not query or fall back to `word_lists` or `cache_word_list_l10n_words`.
+The legacy and v3 APIs coexist as separate read paths during migration.
+Existing word-list methods, `WordListView`, `WordListsSelector`, and Prebake keep
+their legacy behavior. Consumers opt into v3 explicitly; these readers neither
+update tables nor generate translations.
+
+```ts
+import { createLingoDataClient, buildWordListTreeV3 } from "lingop/core";
+
+const lingoData = createLingoDataClient({ supabaseClient });
+const catalog = await lingoData.loadWordListMetaDataV3(); // All languages; no words.
+const japaneseLists = await lingoData.loadWordListsV3("ja");
+
+async function readSelection(selectedListId: number, focusLang: string) {
+  // The selected ID can belong to any language in the family.
+  const localized = await lingoData.getWordListL10nV3(selectedListId, focusLang);
+  if (!localized) return null; // No counterpart in this language.
+
+  const lists = await lingoData.loadWordListsV3(focusLang);
+  return {
+    title: localized.title,
+    ownWords: localized.words.map((word) => word.text),
+    tree: buildWordListTreeV3(lists, localized.id),
+    allWords: await lingoData.getDescendantL10nsOfWordListsV3(
+      [selectedListId], focusLang,
+    ),
+  };
+}
+
+// After an authorized editor saves any of the three tables:
+lingoData.clearWordListsV3Cache();
+// Alternatively, invalidate and read immediately:
+await lingoData.loadWordListsV3("ja", { forceRefresh: true });
+```
+
+- **Identity and families:** store numeric v3 IDs in consumer selections. Legacy
+  title keys are not v3 IDs, and localized titles may differ. `anchor_list_id ?? id`
+  identifies a direct family; the anchor can be in any language. Roots have a null
+  anchor and members point directly to the root. `resolveWordListL10nV3(catalog,
+  id, lang)` is also available for synchronous metadata lookup. Missing lists or
+  languages return null. Multiple possible counterparts throw rather than choose
+  arbitrarily; an explicitly selected list already in the requested language is
+  returned as-is. IDs outside JavaScript's safe integer range are rejected.
+- **Content and ordering:** `loadWordListsV3(lang)` returns metadata plus `words`
+  (full word rows) and `sublists` (full edge rows). Words follow ascending position;
+  null positions come last, ordered by word ID. Duplicate wording is retained.
+  Child edges follow their own positions, including gaps. Each language owns its
+  wording, word count, ordering, title, and child relationships. Stored wording
+  already incorporates the migrated explicitations and is used unchanged.
+- **Traversal:** `getDescendantL10nsOfWordListsV3` resolves selected IDs to the
+  requested language and walks that language's hierarchy, taking parent words
+  before child words and returning exact-text-unique strings. Shared descendants
+  are visited once. Cross-language child edges resolve within the child's family;
+  missing counterparts are skipped without falling back to English.
+  `buildWordListTreeV3` instead follows exact stored IDs among the lists supplied
+  to it, allowing shared nodes in separate branches and omitting unavailable
+  children. Both skip cycles by default; pass `{ throwOnCycle: true }` to reject
+  them. The tree helper expects the ordered lists returned by the loader.
+- **Efficiency and freshness:** catalog and per-language reads share in-flight
+  requests and cache successful results for five minutes, scoped to the injected
+  Supabase client instance. Reuse that instance. Words and edges load concurrently
+  in batches of up to 250 list IDs, with stable pagination and exact counts to
+  respect server row limits. There is no per-list network request or additional
+  database cache table. Warm reads make no network requests. Failed or malformed
+  reads reject and remain retryable; returned arrays are copies so consumer edits
+  cannot corrupt the cache. Pass `{ maxAgeMs: 0 }` to bypass completed cached
+  reads, or another non-negative duration to customize freshness. A forced refresh
+  invalidates all v3 entries for that Supabase instance; an older in-flight read
+  cannot repopulate the new cache. Reads of the three tables are separate requests,
+  not a transactional snapshot. Editor writes should complete before refreshing.
+
+The same v3 read functions are exported directly from `lingop/core` and accept
+`{ supabaseClient, forceRefresh?, maxAgeMs? }` as their last argument. The standalone
+`clearWordListsV3Cache(supabaseClient?)` clears one client's v3 cache, or all v3
+caches when omitted. A configured Supabase client is required; no authenticated
+user is required for these public tables. V3 cache invalidation is independent of
+the legacy `clearWordListsCache()`.
 
 The client also exposes two owned cache references for advanced callers:
 

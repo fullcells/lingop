@@ -77,6 +77,18 @@ import {
   type SBWordListRow,
   type WordListMeta,
 } from "./word-lists.js";
+import {
+  clearWordListsV3Cache,
+  getDescendantL10nsOfWordListsV3,
+  getWordListL10nV3,
+  loadWordListMetaDataV3,
+  loadWordListsV3,
+  type SBWordListV3Row,
+  type WordListV3,
+  type WordListV3Id,
+  type WordListsV3ReadOptions,
+  type WordListsV3TraversalOptions,
+} from "./word-lists-v3.js";
 
 const emojiCoreWordResolvers = new WeakMap<object, IsNotCoreWord>();
 
@@ -213,6 +225,20 @@ export type LingoDataClient = {
     wordListPks: string[],
     focusLang: string,
   ): Promise<string[]>;
+  /** Loads the v3 catalog for all languages, using IDs instead of legacy titles. */
+  loadWordListMetaDataV3(options?: WordListsV3ReadOptions): Promise<SBWordListV3Row[]>;
+  /** Loads one language's v3 lists, ordered words, and sublist relationships. */
+  loadWordListsV3(lang: string, options?: WordListsV3ReadOptions): Promise<WordListV3[]>;
+  /** Resolves a v3 list's related-language counterpart; missing counterparts return null. */
+  getWordListL10nV3(listId: WordListV3Id, lang: string, options?: WordListsV3ReadOptions): Promise<WordListV3 | null>;
+  /** Collects unique words from the target language's own v3 hierarchy. */
+  getDescendantL10nsOfWordListsV3(
+    listIds: readonly WordListV3Id[],
+    lang: string,
+    options?: WordListsV3ReadOptions & WordListsV3TraversalOptions,
+  ): Promise<string[]>;
+  /** Invalidates all v3 reads associated with this client's Supabase instance. */
+  clearWordListsV3Cache(): void;
   /** Loads and caches Supabase emoji rows. */
   loadEmojiData(): Promise<EmojiRow[]>;
   /** Warms emoji rows and the supporting non-core-word cache. */
@@ -1372,6 +1398,17 @@ export function createLingoDataClient({
           ? { supabaseClient: runtimeSupabaseClient }
           : {}),
       }),
+    loadWordListMetaDataV3: (options = {}) =>
+      loadWordListMetaDataV3({ ...options, supabaseClient: runtimeSupabaseClient }),
+    loadWordListsV3: (lang, options = {}) =>
+      loadWordListsV3(lang, { ...options, supabaseClient: runtimeSupabaseClient }),
+    getWordListL10nV3: (listId, lang, options = {}) =>
+      getWordListL10nV3(listId, lang, { ...options, supabaseClient: runtimeSupabaseClient }),
+    getDescendantL10nsOfWordListsV3: (listIds, lang, options = {}) =>
+      getDescendantL10nsOfWordListsV3(listIds, lang, { ...options, supabaseClient: runtimeSupabaseClient }),
+    clearWordListsV3Cache: () => {
+      if (runtimeSupabaseClient) clearWordListsV3Cache(runtimeSupabaseClient);
+    },
     loadEmojiData: () =>
       loadEmojiData({
         ...(runtimeSupabaseClient
