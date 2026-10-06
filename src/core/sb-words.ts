@@ -233,7 +233,8 @@ export async function fetchAndGenGloss(
     source_lang,
     source_word,
     target_lang,
-  }: { source_lang: string; source_word: string; target_lang: string },
+    generateIfMissing = true,
+  }: { source_lang: string; source_word: string; target_lang: string; generateIfMissing?: boolean },
   {
     supabaseClient,
     getOneWayWordExplicitations,
@@ -301,6 +302,7 @@ export async function fetchAndGenGloss(
       source_lang,
       source_word,
       target_lang,
+      generateIfMissing,
     },
     { supabaseClient, requestFetch, useStagingBackend },
   );
@@ -323,7 +325,8 @@ export async function directlyFetchAndGenSBWord(
     source_lang,
     source_word,
     target_lang,
-  }: { source_lang: string; source_word: string; target_lang: string },
+    generateIfMissing = true,
+  }: { source_lang: string; source_word: string; target_lang: string; generateIfMissing?: boolean },
   {
     supabaseClient,
     requestFetch = globalThis.fetch?.bind(globalThis),
@@ -380,6 +383,8 @@ export async function directlyFetchAndGenSBWord(
   // 		// Need to call an admin level "/api/sb-reverse-fork-sb-word" - then use that in the return (as opposed to doing '2') // <- technically though, a SB query should've already been run to update all these.
   // 	}
   // }
+
+  if (!generateIfMissing) return null;
 
   if (!requestFetch) {
     console.error("A fetch implementation is required to create SBWords.");

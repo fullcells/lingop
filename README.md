@@ -1215,3 +1215,33 @@ For `MEMBER_CONTENT`, pass the app's Supabase client: `speak({ ..., contentConte
 - `src/ui/next/speech-synth-tts.ts` contains browser/Next speech synthesis helpers exported from `lingop/ui/next`.
 - `src/ui/next/user-word-streaks.tsx` contains the Next user-word-streaks provider and hook exported from `lingop/ui/next`.
 - `src/ui/react-native/` is reserved for React Native-specific UI helpers.
+
+### Preparing V3 word-list pages
+
+`prepareWordListsV3()` from `lingop/prebake/build` is the explicit V3 build-time
+entry point. Existing `prebake-preflight` configurations continue to use V2 until
+their consumers migrate; there is no global default switch or duplicate V3 CLI.
+
+Pass a configured `createLingoDataClient()`, the curated `rootListId`, `focusLangs`,
+`guiLangs`, and a persisted `WordListsV3Enrichment` cache. The returned catalog has
+language-owned lists, ordered word rows, child IDs, localized titles, annotations,
+complete interface glosses, and emoji. Consumer URL slugs, images, HTML, SEO and
+publication remain outside Lingop. Missing content counterparts are omitted;
+underscore-prefixed organizational nodes without words may bridge a shared root.
+Dangling edges and cycles fail preparation. No source/localized position matching,
+word deduplication, re-explicitation, or V2 table fallback is performed.
+
+Annotations are keyed by exact language/text and glosses by complete English gloss
+and GUI language, retaining alternatives such as `eye / mom's dad`. Existing
+human-verified SBWords and word explicitations take precedence. Optional `services`
+(the existing `PrebakeBuildServices` values, including the build-only private key)
+lets missing interface glosses use bounded build translation batches instead of
+the anonymous per-word generation endpoint. `fetchAndGenGloss` now accepts
+`generateIfMissing: false` to return null on an SBWord cache miss; its default
+behavior is unchanged. Explicitation display can still resolve its emoji.
+
+List data is refreshed each run. Enrichment is retained until the consumer removes
+selected entries for editorial refresh; no automatic wording rewrite occurs.
+Use `checkpoint(cache)` to persist completed batches atomically and `report()` for
+progress. Missing required annotations or glosses fail the build before publication.
+The consumer must publish a fresh build to expose list edits to a static site.

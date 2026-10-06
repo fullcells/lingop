@@ -264,6 +264,8 @@ export type LingoDataClient = {
     source_lang: string;
     source_word: string;
     target_lang: string;
+    /** Resolve existing words/explicitations without generating an SBWord on a miss. */
+    generateIfMissing?: boolean;
   }): Promise<GlossOutputData | null>;
   /** Returns one character's canonical component tree and available readings. */
   getHancharDecomposition(literal: string): Promise<HancharDecomposition | null>;
@@ -1283,6 +1285,7 @@ export function createLingoDataClient({
     source_lang: string;
     source_word: string;
     target_lang: string;
+    generateIfMissing?: boolean;
   }): Promise<GlossOutputData | null> {
     return fetchAndGenGloss(input, {
       ...(runtimeSupabaseClient

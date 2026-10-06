@@ -187,6 +187,16 @@ describe("sb words", () => {
     ).resolves.toEqual({ targetWord: "貓", is_human_verified: true });
   });
 
+  it("returns a cache miss without a generation request when disabled", async () => {
+    const { supabaseClient } = makeSupabaseClient([]);
+    const requestFetch = vi.fn();
+    await expect(fetchAndGenGloss(
+      { source_lang: "en", source_word: "missing", target_lang: "yue", generateIfMissing: false },
+      { supabaseClient, requestFetch, getOneWayWordExplicitations: async () => ({source_lang:"en",target_lang:"yue",rows:[]}), generateEmojiForGloss: async () => null },
+    )).resolves.toBeNull();
+    expect(requestFetch).not.toHaveBeenCalled();
+  });
+
   it("creates missing SBWords through the canonical backend with bearer auth", async () => {
     const { supabaseClient } = makeSupabaseClient([]);
     const authenticatedClient = {
