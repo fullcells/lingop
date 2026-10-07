@@ -1,3 +1,4 @@
+import type { BackendTarget } from "../core/backend-api.js";
 import { getBEApiBaseUrl } from "../core/backend-api.js";
 import { LANGS } from "../core/language/data/langs.js";
 import { ilike, type ContentReference } from "../core/misc.js";
@@ -76,7 +77,8 @@ export type SpeechSynthSupabaseClient = SupabaseClientLike;
 export type SpeechSynthTTSOptions = {
   fetchImpl?: SpeechFetch;
   supabaseClient?: SpeechSynthSupabaseClient;
-  useStagingBackend?: boolean;
+  backendTarget?: BackendTarget | undefined;
+  useStagingBackend?: boolean | undefined;
 };
 
 function getFetch(fetchImpl?: SpeechFetch): SpeechFetch {
@@ -103,7 +105,7 @@ export async function getAPIVoices(
   options: SpeechSynthTTSOptions = {},
 ): Promise<SpeechSynthTTSVoice[]> {
   const key = JSON.stringify([
-    options.useStagingBackend ?? false,
+    getBEApiBaseUrl(options),
     getRequestOptionIdentity(options.fetchImpl),
   ]);
   const cached = apiVoiceRequests.get(key);
@@ -542,9 +544,7 @@ async function resolveAudioMetaRow({
     // 0. Check Cache for Speech - match_on[text, voice_id]
     // 1. Skip Fetching
     // 2. Create Limited Anon Speech
-    const apiBaseUrl = getBEApiBaseUrl({
-      useStagingBackend: options.useStagingBackend ?? false,
-    });
+    const apiBaseUrl = getBEApiBaseUrl(options);
     const endpoint = `${apiBaseUrl}/api/speech-create-limited-anon`;
     const res2 = await getFetch(options.fetchImpl)(endpoint, {
       method: "POST",
@@ -662,9 +662,7 @@ async function resolveAudioMetaRow({
       synth_voice: voice,
       file_text: text, // <- only relevant if ref is a "file"
     };
-    const apiBaseUrl = getBEApiBaseUrl({
-      useStagingBackend: options.useStagingBackend ?? false,
-    });
+    const apiBaseUrl = getBEApiBaseUrl(options);
     const endpoint = `${apiBaseUrl}/api/speech-get-public`;
     const res2 = await getFetch(options.fetchImpl)(endpoint, {
       method: "POST",
@@ -871,7 +869,7 @@ function getAudioMetaRequestKey(
     text: request.text.toLowerCase(),
     ref: request.ref,
     voice: request.voice,
-    useStagingBackend: options.useStagingBackend ?? false,
+    apiBaseUrl: getBEApiBaseUrl(options),
     fetchImplIdentity: getRequestOptionIdentity(options.fetchImpl),
     supabaseClientIdentity: getRequestOptionIdentity(options.supabaseClient),
   });

@@ -161,7 +161,7 @@ function ContentLabel() {
 ## Shared Lingop client data in React
 
 `LingopClientDataProvider` creates one `LingoDataClient` for its React subtree.
-Configure the consumer's existing platform-configured Supabase client, production/staging
+Configure the consumer's existing platform-configured Supabase client, backend
 choice, and optional cloud-voice access profile once; compatible Lingop UI
 components then share that configuration and the client's in-memory caches.
 The consumer still owns entitlement/account policy—Lingop does not infer it
@@ -1184,16 +1184,67 @@ For `MEMBER_CONTENT`, pass the app's Supabase client: `speak({ ..., contentConte
 
 ## Design Decisions
 
+### Choosing a LingoProcessor backend
+
+`backendTarget` is optional and accepts `"production"`, `"staging"`, or `"gcloud-run"`.
+
+| Selection | Destination |
+| --- | --- |
+| `"production"` (default) | Existing production at `https://lingoprocessor.omnilingualaccess.com` |
+| `"staging"` | Existing Replit development URL (`BE_API_STAGING_URL`) |
+| `"gcloud-run"` | `https://lingoprocessor-v20-mnykwbetrq-uc.a.run.app` |
+
+Existing `useStagingBackend: true/false` calls retain their behavior. An explicit
+`backendTarget` takes precedence over that legacy flag, including explicit
+`"production"` with `useStagingBackend: true`. Invalid target strings throw instead
+of silently selecting another backend.
+
+```tsx
+// Opt in for one consumer when it is ready to migrate.
+<LingopClientDataProvider supabaseClient={supabaseClient} backendTarget="gcloud-run">
+  <App />
+</LingopClientDataProvider>
+```
+
+The same option is accepted by `createLingoDataClient`, annotation/translation
+helpers (including sign-language translation), speech options, dictionary word
+generation, and OAT/prebake build services. For custom API calls, pass the full
+selection to `getBEApiBaseUrl` from `lingop/core`:
+
+```ts
+const { backendTarget, useStagingBackend } = useLingopClientData();
+const baseUrl = getBEApiBaseUrl({ backendTarget, useStagingBackend });
+```
+
+Build CLIs accept `LINGOP_BACKEND_TARGET=gcloud-run`; it takes precedence over
+`LINGOP_USE_STAGING_BACKEND`. Leaving both unset preserves production defaults.
+`BE_API_GCLOUD_RUN_URL`, `BackendTarget`, and `parseBackendTarget` are exported
+from `lingop/core` for configuration integrations.
+
+Backend API request deduplication, public annotation batches, cached localization
+results, voice lists, and generated audio metadata distinguish the resolved
+backend URL. Changing the React provider's selection creates a new data client.
+For non-React code, create a new client for each target and keep caller-owned
+annotation/translation cache refs separate. Direct Supabase caches still follow
+the injected database client; backend selection does not select a new database.
+
+Cloud Run currently uses the existing live accounts and data. Adding support in
+this library does not move consumer traffic; consumer configuration changes and
+deployment are separate migration steps. Keep the legacy staging URL intact so
+existing development reachability checks and saved staging toggles keep working.
+
+### Client architecture
+
 - Supabase is dependency-injected because runtime setup differs across browser, SSR, and React Native. This package does not instantiate Supabase.
 - Public APIs accept Supabase clients loosely and cast internally to a small runtime shape. This avoids pushing Supabase's deep generated query types into app code while keeping row validation at module boundaries.
 - `createLingoDataClient()` owns annotation and translation caches per client instance, matching the old context behavior without React state. Apps should reuse the same instance across normal user navigation to preserve cache continuity.
 - Supabase user id and access token are derived from the injected Supabase client via `auth.getUser()` and `auth.getSession()` when owner-specific operations need them.
-- External backend environment is selected consistently with `useStagingBackend`; production is the default.
+- External backend selection uses `backendTarget`, with backward-compatible `useStagingBackend` fallback; production is the default.
 - Context-private lookup helpers remain modular inside this package, but package consumers should prefer `createLingoDataClient()` for annotation/localization workflows.
 
 ## Current Modules
 
-- `src/core/backend-api.ts` contains shared backend API URLs and environment selection for external backend calls. Production is the default; callers opt into staging with `useStagingBackend: true`.
+- `src/core/backend-api.ts` contains shared backend API URLs and target selection for external backend calls, including opt-in `gcloud-run` support.
 - `src/core/annotation/api-client.ts` calls the backend `/api/annotate` endpoint with short-window batching and in-flight request deduping.
 - `src/core/annotation/converters.ts` converts between raw annotation entries and frontend-friendly annotated text structures.
 - `src/core/annotation/fetch-annotation.ts` orchestrates annotation lookup across caller-provided in-memory cache, public annotation API, optional caller-provided Supabase client, and backend annotation generation. 

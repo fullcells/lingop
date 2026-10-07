@@ -1,3 +1,4 @@
+import { BE_API_GCLOUD_RUN_URL } from "./backend-api.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -184,7 +185,10 @@ describe("createLingoDataClient", () => {
     expect(supabaseClient.auth?.getUser).toHaveBeenCalled();
   });
 
-  it("creates, dedupes, and session-caches transient annotations", async () => {
+  it.each([
+    { selection: { useStagingBackend: true }, url: BE_API_STAGING_URL },
+    { selection: { backendTarget: "gcloud-run" as const, useStagingBackend: true }, url: BE_API_GCLOUD_RUN_URL },
+  ])("creates, dedupes, and session-caches transient annotations ($url)", async ({ selection, url }) => {
     const annotation: AnnotatedText = {
       ...makeAnnotatedText("สวัสดี"),
       lang: "th",
@@ -202,7 +206,7 @@ describe("createLingoDataClient", () => {
       data: { session: { access_token: "token-1" } },
     }));
     const client = createLingoDataClient({
-      useStagingBackend: true,
+      ...selection,
       supabaseClient: { auth: { getSession } },
     });
 
@@ -226,7 +230,7 @@ describe("createLingoDataClient", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(getSession).toHaveBeenCalledTimes(1);
     expect(fetchImpl).toHaveBeenCalledWith(
-      `${BE_API_STAGING_URL}/api/annotate-create-limited-anons`,
+      `${url}/api/annotate-create-limited-anons`,
       {
         method: "POST",
         headers: {
@@ -670,7 +674,10 @@ describe("createLingoDataClient", () => {
     );
   });
 
-  it("creates, dedupes, and session-caches transient translations", async () => {
+  it.each([
+    { selection: { useStagingBackend: true }, url: BE_API_STAGING_URL },
+    { selection: { backendTarget: "gcloud-run" as const, useStagingBackend: true }, url: BE_API_GCLOUD_RUN_URL },
+  ])("creates, dedupes, and session-caches transient translations ($url)", async ({ selection, url }) => {
     let resolveFetch:
       | ((response: {
           ok: true;
@@ -691,7 +698,7 @@ describe("createLingoDataClient", () => {
         }),
     );
     vi.stubGlobal("fetch", fetchImpl);
-    const client = createLingoDataClient({ useStagingBackend: true });
+    const client = createLingoDataClient({ ...selection });
 
     const firstRequest = client.createTransientTranslation({
       sourceLang: "EN",
@@ -707,7 +714,7 @@ describe("createLingoDataClient", () => {
     expect(firstRequest).toBe(duplicateRequest);
     await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledTimes(1));
     expect(fetchImpl).toHaveBeenCalledWith(
-      `${BE_API_STAGING_URL}/api/translate-create-limited-anon`,
+      `${url}/api/translate-create-limited-anon`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

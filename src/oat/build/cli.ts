@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { parseBackendTarget } from "../../core/backend-api.js";
 
 import "dotenv/config";
 import fs from "node:fs";
@@ -62,6 +63,7 @@ async function main(): Promise<void> {
   }
   await runOATPreflight(await loadConsumerConfig(), {
     privateOverrideKey,
+    backendTarget: parseBackendTarget(process.env.LINGOP_BACKEND_TARGET),
     ...(process.env.LINGOP_USE_STAGING_BACKEND === "true"
       ? { useStagingBackend: true }
       : {}),

@@ -1,3 +1,4 @@
+import { BE_API_GCLOUD_RUN_URL } from "../backend-api.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -56,7 +57,10 @@ describe("callAnnotateCreateLimitedAnons", () => {
     );
   });
 
-  it("forwards auth and uses the staging backend when configured", async () => {
+  it.each([
+    { selection: { useStagingBackend: true }, url: BE_API_STAGING_URL },
+    { selection: { backendTarget: "gcloud-run" as const, useStagingBackend: true }, url: BE_API_GCLOUD_RUN_URL },
+  ])("forwards auth and uses the staging backend when configured ($url)", async ({ selection, url }) => {
     const fetchImpl = vi.fn(async () => ({
       ok: true,
       status: 200,
@@ -68,12 +72,12 @@ describe("callAnnotateCreateLimitedAnons", () => {
       lang: "th",
       texts: ["สวัสดี"],
       accessToken: "token-1",
-      useStagingBackend: true,
+      ...selection,
       fetchImpl,
     });
 
     expect(fetchImpl).toHaveBeenCalledWith(
-      `${BE_API_STAGING_URL}/api/annotate-create-limited-anons`,
+      `${url}/api/annotate-create-limited-anons`,
       expect.objectContaining({
         headers: {
           "Content-Type": "application/json",
@@ -157,7 +161,10 @@ describe("callAnnotate_storedForOwner", () => {
     });
   });
 
-  it("uses the staging backend URL when requested", async () => {
+  it.each([
+    { selection: { useStagingBackend: true }, url: BE_API_STAGING_URL },
+    { selection: { backendTarget: "gcloud-run" as const, useStagingBackend: true }, url: BE_API_GCLOUD_RUN_URL },
+  ])("uses the staging backend URL when requested ($url)", async ({ selection, url }) => {
     vi.useFakeTimers();
 
     const fetchImpl = vi.fn(async (_input: string, init: { body: string }) => {
@@ -179,14 +186,14 @@ describe("callAnnotate_storedForOwner", () => {
       ref: { source: "test" },
       text: "staging",
       accessToken: "token-1",
-      useStagingBackend: true,
+      ...selection,
       fetchImpl,
     });
 
     await vi.advanceTimersByTimeAsync(50);
     await expect(request).resolves.toEqual(makeAnnotatedText("staging"));
 
-    expect(fetchImpl.mock.calls[0]?.[0]).toBe(`${BE_API_STAGING_URL}/api/annotate`);
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe(`${url}/api/annotate`);
   });
 
   it("uses the production backend URL by default", async () => {

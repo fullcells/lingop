@@ -1,3 +1,4 @@
+import { BE_API_GCLOUD_RUN_URL } from "../../core/backend-api.js";
 import { describe, expect, it, vi } from "vitest";
 import {
   BE_API_PRODUCTION_URL,
@@ -20,7 +21,10 @@ describe("OAT build backend selection", () => {
     );
   });
 
-  it("uses the shared staging backend when requested", async () => {
+  it.each([
+    { selection: { useStagingBackend: true }, url: BE_API_STAGING_URL },
+    { selection: { backendTarget: "gcloud-run" as const, useStagingBackend: true }, url: BE_API_GCLOUD_RUN_URL },
+  ])("uses the shared staging backend when requested ($url)", async ({ selection, url }) => {
     const fetchImpl = vi.fn(async () =>
       Response.json([{ source_text: "Hello", target_text: "Hola" }]),
     );
@@ -32,12 +36,12 @@ describe("OAT build backend selection", () => {
       services: {
         privateOverrideKey: "secret",
         fetchImpl,
-        useStagingBackend: true,
+        ...selection,
       },
     });
 
     expect(fetchImpl).toHaveBeenCalledWith(
-      `${BE_API_STAGING_URL}/api/translate`,
+      `${url}/api/translate`,
       expect.any(Object),
     );
   });

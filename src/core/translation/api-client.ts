@@ -1,3 +1,4 @@
+import type { BackendTarget } from "../backend-api.js";
 import { getBEApiBaseUrl } from "../backend-api.js";
 import type { TranslationRow } from "./types.js";
 import { isTranslationRow } from "./validators.js";
@@ -29,7 +30,8 @@ export type CallTranslateStoreForOwnerInput = {
   ref: unknown;
   options?: string[];
   accessToken: string;
-  useStagingBackend?: boolean;
+  backendTarget?: BackendTarget | undefined;
+  useStagingBackend?: boolean | undefined;
   fetchImpl?: TranslateFetch;
 };
 
@@ -43,7 +45,8 @@ export type CallTranslateCreateLimitedAnonInput = {
   source_text: string;
   target_lang: string;
   accessToken?: string;
-  useStagingBackend?: boolean;
+  backendTarget?: BackendTarget | undefined;
+  useStagingBackend?: boolean | undefined;
   fetchImpl?: TranslateFetch;
 };
 
@@ -54,6 +57,7 @@ type CallTranslateApiInput = Required<
   >
 > & {
   fetchImpl: TranslateFetch;
+  backendTarget?: BackendTarget | undefined;
   useStagingBackend?: boolean | undefined;
 };
 
@@ -126,13 +130,12 @@ async function callTranslateApi({
   ref,
   options,
   accessToken,
+  backendTarget,
   useStagingBackend,
   fetchImpl,
 }: CallTranslateApiInput): Promise<TranslationRow[]> {
   const apiBaseUrl = normalizeApiBaseUrl(
-    useStagingBackend === undefined
-      ? getBEApiBaseUrl()
-      : getBEApiBaseUrl({ useStagingBackend }),
+    getBEApiBaseUrl({ backendTarget, useStagingBackend }),
   );
 
   const res = await fetchImpl(`${apiBaseUrl}/api/translate`, {
@@ -180,11 +183,12 @@ export function callTranslate_storeForOwner({
   ref,
   options = [],
   accessToken,
+  backendTarget,
   useStagingBackend,
   fetchImpl,
 }: CallTranslateStoreForOwnerInput): Promise<TranslationRow[]> {
   const requestFetch = getFetch(fetchImpl);
-  const batchKey = [source_lang, target_lang, options.join(",")].join(":");
+  const batchKey = [getBEApiBaseUrl({ backendTarget, useStagingBackend }), source_lang, target_lang, options.join(",")].join(":");
   const requestKey = `${batchKey}:${source_text}:${JSON.stringify(ref)}`;
   const inflightRequest = inflightRequests[requestKey];
   if (inflightRequest) return inflightRequest;
@@ -197,6 +201,7 @@ export function callTranslate_storeForOwner({
     options,
     accessToken,
     fetchImpl: requestFetch,
+    ...(backendTarget === undefined ? {} : { backendTarget }),
     ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
   });
 
@@ -213,14 +218,13 @@ export async function callTranslateCreateLimitedAnon({
   source_text,
   target_lang,
   accessToken,
+  backendTarget,
   useStagingBackend,
   fetchImpl,
 }: CallTranslateCreateLimitedAnonInput): Promise<TranslateCreateLimitedAnonOutput> {
   const requestFetch = getFetch(fetchImpl);
   const apiBaseUrl =
-    useStagingBackend === undefined
-      ? getBEApiBaseUrl()
-      : getBEApiBaseUrl({ useStagingBackend });
+    getBEApiBaseUrl({ backendTarget, useStagingBackend });
 
   const res = await requestFetch(`${normalizeApiBaseUrl(apiBaseUrl)}/api/translate-create-limited-anon`, {
     method: "POST",

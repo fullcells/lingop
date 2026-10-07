@@ -58,16 +58,17 @@ type ActiveVoiceState = {
 };
 
 function useActiveVoiceForLang(lang: string | null): ActiveVoiceState {
-  const { apiVoiceAccessProfile, supabaseClient, useStagingBackend } =
+  const { apiVoiceAccessProfile, supabaseClient, backendTarget, useStagingBackend } =
     useLingopClientData();
   const [voice, setVoice] = useState<SpeechSynthTTSVoice | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const speechOptions = useMemo(
     () => ({
       ...(supabaseClient ? { supabaseClient } : {}),
+      backendTarget,
       useStagingBackend,
     }),
-    [supabaseClient, useStagingBackend],
+    [supabaseClient, backendTarget, useStagingBackend],
   );
 
   useEffect(() => {
@@ -539,7 +540,7 @@ export function TripleVisibilityToggleRow({
 
 function SpeechSpeedControlUI({ focusLang }: { focusLang: string | null }) {
   const { OAT, OAT2 } = useOAT();
-  const { apiVoiceAccessProfile, supabaseClient, useStagingBackend } =
+  const { apiVoiceAccessProfile, supabaseClient, backendTarget, useStagingBackend } =
     useLingopClientData();
   const [isPreviewingSpeech, setIsPreviewingSpeech] = useState(false);
   const [sliderValue, setSliderValue] = useState(
@@ -567,6 +568,7 @@ function SpeechSpeedControlUI({ focusLang }: { focusLang: string | null }) {
         contentContext: "PUBLIC_CONTENT",
         ref: { file: "OAT" },
         ...(supabaseClient ? { supabaseClient } : {}),
+        backendTarget,
         useStagingBackend,
       });
     } catch (error: unknown) {

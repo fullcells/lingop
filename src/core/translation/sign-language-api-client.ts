@@ -1,3 +1,4 @@
+import type { BackendTarget } from "../backend-api.js";
 import { getBEApiBaseUrl } from "../backend-api.js";
 import {
   SIGN_LANGUAGE_NAMES,
@@ -62,7 +63,8 @@ type SharedLimitedAnonInput = {
   source_lang: string;
   target_lang: string;
   accessToken?: string;
-  useStagingBackend?: boolean;
+  backendTarget?: BackendTarget | undefined;
+  useStagingBackend?: boolean | undefined;
   fetchImpl?: TranslateFetch;
 };
 
@@ -260,9 +262,7 @@ async function callSharedLimitedAnonEndpoint(
 ): Promise<unknown> {
   const requestFetch = getFetch(input.fetchImpl);
   const apiBaseUrl = (
-    input.useStagingBackend === undefined
-      ? getBEApiBaseUrl()
-      : getBEApiBaseUrl({ useStagingBackend: input.useStagingBackend })
+    getBEApiBaseUrl(input)
   ).replace(/\/+$/, "");
   const res = await requestFetch(`${apiBaseUrl}/api/translate-create-limited-anon`, {
     method: "POST",

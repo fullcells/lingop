@@ -13,6 +13,7 @@ import {
   useLingopClientData as useLegacyClient,
 } from "../ui/next/lingop-client-data-provider.js";
 import { useSupabaseSignedInStatus as useLegacyAuth } from "../ui/next/supabase-auth.js";
+import { useLingopClientDataOrCreate } from "./lingop-client-data-provider.js";
 
 type User = { id: string; email: string };
 type AuthListener = (event: string, session: { user: User } | null) => void;
@@ -78,6 +79,29 @@ it("shares the legacy context and preserves client caches when voice policy chan
   expect(context.lingopClient).toBe(client);
   await act(async () => tree!.update(element("ALL", true)));
   expect(context.lingopClient).not.toBe(client);
+});
+
+it("replaces provider caches when the backend changes and honors a target-only override", async () => {
+  let context!: LingopClientDataContextType;
+  let explicitClient: unknown;
+  function Consumer() {
+    context = useLingopClientData();
+    explicitClient = useLingopClientDataOrCreate({ backendTarget: "gcloud-run" });
+    return null;
+  }
+  const element = (backendTarget?: "production" | "gcloud-run") =>
+    createElement(LingopClientDataProvider, { backendTarget, children: createElement(Consumer) });
+  await act(async () => { tree = create(element()); });
+  const oldClient = context.lingopClient;
+  expect(explicitClient).not.toBe(oldClient);
+  await act(async () => { tree!.update(element("gcloud-run")); });
+  expect(context.backendTarget).toBe("gcloud-run");
+  expect(context.lingopClient).not.toBe(oldClient);
+  const cloudClient = context.lingopClient;
+  await act(async () => { tree!.update(element("gcloud-run")); });
+  expect(context.lingopClient).toBe(cloudClient);
+  await act(async () => { tree!.update(element("production")); });
+  expect(context.lingopClient).not.toBe(cloudClient);
 });
 
 it("observes provider account and entitlement changes without browser globals", async () => {

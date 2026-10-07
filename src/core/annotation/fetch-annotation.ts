@@ -1,3 +1,4 @@
+import type { BackendTarget } from "../backend-api.js";
 import {
   contentRefFromLocalization,
   isJsonDeepEqual,
@@ -47,7 +48,8 @@ export type FetchAnnotationInput = {
   getAccessToken?: () => Promise<string | null | undefined>;
   fetchImpl?: FetchAnnotationFetch;
   annotateFetchImpl?: AnnotateFetch;
-  useStagingBackend?: boolean;
+  backendTarget?: BackendTarget | undefined;
+  useStagingBackend?: boolean | undefined;
 };
 
 type FetchAnnotationBatchItem = {
@@ -58,6 +60,7 @@ type FetchAnnotationBatchItem = {
   getAccessToken?: (() => Promise<string | null | undefined>) | undefined;
   fetchImpl?: FetchAnnotationFetch | undefined;
   annotateFetchImpl?: AnnotateFetch | undefined;
+  backendTarget?: BackendTarget | undefined;
   useStagingBackend?: boolean | undefined;
 };
 
@@ -176,6 +179,7 @@ async function processAnnotationBatch(
           getAccessToken,
           fetchImpl,
           annotateFetchImpl,
+          backendTarget,
           useStagingBackend,
         }) => ({
           localization,
@@ -185,6 +189,7 @@ async function processAnnotationBatch(
           getAccessToken,
           fetchImpl,
           annotateFetchImpl,
+          backendTarget,
           useStagingBackend,
         }),
       ),
@@ -258,6 +263,7 @@ export async function utilsFetchAnnotation({
   getAccessToken,
   fetchImpl,
   annotateFetchImpl,
+  backendTarget,
   useStagingBackend,
 }: FetchAnnotationInput): Promise<AnnotatedText | null> {
   if (!localization) {
@@ -265,7 +271,7 @@ export async function utilsFetchAnnotation({
     return null;
   }
 
-  const key = keyFromLocalization(localization);
+  const key = JSON.stringify([getBEApiBaseUrl({ backendTarget, useStagingBackend }), keyFromLocalization(localization)]);
   const existingRequest = inflightFetchAnnotationRequests.get(key);
   if (existingRequest) return existingRequest;
 
@@ -279,6 +285,7 @@ export async function utilsFetchAnnotation({
       getAccessToken,
       fetchImpl,
       annotateFetchImpl,
+      backendTarget,
       useStagingBackend,
       resolve,
       reject,
@@ -369,7 +376,7 @@ export async function fetchAnnotationsBatch({
     if (state.failed || state.output || !state.ref) continue;
     if (!state.belongsToPublicSuperAdmin) continue;
 
-    const key = `${state.lang}::${JSON.stringify(state.ref)}`;
+    const key = JSON.stringify([getBEApiBaseUrl(state), state.lang, state.ref]);
     let group = publicAnnotationGroups.get(key);
     if (!group) {
       group = { lang: state.lang, ref: state.ref, states: [] };
@@ -394,6 +401,7 @@ export async function fetchAnnotationsBatch({
         const res = await fetchWithRetry(
           requestFetch,
           `${getBEApiBaseUrl({
+            backendTarget: firstState.backendTarget,
             useStagingBackend: firstState.useStagingBackend ?? false,
           })}/api/annotate-get-public`,
           {
@@ -474,6 +482,7 @@ export async function fetchAnnotationsBatch({
           state.output = await callAnnotate_storedForOwner({
             ...annotateInput,
             ...(state.annotateFetchImpl ? { fetchImpl: state.annotateFetchImpl } : {}),
+            ...(state.backendTarget === undefined ? {} : { backendTarget: state.backendTarget }),
             ...(state.useStagingBackend === undefined
               ? {}
               : { useStagingBackend: state.useStagingBackend }),

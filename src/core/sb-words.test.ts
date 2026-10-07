@@ -1,3 +1,4 @@
+import { BE_API_GCLOUD_RUN_URL } from "./backend-api.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearSBWordsCache,
@@ -237,7 +238,10 @@ describe("sb words", () => {
     );
   });
 
-  it("supports the staging backend without requiring authentication", async () => {
+  it.each([
+    { selection: { useStagingBackend: true }, url: BE_API_STAGING_URL },
+    { selection: { backendTarget: "gcloud-run" as const, useStagingBackend: true }, url: BE_API_GCLOUD_RUN_URL },
+  ])("supports the staging backend without requiring authentication ($url)", async ({ selection, url }) => {
     const { supabaseClient } = makeSupabaseClient([]);
     const createdRow = makeRow(4, {
       word: "bird",
@@ -253,11 +257,11 @@ describe("sb words", () => {
 
     await directlyFetchAndGenSBWord(
       { source_lang: "en", source_word: "bird", target_lang: "yue" },
-      { supabaseClient, requestFetch, useStagingBackend: true },
+      { supabaseClient, requestFetch, ...selection },
     );
 
     expect(requestFetch).toHaveBeenCalledWith(
-      `${BE_API_STAGING_URL}/api/sb-translate-and-upsert-sbword`,
+      `${url}/api/sb-translate-and-upsert-sbword`,
       expect.objectContaining({
         headers: { "Content-Type": "application/json" },
       }),

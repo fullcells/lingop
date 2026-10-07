@@ -17,11 +17,13 @@ import {
   type SupabaseLingoDataClient,
 } from "../core/lingo-data-client.js";
 import type { APIVoiceAccessProfile } from "../speech/shared.js";
+import type { BackendTarget } from "../core/backend-api.js";
 
 export type LingopClientDataContextType = {
   lingopClient: LingoDataClient;
   supabaseClient: SupabaseLingoDataClient | undefined;
   useStagingBackend: boolean;
+  backendTarget?: BackendTarget | undefined;
   /** Consumer-owned entitlement policy for cloud speech voices. */
   apiVoiceAccessProfile: APIVoiceAccessProfile;
 };
@@ -53,14 +55,16 @@ export function LingopClientDataProvider({
   billingApiBaseUrl = "https://camplingo.com",
   children,
   supabaseClient,
+  backendTarget,
   useStagingBackend = false,
 }: LingopClientDataProviderProps) {
   const lingopClient = useMemo(
     () => createLingoDataClient({
       ...(supabaseClient ? { supabaseClient } : {}),
+      backendTarget,
       useStagingBackend,
     }),
-    [supabaseClient, useStagingBackend],
+    [supabaseClient, backendTarget, useStagingBackend],
   );
   useEffect(() => {
     if (typeof window === "undefined" || new URL(window.location.href).searchParams.get("billing") !== "return") return;
@@ -86,9 +90,10 @@ export function LingopClientDataProvider({
       apiVoiceAccessProfile,
       lingopClient,
       supabaseClient,
+      backendTarget,
       useStagingBackend,
     };
-  }, [apiVoiceAccessProfile, lingopClient, supabaseClient, useStagingBackend]);
+  }, [apiVoiceAccessProfile, lingopClient, supabaseClient, backendTarget, useStagingBackend]);
 
   return (
     <LingopClientDataContext.Provider value={value}>
@@ -118,16 +123,18 @@ export function useOptionalLingopClientData():
 /** Internal bridge for UI props retained during provider migration. */
 export function useLingopClientDataOrCreate({
   supabaseClient,
+  backendTarget,
   useStagingBackend,
 }: CreateLingoDataClientOptions = {}): LingoDataClient {
   const providedClientData = useOptionalLingopClientData();
   const hasExplicitConfiguration =
-    supabaseClient !== undefined || useStagingBackend !== undefined;
+    supabaseClient !== undefined || backendTarget !== undefined || useStagingBackend !== undefined;
   const standaloneClient = useMemo(
     () =>
       hasExplicitConfiguration || !providedClientData
         ? createLingoDataClient({
             ...(supabaseClient ? { supabaseClient } : {}),
+            ...(backendTarget !== undefined ? { backendTarget } : {}),
             ...(useStagingBackend !== undefined ? { useStagingBackend } : {}),
           })
         : undefined,
@@ -135,6 +142,7 @@ export function useLingopClientDataOrCreate({
       hasExplicitConfiguration,
       providedClientData,
       supabaseClient,
+      backendTarget,
       useStagingBackend,
     ],
   );

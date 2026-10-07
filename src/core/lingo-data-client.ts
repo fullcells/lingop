@@ -1,3 +1,4 @@
+import type { BackendTarget } from "./backend-api.js";
 import { getBEApiBaseUrl } from "./backend-api.js";
 import {
   contentRefFromLocalization,
@@ -124,7 +125,8 @@ export type SupabaseLingoDataClient = SupabaseClientLike;
 
 export type CreateLingoDataClientOptions = {
   supabaseClient?: SupabaseLingoDataClient;
-  useStagingBackend?: boolean;
+  backendTarget?: BackendTarget | undefined;
+  useStagingBackend?: boolean | undefined;
 };
 
 export type LingoDataClientAuthState = {
@@ -500,6 +502,7 @@ function isTranslationRowArray(data: unknown): data is TranslationRow[] {
 
 export function createLingoDataClient({
   supabaseClient,
+  backendTarget,
   useStagingBackend,
 }: CreateLingoDataClientOptions = {}): LingoDataClient {
   const runtimeSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
@@ -659,6 +662,7 @@ export function createLingoDataClient({
               >,
           }
         : {}),
+      ...(backendTarget === undefined ? {} : { backendTarget }),
       ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
     });
   }
@@ -702,6 +706,7 @@ export function createLingoDataClient({
           source_text: sourceText,
           target_lang: normalizedTargetLang,
           ...(accessToken ? { accessToken } : {}),
+          ...(backendTarget === undefined ? {} : { backendTarget }),
           ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
         });
         const localization: Localization = {
@@ -767,6 +772,7 @@ export function createLingoDataClient({
           source_text: sourceText,
           target_lang: normalizedTargetLang,
           ...(accessToken ? { accessToken } : {}),
+          ...(backendTarget === undefined ? {} : { backendTarget }),
           ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
         });
         oralToSignedTranslations.set(requestKey, translation);
@@ -826,6 +832,7 @@ export function createLingoDataClient({
           source_signword_ids: sourceSignWordIds,
           target_lang: normalizedTargetLang,
           ...(accessToken ? { accessToken } : {}),
+          ...(backendTarget === undefined ? {} : { backendTarget }),
           ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
         });
         signedToOralTranslations.set(requestKey, translation);
@@ -956,6 +963,7 @@ export function createLingoDataClient({
         source_text: existingRow.source_text,
         target_lang: existingRow.target_lang,
         accessToken: resolvedAccessToken,
+        ...(backendTarget === undefined ? {} : { backendTarget }),
         ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
       });
       const row = await updateTranslationRow({
@@ -1019,6 +1027,7 @@ export function createLingoDataClient({
             supabaseClient: runtimeSupabaseClient,
           }
         : {}),
+      ...(backendTarget === undefined ? {} : { backendTarget }),
       ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
     });
   }
@@ -1055,6 +1064,7 @@ export function createLingoDataClient({
           lang: normalizedLang,
           texts: [text],
           ...(accessToken ? { accessToken } : {}),
+          ...(backendTarget === undefined ? {} : { backendTarget }),
           ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
         });
         const annotation =
@@ -1154,6 +1164,7 @@ export function createLingoDataClient({
         text: localization.text,
         ref,
         accessToken: resolvedAccessToken,
+        ...(backendTarget === undefined ? {} : { backendTarget }),
         ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
       });
 
@@ -1183,9 +1194,7 @@ export function createLingoDataClient({
 
     const requestFetch = getFetch();
     const apiBaseUrl =
-      useStagingBackend === undefined
-        ? getBEApiBaseUrl()
-        : getBEApiBaseUrl({ useStagingBackend });
+      getBEApiBaseUrl({ backendTarget, useStagingBackend });
     const res = await requestFetch(`${apiBaseUrl}/api/re-annotate-with-existing-data`, {
       method: "POST",
       headers: {
@@ -1302,6 +1311,7 @@ export function createLingoDataClient({
             : {}),
         }),
       generateEmojiForGloss: generateClientEmoji,
+      ...(backendTarget === undefined ? {} : { backendTarget }),
       ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
     });
   }

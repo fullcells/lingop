@@ -1,3 +1,4 @@
+import type { BackendTarget } from "../backend-api.js";
 import type { AnnotatedText } from "./types.js";
 import { getBEApiBaseUrl } from "../backend-api.js";
 
@@ -45,7 +46,8 @@ export type CallAnnotateStoredForOwnerInput = {
   ref: unknown;
   text: string;
   accessToken: string;
-  useStagingBackend?: boolean;
+  backendTarget?: BackendTarget | undefined;
+  useStagingBackend?: boolean | undefined;
   fetchImpl?: AnnotateFetch;
 };
 
@@ -53,7 +55,8 @@ export type CallAnnotateCreateLimitedAnonsInput = {
   lang: string;
   texts: string[];
   accessToken?: string;
-  useStagingBackend?: boolean;
+  backendTarget?: BackendTarget | undefined;
+  useStagingBackend?: boolean | undefined;
   fetchImpl?: AnnotateFetch;
 };
 
@@ -205,6 +208,7 @@ export async function callAnnotateCreateLimitedAnons({
   lang,
   texts,
   accessToken,
+  backendTarget,
   useStagingBackend,
   fetchImpl,
 }: CallAnnotateCreateLimitedAnonsInput): Promise<AnnotatedText[]> {
@@ -219,9 +223,7 @@ export async function callAnnotateCreateLimitedAnons({
   }
 
   const apiBaseUrl = normalizeApiBaseUrl(
-    useStagingBackend === undefined
-      ? getBEApiBaseUrl()
-      : getBEApiBaseUrl({ useStagingBackend }),
+    getBEApiBaseUrl({ backendTarget, useStagingBackend }),
   );
   const requestFetch = getFetch(fetchImpl);
   const endpoint = `${apiBaseUrl}/api/annotate-create-limited-anons`;
@@ -303,13 +305,12 @@ export async function callAnnotate_storedForOwner({
   ref,
   text,
   accessToken,
+  backendTarget,
   useStagingBackend,
   fetchImpl,
 }: CallAnnotateStoredForOwnerInput): Promise<AnnotatedText> {
   const normalizedApiBaseUrl = normalizeApiBaseUrl(
-    useStagingBackend === undefined
-      ? getBEApiBaseUrl()
-      : getBEApiBaseUrl({ useStagingBackend }),
+    getBEApiBaseUrl({ backendTarget, useStagingBackend }),
   );
   const requestFetch = getFetch(fetchImpl);
   const batchKey = getBatchKey({

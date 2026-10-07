@@ -117,14 +117,16 @@ export function SpeechSynthLangVoicePicker({
   const {
     apiVoiceAccessProfile,
     supabaseClient,
+    backendTarget,
     useStagingBackend,
   } = useLingopClientData();
   const speechOptions = useMemo<SpeechSynthTTSOptions>(
     () => ({
       ...(supabaseClient ? { supabaseClient } : {}),
+      backendTarget,
       useStagingBackend,
     }),
-    [supabaseClient, useStagingBackend],
+    [supabaseClient, backendTarget, useStagingBackend],
   );
   const [voices, setVoices] = useState<SpeechSynthTTSVoice[]>([]);
   const [activeVoice, setActiveVoice] =

@@ -1,3 +1,4 @@
+import { BE_API_GCLOUD_RUN_URL } from "../backend-api.js";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -302,7 +303,10 @@ describe("utilsFetchLocalization", () => {
     expect(fetchImpl).toHaveBeenCalledOnce();
   });
 
-  it("uses staging backend for generated owner translations when requested", async () => {
+  it.each([
+    { selection: { useStagingBackend: true }, url: BE_API_STAGING_URL },
+    { selection: { backendTarget: "gcloud-run" as const, useStagingBackend: true }, url: BE_API_GCLOUD_RUN_URL },
+  ])("uses staging backend for generated owner translations when requested ($url)", async ({ selection, url }) => {
     const sourceContent = makeDbSourceContent(5);
     const generatedTranslation = makeTranslationRow(5);
     const fetchImpl = vi.fn(async () => ({
@@ -319,11 +323,11 @@ describe("utilsFetchLocalization", () => {
         translationsCache: makeCache(),
         supabaseClient: makeSupabaseClient([]),
         fetchImpl,
-        useStagingBackend: true,
+        ...selection,
       }),
     ).resolves.toMatchObject({
       translationRow: generatedTranslation,
     });
-    expect(fetchImpl.mock.calls[0]?.[0]).toBe(`${BE_API_STAGING_URL}/api/translate`);
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe(`${url}/api/translate`);
   });
 });

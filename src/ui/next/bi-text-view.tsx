@@ -145,6 +145,7 @@ export function BiTextView({
     apiVoiceAccessProfile,
     lingopClient,
     supabaseClient,
+    backendTarget,
     useStagingBackend,
   } = useLingopClientData();
   const {
@@ -193,9 +194,10 @@ export function BiTextView({
   const speechOptions = useMemo(
     () => ({
       ...(supabaseClient ? { supabaseClient } : {}),
+      backendTarget,
       useStagingBackend,
     }),
-    [supabaseClient, useStagingBackend],
+    [supabaseClient, backendTarget, useStagingBackend],
   );
 
   // Set focusA8n to preparedFocusA8n when the parent finishes loading it.

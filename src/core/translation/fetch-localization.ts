@@ -1,3 +1,4 @@
+import type { BackendTarget } from "../backend-api.js";
 import {
   ilike,
   isReferenceDB,
@@ -49,7 +50,8 @@ export type FetchLocalizationInput = {
   translationsCache: TranslationCacheRef;
   supabaseClient?: SupabaseTranslationClient;
   fetchImpl?: FetchLocalizationFetch;
-  useStagingBackend?: boolean;
+  backendTarget?: BackendTarget | undefined;
+  useStagingBackend?: boolean | undefined;
 };
 
 const inflightFetchLocalizationRequests = new Map<string, Promise<Localization | null>>();
@@ -57,8 +59,11 @@ const inflightFetchLocalizationRequests = new Map<string, Promise<Localization |
 export function getFetchLocalizationCacheKey({
   l10n_lang,
   sourceContent,
-}: Pick<FetchLocalizationInput, "l10n_lang" | "sourceContent">): string {
+  backendTarget,
+  useStagingBackend,
+}: Pick<FetchLocalizationInput, "l10n_lang" | "sourceContent" | "backendTarget" | "useStagingBackend">): string {
   return [
+    getBEApiBaseUrl({ backendTarget, useStagingBackend }),
     l10n_lang,
     sourceContent.lang,
     sourceContent.text,
@@ -69,13 +74,21 @@ export function getFetchLocalizationCacheKey({
 export function invalidateFetchLocalizationCache({
   l10n_lang,
   sourceContent,
-}: Pick<FetchLocalizationInput, "l10n_lang" | "sourceContent">): void {
-  inflightFetchLocalizationRequests.delete(
-    getFetchLocalizationCacheKey({
-      l10n_lang,
-      sourceContent,
-    }),
-  );
+  backendTarget,
+  useStagingBackend,
+}: Pick<FetchLocalizationInput, "l10n_lang" | "sourceContent" | "backendTarget" | "useStagingBackend">): void {
+  // Existing callers invalidate shared database content across every backend.
+  // An explicit selection can narrow the invalidation to one target.
+  const targets: BackendTarget[] = backendTarget !== undefined
+    ? [backendTarget]
+    : useStagingBackend !== undefined
+      ? [useStagingBackend ? "staging" : "production"]
+      : ["production", "staging", "gcloud-run"];
+  for (const target of targets) {
+    inflightFetchLocalizationRequests.delete(getFetchLocalizationCacheKey({
+      l10n_lang, sourceContent, backendTarget: target,
+    }));
+  }
 }
 
 function getFetch(fetchImpl: FetchLocalizationFetch | undefined): FetchLocalizationFetch {
@@ -146,11 +159,13 @@ async function fetchPublicTranslation({
   sourceContent,
   target_lang,
   fetchImpl,
+  backendTarget,
   useStagingBackend,
 }: {
   sourceContent: SourceContent;
   target_lang: string;
   fetchImpl?: FetchLocalizationFetch | undefined;
+  backendTarget?: BackendTarget | undefined;
   useStagingBackend?: boolean | undefined;
 }): Promise<TranslationRow | null> {
   const requestFetch = getFetch(fetchImpl);
@@ -158,6 +173,7 @@ async function fetchPublicTranslation({
 
   const res = await requestFetch(
     `${getBEApiBaseUrl({
+      backendTarget,
       useStagingBackend: useStagingBackend ?? false,
     })}/api/translate-get-public`,
     {
@@ -233,6 +249,7 @@ async function _fetchLocalization2({
   translationsCache,
   supabaseClient,
   fetchImpl,
+  backendTarget,
   useStagingBackend,
 }: FetchLocalizationInput): Promise<Localization | null> {
   const runtimeSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
@@ -275,6 +292,7 @@ async function _fetchLocalization2({
       sourceContent,
       target_lang,
       ...(fetchImpl ? { fetchImpl } : {}),
+      ...(backendTarget === undefined ? {} : { backendTarget }),
       ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
     });
     if (publicTranslation) translations.push(publicTranslation);
@@ -347,6 +365,7 @@ async function _fetchLocalization2({
         ref,
         accessToken,
         ...(fetchImpl ? { fetchImpl } : {}),
+        ...(backendTarget === undefined ? {} : { backendTarget }),
         ...(useStagingBackend === undefined ? {} : { useStagingBackend }),
       });
     } catch (error) {

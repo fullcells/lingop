@@ -1,3 +1,4 @@
+import type { BackendTarget } from "../../core/backend-api.js";
 import type { AnnotatedText } from "../../core/annotation/types.js";
 import { getBEApiBaseUrl } from "../../core/backend-api.js";
 import type { TranslationRow } from "../../core/translation/types.js";
@@ -8,7 +9,8 @@ export type PrebakeBuildServices = {
   supabasePublicKey: string;
   fetchImpl?: typeof globalThis.fetch;
   now?: () => Date;
-  useStagingBackend?: boolean;
+  backendTarget?: BackendTarget | undefined;
+  useStagingBackend?: boolean | undefined;
 };
 
 function getFetch(services: PrebakeBuildServices): typeof globalThis.fetch {

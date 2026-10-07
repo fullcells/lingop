@@ -1,3 +1,4 @@
+import type { BackendTarget } from "./backend-api.js";
 import { generateEmoji, type SupabaseEmojiClient } from "./emojify.js";
 import { ilike } from "./misc.js";
 import { asSupabaseRuntimeClient, type SupabaseClientLike } from "./supabase.js";
@@ -240,6 +241,7 @@ export async function fetchAndGenGloss(
     getOneWayWordExplicitations,
     generateEmojiForGloss,
     requestFetch = globalThis.fetch?.bind(globalThis),
+    backendTarget,
     useStagingBackend,
   }: {
     supabaseClient?: SupabaseSBWordsClient | undefined;
@@ -250,6 +252,7 @@ export async function fetchAndGenGloss(
     }): Promise<OneWayWordExplicitations>;
     generateEmojiForGloss(en_gloss: string): Promise<string | null>;
     requestFetch?: typeof fetch | undefined;
+    backendTarget?: BackendTarget | undefined;
     useStagingBackend?: boolean | undefined;
   },
 ): Promise<GlossOutputData | null> {
@@ -304,7 +307,7 @@ export async function fetchAndGenGloss(
       target_lang,
       generateIfMissing,
     },
-    { supabaseClient, requestFetch, useStagingBackend },
+    { supabaseClient, requestFetch, backendTarget, useStagingBackend },
   );
   if (!sbWord) return null;
   // console.log('fetchAndGenGloss: 2. Standard: directlyFetchAndGenSBWord:', 'INPUT:', source_lang, source_word, target_lang, 'OUTPUT:', sbWord);
@@ -330,10 +333,12 @@ export async function directlyFetchAndGenSBWord(
   {
     supabaseClient,
     requestFetch = globalThis.fetch?.bind(globalThis),
+    backendTarget,
     useStagingBackend,
   }: {
     supabaseClient?: SupabaseSBWordsClient | undefined;
     requestFetch?: typeof fetch | undefined;
+    backendTarget?: BackendTarget | undefined;
     useStagingBackend?: boolean | undefined;
   } = {},
 ): Promise<SBWordRow2 | null> {
@@ -393,9 +398,7 @@ export async function directlyFetchAndGenSBWord(
 
   // 2. Create New Gloss (via translate) and SB.Words Upsert
   const apiBaseUrl =
-    useStagingBackend === undefined
-      ? getBEApiBaseUrl()
-      : getBEApiBaseUrl({ useStagingBackend });
+    getBEApiBaseUrl({ backendTarget, useStagingBackend });
   const fetchUrl = `${apiBaseUrl}/api/sb-translate-and-upsert-sbword`;
   const accessToken = (
     await asSupabaseRuntimeClient(supabaseClient)?.auth?.getSession?.()
