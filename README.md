@@ -1245,3 +1245,30 @@ selected entries for editorial refresh; no automatic wording rewrite occurs.
 Use `checkpoint(cache)` to persist completed batches atomically and `report()` for
 progress. Missing required annotations or glosses fail the build before publication.
 The consumer must publish a fresh build to expose list edits to a static site.
+
+### Camp Lingo memberships
+
+`lingop/billing` exports `getCampLingoTier` and `hasCampLingoAccess`. Core grants
+paid access to ready-made learning apps; Plus also grants CLTranslate fast
+translations. Existing Camp Lingo and complimentary subscription products map
+to Plus. Unknown products fail closed. Always enforce costly access server-side.
+
+`CampLingoPricing` from `lingop/ui/next` supplies Free/Core/Plus comparison,
+fixed-currency prices from the billing service, sign-in, Checkout, upgrades,
+renewal-time downgrades, and billing management. Import
+`lingop/ui/next/camp-lingo-pricing.css` once. Place it under the existing
+`LingopClientDataProvider` and OAT provider (or supply `onSignIn` for your own
+auth dialog). Pass `translate={OAT}` for localized feature copy.
+
+```tsx
+<CampLingoPricing guiLang={guiLang} translate={OAT}
+  recommendedTier="plus"
+  plans={{ core: { disabled: true, reason: OAT("Core supports the other Camp Lingo learning apps.") } }} />
+```
+
+Each plan supports `hidden`, `disabled`, `reason`, and additional `features`.
+Use `recommendedTier="core"` for static learning apps. Checkout returns to the
+originating app, and the provider reconciles membership before refreshing
+entitlements. For local/sandbox testing, set `apiBaseUrl` on the component and
+`billingApiBaseUrl` on the provider to the same test billing service. Never ship
+a Stripe secret to a consumer; only the centralized billing server uses it.

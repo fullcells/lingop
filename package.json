@@ -1,6 +1,6 @@
 {
   "name": "lingop",
-  "version": "0.7.88",
+  "version": "0.7.89",
   "description": "Shared TypeScript code for Lingo web and native apps.",
   "type": "module",
   "exports": {
@@ -143,7 +143,12 @@
     "./ui/react-native/user-word-streaks": {
       "types": "./dist/ui/react-native/user-word-streaks.d.ts",
       "default": "./dist/ui/react-native/user-word-streaks.js"
-    }
+    },
+    "./billing": {
+      "types": "./dist/core/camp-lingo-billing.d.ts",
+      "default": "./dist/core/camp-lingo-billing.js"
+    },
+    "./ui/next/camp-lingo-pricing.css": "./src/ui/next/camp-lingo-pricing.css"
   },
   "files": [
     "bin",
@@ -162,7 +167,8 @@
     "src/ui/next/spelling-system-picker.css",
     "src/ui/next/word-list-view.css",
     "src/ui/next/word-lists-selector.css",
-    "src/ui/next/word-chips-array-view.css"
+    "src/ui/next/word-chips-array-view.css",
+    "src/ui/next/camp-lingo-pricing.css"
   ],
   "bin": {
     "oat-preflight": "./bin/oat-preflight.js",

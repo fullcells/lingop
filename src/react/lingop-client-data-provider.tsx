@@ -2,11 +2,14 @@
 
 import {
   createContext,
+  useEffect,
   useContext,
   useMemo,
   type ReactNode,
 } from "react";
 
+import { asSupabaseRuntimeClient } from "../core/supabase.js";
+import { requestCampLingoBilling } from "../core/camp-lingo-billing.js";
 import {
   createLingoDataClient,
   type CreateLingoDataClientOptions,
@@ -30,6 +33,8 @@ export type LingopClientDataProviderProps = CreateLingoDataClientOptions & {
    * defaults to device/browser-only speech and does not infer subscriptions or hosts.
    */
   apiVoiceAccessProfile?: APIVoiceAccessProfile;
+  /** Central billing service; override for sandbox/local testing. */
+  billingApiBaseUrl?: string;
 };
 
 const LingopClientDataContext = createContext<
@@ -45,6 +50,7 @@ const LingopClientDataContext = createContext<
  */
 export function LingopClientDataProvider({
   apiVoiceAccessProfile = "NONE",
+  billingApiBaseUrl = "https://camplingo.com",
   children,
   supabaseClient,
   useStagingBackend = false,
@@ -56,6 +62,25 @@ export function LingopClientDataProvider({
     }),
     [supabaseClient, useStagingBackend],
   );
+  useEffect(() => {
+    if (typeof window === "undefined" || new URL(window.location.href).searchParams.get("billing") !== "return") return;
+    let canceled = false;
+    async function reconcileReturn() {
+      try {
+        const session = await asSupabaseRuntimeClient(supabaseClient)?.auth?.getSession?.();
+        if (!session?.data.session?.access_token || canceled) return;
+        await requestCampLingoBilling("membership", { apiBaseUrl: billingApiBaseUrl, accessToken: session.data.session.access_token });
+        if (canceled) return;
+        await lingopClient.refreshEnabledSubProd();
+        const url = new URL(window.location.href); url.searchParams.delete("billing");
+        window.history.replaceState(window.history.state, "", url);
+      } catch { /* Keep the marker: focus or the pricing screen can retry. */ }
+    }
+    void reconcileReturn();
+    window.addEventListener("focus", reconcileReturn);
+    return () => { canceled = true; window.removeEventListener("focus", reconcileReturn); };
+  }, [billingApiBaseUrl, lingopClient, supabaseClient]);
+
   const value = useMemo<LingopClientDataContextType>(() => {
     return {
       apiVoiceAccessProfile,
