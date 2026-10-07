@@ -114,3 +114,14 @@ it('a stale membership response cannot overwrite the next signed-in account', as
   await act(async () => old.resolve({ tier: 'plus', currency: 'hkd' }));
   expect(button('Choose Plus')).toBeDefined(); expect(button('Manage billing')).toBeUndefined();
 });
+it('scheduled or canceling memberships offer management instead of invalid repeat plan changes', async () => {
+  signedIn('plus'); member.scheduledTier = 'core'; await render();
+  expect(button('Change to Core')).toBeUndefined(); expect(text(tree.root)).toContain('Scheduled');
+  expect(button('Keep Plus')).toBeDefined();
+  session = { message: 'Removed' }; member = { ...member, scheduledTier: null };
+  await click('Keep Plus'); expect(button('Change to Core')).toBeDefined();
+  expect(JSON.parse(calls('session')[0]![1].body)).toMatchObject({ action: 'undo-change' });
+  member.cancelAtPeriodEnd = true;
+  await act(async () => window.dispatchEvent(new Event('focus')));
+  expect(button('Change to Core')).toBeUndefined(); expect(button('Manage billing')).toBeDefined();
+});

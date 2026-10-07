@@ -101,6 +101,7 @@ export const lingopOATSourceData: OATSourceData = {
       "Recommended for this app",
       "Reset",
       "Rule-Based Spelling Guide",
+      "Scheduled",
       "Search",
       "Semantic",
       "Show Original Text",

@@ -121,23 +121,24 @@ export function CampLingoPricing({ guiLang, translate, recommendedTier = "core",
     <div className="lingop-pricing__grid">{(["free", "core", "plus"] as const).filter(plan => !plans[plan]?.hidden).map(plan => {
       const current = tier === plan;
       const disabled = plans[plan]?.disabled;
+      const scheduled = membership?.scheduledTier === plan;
       const amount = plan === "free" ? 0 : current && membership?.recurringAmount != null ? membership.recurringAmount : catalog?.prices[plan].amounts[currency];
       return <article className={`lingop-pricing__card ${plan === recommendedTier ? "lingop-pricing__card--recommended" : ""}`} key={plan}>
-        <div className="lingop-pricing__badge">{current ? OAT("Current plan") : disabled ? OAT("Unavailable") : plan === recommendedTier ? OAT("Recommended for this app") : "\u00a0"}</div>
+        <div className="lingop-pricing__badge">{current ? OAT("Current plan") : scheduled ? OAT("Scheduled") : disabled ? OAT("Unavailable") : plan === recommendedTier ? OAT("Recommended for this app") : "\u00a0"}</div>
         <h3>{plan === "free" ? OAT("Free") : plan === "core" ? "Core" : "Plus"}</h3>
         <div className="lingop-pricing__amount">{amount === undefined ? "—" : formatCampLingoAmount(amount, currency, guiLang)}<small>{OAT("per month")}</small></div>
         <p>{plan === "free" ? OAT("Explore Camp Lingo at your own pace.") : plan === "core" ? OAT("More learning across Camp Lingo's ready-made content apps.") : OAT("Everything in Core, plus faster learning with your own translations.")}</p>
         <ul>{plan === "free" ? <><li>{OAT("Free learning features")}</li><li>{OAT("Limited fast translations in CLTranslate")}</li></> : <><li>{OAT("Paid features across Camp Lingo's learning apps")}</li><li>{OAT("Ad-free Trivia and unlimited LingoDex hearts")}</li><li>{plan === "plus" ? OAT("Unlimited fast translations in CLTranslate") : OAT("CLTranslate uses the Free limits")}</li></>}</ul>
         {plans[plan]?.features}
         {plans[plan]?.reason && <p className="lingop-pricing__reason">{plans[plan]?.reason}</p>}
-        {!disabled && (plan === "free" ? !subscribed && !!onComplete : !current) && <button className="lingop-pricing__primary" type="button" disabled={busy || auth.signedInStatus === null || (plan !== "free" && (amount === undefined || (auth.signedInStatus === true && !membership)))} onClick={() => {
+        {!disabled && !membership?.scheduledTier && !membership?.cancelAtPeriodEnd && (plan === "free" ? !subscribed && !!onComplete : !current) && <button className="lingop-pricing__primary" type="button" disabled={busy || auth.signedInStatus === null || (plan !== "free" && (amount === undefined || (auth.signedInStatus === true && !membership)))} onClick={() => {
           if (plan === "free") onComplete?.();
           else if (subscribed && plan === "core" && tier === "plus") setConfirmDowngrade(true);
           else void act("checkout", plan);
         }}>{plan === "free" ? OAT("Continue with Free") : subscribed ? (plan === "plus" ? OAT("Upgrade to Plus") : OAT("Change to Core")) : plan === "core" ? OAT("Choose Core") : OAT("Choose Plus")}</button>}
       </article>;
     })}</div>
-    {confirmDowngrade && <div className="lingop-pricing__message" role="alert"><h3>{OAT("Change to Core at your next renewal?")}</h3><p>{OAT("You keep Plus until then. Afterward, CLTranslate returns to Free limits.")}</p><button type="button" disabled={busy} onClick={() => void act("downgrade", "core")}>{OAT("Confirm change to Core")}</button> <button type="button" onClick={() => setConfirmDowngrade(false)}>{OAT("Keep Plus")}</button></div>}
+    {confirmDowngrade && <div className="lingop-pricing__message" role="alert"><h3>{OAT("Change to Core at your next renewal?")}</h3><p>{OAT("You keep Plus until then. Afterward, CLTranslate returns to Free limits.")}</p><button type="button" disabled={busy} onClick={() => void act("downgrade", "core")}>{OAT("Confirm change to Core")}</button> <button type="button" disabled={busy} onClick={() => setConfirmDowngrade(false)}>{OAT("Keep Plus")}</button></div>}
     <div className="lingop-pricing__toolbar"><label>{OAT("Currency")} <select aria-label={OAT("Currency")} value={currency} disabled={subscribed || busy || !catalog} onChange={e => setCurrency(e.target.value as CampLingoCurrency)}>{Array.from(new Set([...(catalog?.currencies ?? []), currency])).map(value => <option key={value} value={value}>{value.toUpperCase()}</option>)}</select></label></div>
     <div ref={messageRef}>{error && <div role="alert" className="lingop-pricing__message"><p>{errorText}</p><button type="button" disabled={busy} onClick={() => { setError(""); void Promise.all([catalog ? Promise.resolve() : requestCampLingoBilling<CampLingoCatalog>("catalog", { apiBaseUrl }).then(setCatalog), refresh()]).catch(e => setError(e.message)); }}>{OAT("Try again")}</button></div>}</div>
     <footer>{auth.signedInStatus && subscribed && <button type="button" disabled={busy} onClick={() => void act("portal")}>{OAT("Manage billing")}</button>}<p>{OAT("The final amount and any applicable tax are shown before you confirm payment.")}</p>{busy && <p role="status">{OAT("Opening secure billing…")}</p>}</footer>
