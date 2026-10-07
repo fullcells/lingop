@@ -1300,7 +1300,7 @@ The consumer must publish a fresh build to expose list edits to a static site.
 ### Camp Lingo memberships
 
 `lingop/billing` exports `getCampLingoTier` and `hasCampLingoAccess`. Core grants
-paid access to ready-made learning apps; Plus also grants CLTranslate fast
+paid access to ready-made learning apps; Plus also grants Translate & Learn fast
 translations. Existing Camp Lingo and complimentary subscription products map
 to Plus. Unknown products fail closed. Always enforce costly access server-side.
 
@@ -1330,3 +1330,5 @@ a Stripe secret to a consumer; only the centralized billing server uses it.
 Normal localhost consumers can use the default production billing service:
 the central service allows exact loopback origins and return destinations,
 including development ports. The same verified-user authentication applies.
+
+Set `linkToTranslateApp={false}` when embedding `CampLingoPricing` inside Translate & Learn. Other consumers link mentions of the app to `https://translate.camplingo.com` in a new tab by default. Translations retain the `{_TRANSLATE_APP_}` placeholder so the component can render the brand and link safely.

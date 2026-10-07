@@ -6,6 +6,7 @@ export const lingopOATSourceData: OATSourceData = {
   "guiTextsByScope": {
     "_": [
       "(same)",
+      "{_TRANSLATE_APP_} uses the Free limits",
       "About Word Streaks",
       "Ad-free Trivia and unlimited LingoDex hearts",
       "Already have an account?",
@@ -25,7 +26,6 @@ export const lingopOATSourceData: OATSourceData = {
       "Choose Plus",
       "Choose the plan that fits your learning.",
       "Cloud Voices",
-      "CLTranslate uses the Free limits",
       "Components",
       "Confirm change to Core",
       "Continue with Free",
@@ -64,7 +64,7 @@ export const lingopOATSourceData: OATSourceData = {
       "Language I want to learn",
       "Language Speaker",
       "Learnt",
-      "Limited fast translations in CLTranslate",
+      "Limited fast translations in {_TRANSLATE_APP_}",
       "Loading Annotations",
       "Loading prices…",
       "Loading stroke order",
@@ -128,7 +128,7 @@ export const lingopOATSourceData: OATSourceData = {
       "Unable to load stroke order.",
       "Unable to open secure checkout.",
       "Unavailable",
-      "Unlimited fast translations in CLTranslate",
+      "Unlimited fast translations in {_TRANSLATE_APP_}",
       "Upgrade to Plus",
       "Use the buttons to set Word Streaks to a specific value.",
       "Visible",
@@ -138,7 +138,7 @@ export const lingopOATSourceData: OATSourceData = {
       "Word Translations",
       "Words",
       "You can also tap on a word at any time to view its {LANGUAGE} translation.",
-      "You keep Plus until then. Afterward, CLTranslate returns to Free limits.",
+      "You keep Plus until then. Afterward, {_TRANSLATE_APP_} returns to Free limits.",
       "Your change to Core takes effect at your next renewal.",
       "Your membership is set to end after the current billing period.",
       "Your scheduled change has been removed. You keep Plus."

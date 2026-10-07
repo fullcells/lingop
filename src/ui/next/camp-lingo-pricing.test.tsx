@@ -55,6 +55,20 @@ it('the built-in sign-in form has a working back-to-plans path', async () => {
   await render(); await click('Choose Plus'); expect(text(tree.root)).toContain('Sign in form');
   await click('Back to plans'); expect(button('Choose Plus')).toBeDefined();
 });
+it('Translate & Learn references link from other apps and stay plain inside the app', async () => {
+  await render({ translate: value => value === 'Limited fast translations in {_TRANSLATE_APP_}' ? '{_TRANSLATE_APP_}: limited fast translations' : value });
+  const links = tree.root.findAllByType('a');
+  expect(links).toHaveLength(3);
+  for (const link of links) {
+    expect(text(link)).toBe('Translate & Learn');
+    expect(link.props).toMatchObject({ href: 'https://translate.camplingo.com', target: '_blank', rel: 'noopener noreferrer' });
+  }
+  expect(text(tree.root)).not.toContain('CLTranslate');
+  expect(text(tree.root)).not.toContain('{_TRANSLATE_APP_}');
+  await act(async () => tree.update(createElement(CampLingoPricing, { ...props, linkToTranslateApp: false })));
+  expect(tree.root.findAllByType('a')).toHaveLength(0);
+  expect(text(tree.root)).toContain('Translate & Learn: limited fast translations');
+});
 it('Free can check out in the chosen currency and return to localhost', async () => {
   signedIn('free'); await render();
   expect(button('Manage billing')).toBeUndefined();

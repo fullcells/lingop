@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { asSupabaseRuntimeClient } from "../../core/supabase.js";
 import { formatCampLingoAmount, getCampLingoTier, guessCampLingoCurrency, requestCampLingoBilling, type CampLingoCatalog, type CampLingoCurrency, type CampLingoMembership, type CampLingoPaidTier, type CampLingoTier } from "../../core/camp-lingo-billing.js";
 import { useLingopClientData } from "./lingop-client-data-provider.js";
@@ -17,12 +17,15 @@ export type CampLingoPricingProps = {
   onSignIn?: () => void;
   onComplete?: () => void;
   apiBaseUrl?: string;
+  /** Disable inside Translate & Learn; other apps link brand mentions in a new tab. */
+  linkToTranslateApp?: boolean;
   className?: string;
 };
 
 /** Shared fixed-price comparison, authentication, checkout, and membership management. */
-export function CampLingoPricing({ guiLang, translate, recommendedTier = "core", plans = {}, onSignIn, onComplete, apiBaseUrl = "https://camplingo.com", className = "" }: CampLingoPricingProps) {
+export function CampLingoPricing({ guiLang, translate, recommendedTier = "core", plans = {}, onSignIn, onComplete, apiBaseUrl = "https://camplingo.com", linkToTranslateApp = true, className = "" }: CampLingoPricingProps) {
   const OAT = translate ?? ((text: string) => text);
+  const appMention = (text: string) => text.split("{_TRANSLATE_APP_}").map((part, index) => <Fragment key={index}>{index > 0 && (linkToTranslateApp ? <a href="https://translate.camplingo.com" target="_blank" rel="noopener noreferrer">Translate &amp; Learn</a> : "Translate & Learn")}{part}</Fragment>);
   const { supabaseClient } = useLingopClientData();
   const auth = useSupabaseSignedInStatus();
   const [catalog, setCatalog] = useState<CampLingoCatalog | null>(null);
@@ -128,7 +131,7 @@ export function CampLingoPricing({ guiLang, translate, recommendedTier = "core",
         <h3>{plan === "free" ? OAT("Free") : plan === "core" ? "Core" : "Plus"}</h3>
         <div className="lingop-pricing__amount">{amount === undefined ? "—" : formatCampLingoAmount(amount, currency, guiLang)}<small>{OAT("per month")}</small></div>
         <p>{plan === "free" ? OAT("Explore Camp Lingo at your own pace.") : plan === "core" ? OAT("More learning across Camp Lingo's ready-made content apps.") : OAT("Everything in Core, plus faster learning with your own translations.")}</p>
-        <ul>{plan === "free" ? <><li>{OAT("Free learning features")}</li><li>{OAT("Limited fast translations in CLTranslate")}</li></> : <><li>{OAT("Paid features across Camp Lingo's learning apps")}</li><li>{OAT("Ad-free Trivia and unlimited LingoDex hearts")}</li><li>{plan === "plus" ? OAT("Unlimited fast translations in CLTranslate") : OAT("CLTranslate uses the Free limits")}</li></>}</ul>
+        <ul>{plan === "free" ? <><li>{OAT("Free learning features")}</li><li>{appMention(OAT("Limited fast translations in {_TRANSLATE_APP_}"))}</li></> : <><li>{OAT("Paid features across Camp Lingo's learning apps")}</li><li>{OAT("Ad-free Trivia and unlimited LingoDex hearts")}</li><li>{plan === "plus" ? appMention(OAT("Unlimited fast translations in {_TRANSLATE_APP_}")) : appMention(OAT("{_TRANSLATE_APP_} uses the Free limits"))}</li></>}</ul>
         {plans[plan]?.features}
         {plans[plan]?.reason && <p className="lingop-pricing__reason">{plans[plan]?.reason}</p>}
         {!disabled && !membership?.scheduledTier && !membership?.cancelAtPeriodEnd && (plan === "free" ? !subscribed && !!onComplete : !current) && <button className="lingop-pricing__primary" type="button" disabled={busy || auth.signedInStatus === null || (plan !== "free" && (amount === undefined || (auth.signedInStatus === true && !membership)))} onClick={() => {
@@ -138,7 +141,7 @@ export function CampLingoPricing({ guiLang, translate, recommendedTier = "core",
         }}>{plan === "free" ? OAT("Continue with Free") : subscribed ? (plan === "plus" ? OAT("Upgrade to Plus") : OAT("Change to Core")) : plan === "core" ? OAT("Choose Core") : OAT("Choose Plus")}</button>}
       </article>;
     })}</div>
-    {confirmDowngrade && <div className="lingop-pricing__message" role="alert"><h3>{OAT("Change to Core at your next renewal?")}</h3><p>{OAT("You keep Plus until then. Afterward, CLTranslate returns to Free limits.")}</p><button type="button" disabled={busy} onClick={() => void act("downgrade", "core")}>{OAT("Confirm change to Core")}</button> <button type="button" disabled={busy} onClick={() => setConfirmDowngrade(false)}>{OAT("Keep Plus")}</button></div>}
+    {confirmDowngrade && <div className="lingop-pricing__message" role="alert"><h3>{OAT("Change to Core at your next renewal?")}</h3><p>{appMention(OAT("You keep Plus until then. Afterward, {_TRANSLATE_APP_} returns to Free limits."))}</p><button type="button" disabled={busy} onClick={() => void act("downgrade", "core")}>{OAT("Confirm change to Core")}</button> <button type="button" disabled={busy} onClick={() => setConfirmDowngrade(false)}>{OAT("Keep Plus")}</button></div>}
     <div className="lingop-pricing__toolbar"><label>{OAT("Currency")} <select aria-label={OAT("Currency")} value={currency} disabled={subscribed || busy || !catalog} onChange={e => setCurrency(e.target.value as CampLingoCurrency)}>{Array.from(new Set([...(catalog?.currencies ?? []), currency])).map(value => <option key={value} value={value}>{value.toUpperCase()}</option>)}</select></label></div>
     <div ref={messageRef}>{error && <div role="alert" className="lingop-pricing__message"><p>{errorText}</p><button type="button" disabled={busy} onClick={() => { setError(""); void Promise.all([catalog ? Promise.resolve() : requestCampLingoBilling<CampLingoCatalog>("catalog", { apiBaseUrl }).then(setCatalog), refresh()]).catch(e => setError(e.message)); }}>{OAT("Try again")}</button></div>}</div>
     <footer>{auth.signedInStatus && subscribed && <button type="button" disabled={busy} onClick={() => void act("portal")}>{OAT("Manage billing")}</button>}<p>{OAT("The final amount and any applicable tax are shown before you confirm payment.")}</p>{busy && <p role="status">{OAT("Opening secure billing…")}</p>}</footer>
