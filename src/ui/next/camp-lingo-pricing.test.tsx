@@ -46,8 +46,8 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation((...args) => { if (!String(args[0]).startsWith('react-test-renderer is deprecated')) error(...args); });
 });
 afterEach(async () => { if (tree) await act(async () => tree.unmount()); vi.restoreAllMocks(); vi.unstubAllGlobals(); delete (globalThis as any).IS_REACT_ACT_ENVIRONMENT; });
-it('signed-out Plus opens sign-in; a free comparison without a close handler has no dead button', async () => {
-  const signIn = vi.fn(); await render({ onSignIn: signIn });
+it('signed-out Plus opens sign-in and Free never has a purchase-style CTA', async () => {
+  const signIn = vi.fn(); await render({ onSignIn: signIn, onComplete: vi.fn() });
   expect(button('Continue with Free')).toBeUndefined();
   await click('Choose Plus'); expect(signIn).toHaveBeenCalledOnce(); expect(calls('session')).toHaveLength(0);
 });

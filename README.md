@@ -1320,8 +1320,8 @@ auth dialog). Pass `translate={OAT}` for localized feature copy.
 Each plan supports `hidden`, `disabled`, `reason`, and additional `features`.
 Disabled plans remain visible with an Unavailable badge and no action button.
 Current paid plans are labeled in the card; subscribers manage cancellation
-through the single Manage billing action. Free has a Continue button only when
-`onComplete` is supplied and the learner does not already have a paid plan.
+through the single Manage billing action. The Free card is informational and
+never shows a CTA; consumers keep their normal close control for pricing dialogs.
 Use `recommendedTier="core"` for static learning apps. Checkout returns to the
 originating app, and the provider reconciles membership before refreshing
 entitlements. For local/sandbox testing, set `apiBaseUrl` on the component and

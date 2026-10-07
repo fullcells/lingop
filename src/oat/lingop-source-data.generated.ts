@@ -28,7 +28,6 @@ export const lingopOATSourceData: OATSourceData = {
       "Cloud Voices",
       "Components",
       "Confirm change to Core",
-      "Continue with Free",
       "Copied",
       "Copy",
       "Copy Spelling",

@@ -134,11 +134,10 @@ export function CampLingoPricing({ guiLang, translate, recommendedTier = "core",
         <ul>{plan === "free" ? <><li>{OAT("Free learning features")}</li><li>{appMention(OAT("Limited fast translations in {_TRANSLATE_APP_}"))}</li></> : <><li>{OAT("Paid features across Camp Lingo's learning apps")}</li><li>{OAT("Ad-free Trivia and unlimited LingoDex hearts")}</li><li>{plan === "plus" ? appMention(OAT("Unlimited fast translations in {_TRANSLATE_APP_}")) : appMention(OAT("{_TRANSLATE_APP_} uses the Free limits"))}</li></>}</ul>
         {plans[plan]?.features}
         {plans[plan]?.reason && <p className="lingop-pricing__reason">{plans[plan]?.reason}</p>}
-        {!disabled && !membership?.scheduledTier && !membership?.cancelAtPeriodEnd && (plan === "free" ? !subscribed && !!onComplete : !current) && <button className="lingop-pricing__primary" type="button" disabled={busy || auth.signedInStatus === null || (plan !== "free" && (amount === undefined || (auth.signedInStatus === true && !membership)))} onClick={() => {
-          if (plan === "free") onComplete?.();
-          else if (subscribed && plan === "core" && tier === "plus") setConfirmDowngrade(true);
+        {plan !== "free" && !disabled && !membership?.scheduledTier && !membership?.cancelAtPeriodEnd && !current && <button className="lingop-pricing__primary" type="button" disabled={busy || auth.signedInStatus === null || (amount === undefined || (auth.signedInStatus === true && !membership))} onClick={() => {
+          if (subscribed && plan === "core" && tier === "plus") setConfirmDowngrade(true);
           else void act("checkout", plan);
-        }}>{plan === "free" ? OAT("Continue with Free") : subscribed ? (plan === "plus" ? OAT("Upgrade to Plus") : OAT("Change to Core")) : plan === "core" ? OAT("Choose Core") : OAT("Choose Plus")}</button>}
+        }}>{subscribed ? (plan === "plus" ? OAT("Upgrade to Plus") : OAT("Change to Core")) : plan === "core" ? OAT("Choose Core") : OAT("Choose Plus")}</button>}
       </article>;
     })}</div>
     {confirmDowngrade && <div className="lingop-pricing__message" role="alert"><h3>{OAT("Change to Core at your next renewal?")}</h3><p>{appMention(OAT("You keep Plus until then. Afterward, {_TRANSLATE_APP_} returns to Free limits."))}</p><button type="button" disabled={busy} onClick={() => void act("downgrade", "core")}>{OAT("Confirm change to Core")}</button> <button type="button" disabled={busy} onClick={() => setConfirmDowngrade(false)}>{OAT("Keep Plus")}</button></div>}
