@@ -1318,8 +1318,15 @@ auth dialog). Pass `translate={OAT}` for localized feature copy.
 ```
 
 Each plan supports `hidden`, `disabled`, `reason`, and additional `features`.
+Disabled plans remain visible with an Unavailable badge and no action button.
+Current paid plans are labeled in the card; subscribers manage cancellation
+through the single Manage billing action. Free has a Continue button only when
+`onComplete` is supplied and the learner does not already have a paid plan.
 Use `recommendedTier="core"` for static learning apps. Checkout returns to the
 originating app, and the provider reconciles membership before refreshing
 entitlements. For local/sandbox testing, set `apiBaseUrl` on the component and
 `billingApiBaseUrl` on the provider to the same test billing service. Never ship
 a Stripe secret to a consumer; only the centralized billing server uses it.
+Normal localhost consumers can use the default production billing service:
+the central service allows exact loopback origins and return destinations,
+including development ports. The same verified-user authentication applies.

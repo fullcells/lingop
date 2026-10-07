@@ -70,6 +70,7 @@ export function LingopClientDataProvider({
     if (typeof window === "undefined" || new URL(window.location.href).searchParams.get("billing") !== "return") return;
     let canceled = false;
     async function reconcileReturn() {
+      if (canceled || new URL(window.location.href).searchParams.get("billing") !== "return") return;
       try {
         const session = await asSupabaseRuntimeClient(supabaseClient)?.auth?.getSession?.();
         if (!session?.data.session?.access_token || canceled) return;

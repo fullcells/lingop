@@ -62,6 +62,7 @@ export function guessCampLingoCurrency(): CampLingoCurrency {
 }
 
 export type CampLingoBillingAction = "checkout" | "portal" | "downgrade" | "undo-change";
+const membershipRequests = new Map<string, Promise<unknown>>();
 /** Only accepts a Supabase access token; customer IDs and amounts are resolved by the server. */
 export async function requestCampLingoBilling<T>(path: string, options: {
   apiBaseUrl?: string;
@@ -69,13 +70,34 @@ export async function requestCampLingoBilling<T>(path: string, options: {
   body?: Record<string, unknown>;
   signal?: AbortSignal;
 } = {}): Promise<T> {
-  const response = await fetch(`${(options.apiBaseUrl ?? "https://camplingo.com").replace(/\/$/, "")}/api/billing/${path}`, {
+  // The return-to-app provider and pricing UI can refresh together. Share only
+  // in-flight requests, scoped to this token and service, without caching results.
+  const key = path === "membership" && options.accessToken && !options.body && !options.signal
+    ? JSON.stringify([options.apiBaseUrl ?? "https://camplingo.com", options.accessToken]) : null;
+  if (key) {
+    const existing = membershipRequests.get(key);
+    if (existing) return existing as Promise<T>;
+    const request = fetchCampLingoBilling<T>(path, options);
+    membershipRequests.set(key, request);
+    try { return await request; } finally { membershipRequests.delete(key); }
+  }
+  return fetchCampLingoBilling<T>(path, options);
+}
+
+async function fetchCampLingoBilling<T>(path: string, options: {
+  apiBaseUrl?: string; accessToken?: string; body?: Record<string, unknown>; signal?: AbortSignal;
+}): Promise<T> {
+  let response: Response;
+  try { response = await fetch(`${(options.apiBaseUrl ?? "https://camplingo.com").replace(/\/$/, "")}/api/billing/${path}`, {
     method: options.body ? "POST" : "GET",
     headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.accessToken ? { Authorization: `Bearer ${options.accessToken}` } : {}) },
     ...(options.body ? { body: JSON.stringify(options.body) } : {}),
     ...(options.signal ? { signal: options.signal } : {}),
-  });
-  const data = await response.json();
+  }); } catch (error) {
+    if (options.signal?.aborted) throw error;
+    throw new Error("Unable to connect to billing. Please check your connection and try again.");
+  }
+  const data = await response.json().catch(() => { throw new Error("Billing is temporarily unavailable. Please try again."); });
   if (!response.ok) throw new Error(data.error || "Unable to load billing. Please try again.");
   return data as T;
 }
