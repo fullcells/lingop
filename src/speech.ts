@@ -29,3 +29,6 @@ export type {
   APIVoiceAccessProfile,
   SpeechSynthTTSOptions,
 } from "./speech/shared.js";
+
+export { segmentSpeechText } from "./speech/text-segments.js";
+export type { SpeechTextSegment } from "./speech/text-segments.js";

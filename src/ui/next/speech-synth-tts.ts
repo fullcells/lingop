@@ -1,3 +1,4 @@
+import { segmentSpeechText } from "../../speech/text-segments.js";
 import { LANGS } from "../../core/language/data/langs.js";
 import { ilike } from "../../core/misc.js";
 import type { ContentReference } from "../../core/misc.js";
@@ -492,26 +493,67 @@ export async function getActiveVoiceForLang(
   return voiceOptions.available.voices[0] ?? null;
 }
 
+export type SpeechSynthSpeakRequest = {
+  text: string;
+  lang: string;
+  /** Language for embedded CJK words in an English explanation. */
+  embeddedLang?: string | undefined;
+  /** Optional embedded-word voice, without changing saved preferences. */
+  embeddedVoiceOverride?: SpeechSynthTTSVoice | undefined;
+  /** Cancels the whole explanation, including subsequent language fragments. */
+  signal?: AbortSignal | undefined;
+  /** Reports loading until audio starts, and again when cloud playback buffers. */
+  onLoadingChange?: ((isLoading: boolean) => void) | undefined;
+  apiVoiceAccessProfile: APIVoiceAccessProfile;
+  contentContext?: ContentContext | undefined;
+  ref?: ContentReference | undefined;
+  /** Plays an available voice without changing the user's saved preference. */
+  voiceOverride?: SpeechSynthTTSVoice | undefined;
+} & SpeechSynthTTSOptions;
+
 export async function speak({
+  embeddedLang,
+  embeddedVoiceOverride,
+  onLoadingChange,
+  ...request
+}: SpeechSynthSpeakRequest): Promise<void> {
+  const loading = (isLoading: boolean) => {
+    if (isLoading && request.signal?.aborted) return;
+    onLoadingChange?.(isLoading);
+  };
+  const onAbort = () => loading(false);
+  request.signal?.addEventListener("abort", onAbort, { once: true });
+  try {
+    for (const segment of segmentSpeechText({ ...request, embeddedLang })) {
+      if (request.signal?.aborted) return;
+      loading(true);
+      const completed = await speakSingle({
+        ...request,
+        ...segment,
+        onLoadingChange: loading,
+        voiceOverride: segment.lang === request.lang
+          ? request.voiceOverride : embeddedVoiceOverride,
+      });
+      if (!completed) return;
+    }
+  } finally {
+    request.signal?.removeEventListener("abort", onAbort);
+    loading(false);
+  }
+}
+
+async function speakSingle({
   text,
   lang,
   apiVoiceAccessProfile,
   contentContext,
   ref,
   voiceOverride,
+  signal,
+  onLoadingChange,
   ...options
-}: {
-  text: string;
-  lang: string;
-  apiVoiceAccessProfile: APIVoiceAccessProfile;
-  contentContext?: ContentContext | undefined;
-  ref?: ContentReference | undefined;
-  /**
-   * Plays one currently available voice without changing the user's saved
-   * preference. The access profile still governs whether the voice is usable.
-   */
-  voiceOverride?: SpeechSynthTTSVoice | undefined;
-} & SpeechSynthTTSOptions): Promise<void> {
+}: SpeechSynthSpeakRequest): Promise<boolean> {
+  if (signal?.aborted) return false;
   let voice: SpeechSynthTTSVoice | null = null;
   if (voiceOverride) {
     const voiceOptions = await getVoiceOptionsForLang(
@@ -529,15 +571,17 @@ export async function speak({
       console.error(
         `Voice override '${voiceOverride.voice_id}' is not available for lang '${lang}' under the active voice-access profile.`,
       );
-      return;
+      return false;
     }
   } else {
     voice = await getActiveVoiceForLang(lang, apiVoiceAccessProfile, options);
   }
   if (!voice) {
     console.error(`Lang '${lang}' does not have an available voice.`);
-    return;
+    return false;
   }
+
+  if (signal?.aborted) return false;
 
   // YUE OVERRIDE TO USE API VOICE IF AVAILABLE FOR PROBLEMATIC TEXTS // Potential Future: Browser Voices Improvement: 1. Brute forces-replace characters that should almost always be pronounced a certain way but are currently pronounced incorrectly [彈,近,抹]. 2. We feed in an optional AText - and use the 'spelling' there.
   if (!voiceOverride && ilike(lang, "yue")) {
@@ -545,8 +589,7 @@ export async function speak({
       const voiceOptions = await getVoiceOptionsForLang(lang, apiVoiceAccessProfile, options);
       const cloudVoice = voiceOptions.available.voices.find((v) => v.service !== "BROWSER");
       if (cloudVoice) {
-        await speakAPIVoice({ text, lang, contentContext, ref, voice: cloudVoice, ...options });
-        return;
+        return speakAPIVoice({ text, lang, contentContext, ref, voice: cloudVoice, signal, onLoadingChange, ...options });
       }
     }
   }
@@ -556,7 +599,7 @@ export async function speak({
   // BROWSER VOICE
   if (voice.service == "BROWSER") {
     try {
-      await speakBrowserVoice(text, lang, voice);
+      return await speakBrowserVoice(text, lang, voice, signal, onLoadingChange);
     } catch (error) {
       // NONE is a browser-only access contract, so recovery must not trigger a remote request.
       if (
@@ -567,24 +610,23 @@ export async function speak({
         const voiceOptions = await getVoiceOptionsForLang(lang, apiVoiceAccessProfile, options);
         const fallbackVoice = voiceOptions.available.voices.find((v) => v.service !== "BROWSER");
         if (fallbackVoice) {
-          await speakAPIVoice({
+          return speakAPIVoice({
             text,
             lang,
             contentContext,
             ref,
             voice: fallbackVoice,
+            signal,
+            onLoadingChange,
             ...options,
           });
-          return;
         }
       }
       throw error;
     }
   }
   // API VOICE
-  if (voice.service !== "BROWSER") {
-    await speakAPIVoice({ text, lang, contentContext, ref, voice, ...options });
-  }
+  return speakAPIVoice({ text, lang, contentContext, ref, voice, signal, onLoadingChange, ...options });
 }
 
 /**
@@ -656,36 +698,55 @@ async function preloadSpeechFile(fileURL: string): Promise<HTMLAudioElement> {
   }
 }
 
-async function playSpeechFile(fileURL: string): Promise<void> {
+async function playSpeechFile(
+  fileURL: string,
+  signal?: AbortSignal,
+  onLoadingChange?: (isLoading: boolean) => void,
+): Promise<boolean> {
+  onLoadingChange?.(true);
   const audio = audioPreloadCache.get(fileURL) ?? await preloadSpeechFile(fileURL);
+  if (signal?.aborted) return false;
   // If this same element was played before, reset it
   audio.currentTime = 0;
   // Speed
   audio.playbackRate = getUserPreferredVoiceSpeed();
   // Play
-  await new Promise<void>((resolve) => {
+  return new Promise<boolean>((resolve) => {
     const cleanup = () => {
       audio.removeEventListener("ended", onEnded);
       audio.removeEventListener("error", onError);
+      audio.removeEventListener("playing", onPlaying);
+      audio.removeEventListener("waiting", onWaiting);
+      signal?.removeEventListener("abort", onAbort);
     };
 
+    const onPlaying = () => onLoadingChange?.(false);
+    const onWaiting = () => onLoadingChange?.(true);
     const onEnded = () => {
       cleanup();
-      resolve();
+      resolve(true);
     };
     const onError = (e: Event) => {
       console.error("Audio playback failed", fileURL, e);
       cleanup();
-      resolve(); // keep your "brute force resolve" behavior
+      resolve(false);
     };
 
+    const onAbort = () => {
+      cleanup();
+      audio.pause();
+      resolve(false);
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+    audio.addEventListener("playing", onPlaying);
+    audio.addEventListener("waiting", onWaiting);
     audio.addEventListener("ended", onEnded, { once: true });
     audio.addEventListener("error", onError, { once: true });
 
     audio.play().catch((err: unknown) => {
       console.error("audio.play() failed", fileURL, err);
       cleanup();
-      resolve();
+      resolve(false);
     });
   });
 }
@@ -696,6 +757,8 @@ async function speakAPIVoice({
   contentContext,
   ref,
   voice,
+  signal,
+  onLoadingChange,
   ...options
 }: {
   text: string;
@@ -703,15 +766,19 @@ async function speakAPIVoice({
   contentContext?: ContentContext | undefined;
   ref?: ContentReference | undefined;
   voice: SpeechSynthTTSVoice;
-} & SpeechSynthTTSOptions): Promise<void> {
+  signal?: AbortSignal | undefined;
+  onLoadingChange?: ((isLoading: boolean) => void) | undefined;
+} & SpeechSynthTTSOptions): Promise<boolean> {
+  onLoadingChange?.(true);
   // Get SpeechFileURL
   const fileURL = await getSpeechFileURL({ text, lang, contentContext, ref, voice, ...options });
-  if (!fileURL) return;
+  if (!fileURL || signal?.aborted) return false;
   // Play Speech File
   try {
-    await playSpeechFile(fileURL);
+    return await playSpeechFile(fileURL, signal, onLoadingChange);
   } catch (err) {
     console.error("Could not play speech file:", err);
+    return false;
   }
 }
 
@@ -744,50 +811,68 @@ async function speakBrowserUtterance(
   text: string,
   voice: SpeechSynthesisVoice,
   rate: number,
-): Promise<void> {
+  signal?: AbortSignal,
+  onLoadingChange?: (isLoading: boolean) => void,
+): Promise<boolean> {
+  if (signal?.aborted) return false;
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.voice = voice;
+  utterance.lang = voice.lang;
   utterance.rate = rate;
 
-  await new Promise<void>((resolve, reject) => {
+  return new Promise<boolean>((resolve, reject) => {
     let started = false;
     let settled = false;
-    const startTimeoutId = setTimeout(() => {
-      if (settled || started) return;
-      settled = true;
+    const cleanup = () => {
+      clearTimeout(startTimeoutId);
+      signal?.removeEventListener("abort", onAbort);
       utterance.onstart = null;
       utterance.onend = null;
       utterance.onerror = null;
+    };
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      speechSynthesis.cancel();
+      resolve(false);
+    };
+    const startTimeoutId = setTimeout(() => {
+      if (settled || started) return;
+      settled = true;
+      cleanup();
       reject(new BrowserSpeechStartTimeoutError());
     }, BROWSER_SPEECH_START_TIMEOUT_MS);
 
     utterance.onstart = () => {
       started = true;
       clearTimeout(startTimeoutId);
+      onLoadingChange?.(false);
     };
     utterance.onend = () => {
       if (settled) return;
       settled = true;
-      clearTimeout(startTimeoutId);
+      cleanup();
       if (!started) {
         reject(new BrowserSpeechStartTimeoutError());
-        return;
+        return false;
       }
-      resolve();
+      resolve(true);
     };
     utterance.onerror = (event) => {
       if (settled) return;
       settled = true;
-      clearTimeout(startTimeoutId);
+      cleanup();
       // Starting speech elsewhere intentionally interrupts the current
       // utterance. Treat that as normal early completion so callers can clear
       // their playback state without masking genuine synthesis failures.
       if (event.error === "interrupted" || event.error === "canceled") {
-        resolve();
-        return;
+        resolve(false);
+        return false;
       }
       reject(new Error(`Browser speech synthesis failed: ${event.error}`, { cause: event }));
     };
+    signal?.addEventListener("abort", onAbort, { once: true });
     speechSynthesis.speak(utterance);
   });
 }
@@ -796,10 +881,13 @@ async function speakBrowserVoice(
   text: string,
   lang: string,
   voice: SpeechSynthTTSVoice,
-): Promise<void> {
+  signal?: AbortSignal,
+  onLoadingChange?: (isLoading: boolean) => void,
+): Promise<boolean> {
+  if (signal?.aborted) return false;
   if (typeof speechSynthesis === "undefined" || typeof SpeechSynthesisUtterance === "undefined") {
     console.error("Browser speech synthesis is not available.");
-    return;
+    return false;
   }
 
   // Get browser voice
@@ -838,8 +926,9 @@ async function speakBrowserVoice(
   // If Chrome accepts the utterance but never starts it, discard cached voice
   // objects, reset the engine, and retry once with a fresh voice object.
   try {
-    await speakBrowserUtterance(text, speechSynthVoice, speed);
+    return await speakBrowserUtterance(text, speechSynthVoice, speed, signal, onLoadingChange);
   } catch (error) {
+    if (signal?.aborted) return false;
     if (!(error instanceof BrowserSpeechStartTimeoutError)) throw error;
 
     await resetBrowserSpeechSynthesis();
@@ -849,7 +938,7 @@ async function speakBrowserVoice(
     if (!speechSynthVoice) {
       throw new Error(`Browser voice could not be reacquired: ${voice.voice_id}`, { cause: error });
     }
-    await speakBrowserUtterance(text, speechSynthVoice, speed);
+    return await speakBrowserUtterance(text, speechSynthVoice, speed, signal, onLoadingChange);
   }
 }
 

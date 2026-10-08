@@ -1170,6 +1170,39 @@ await speechSynthTTS.speak({
 });
 ```
 
+For English word explanations that contain Cantonese or Japanese words, pass
+`embeddedLang` explicitly so Han characters use the learning language rather
+than the English voice's language guess:
+
+```ts
+const abortController = new AbortController();
+await speechSynthTTS.speak({
+  text: "Contraction of 嘅呀, meaning it is so.",
+  lang: "en",
+  embeddedLang: "yue",
+  apiVoiceAccessProfile: "ONE_PER_LANG",
+  contentContext: "LIMITED_TEMP_ANON",
+  signal: abortController.signal,
+});
+```
+
+English and embedded CJK fragments play in order using each language's preferred
+voice and the same access profile. `embeddedVoiceOverride` selects an available
+voice for the embedded words without saving a preference; `voiceOverride` still
+selects the English voice. `signal` stops the whole sequence, including pending
+cloud playback. Existing calls without `embeddedLang` keep their single-language
+behavior. This currently supports English explanations with Japanese, Cantonese,
+or Chinese scripts; Latin-script language pairs need explicit word boundaries
+and are left unchanged. Use this for dynamic TTS, not a reference to an existing
+recording. The pure `segmentSpeechText` helper is also exported from
+`lingop/speech` for other platform adapters.
+
+`onLoadingChange(isLoading)` reports voice discovery, cloud metadata and audio
+buffering. It becomes false on browser utterance start or cloud audio `playing`,
+true on audio `waiting`, and false on completion, error or cancellation. Apps can
+use this optional callback to display a loading indicator without accessing
+Lingop's internal audio element.
+
 For `MEMBER_CONTENT`, pass the app's Supabase client: `speak({ ..., contentContext: "MEMBER_CONTENT", supabaseClient })`.
 
 ## Legacy Code Migration Notes
