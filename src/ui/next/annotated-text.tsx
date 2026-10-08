@@ -42,6 +42,7 @@ import {
   getMainScriptReadingGuideToken,
   getSpellingContent,
   getWordExplanationsForWord,
+  isLangWordSpaced,
   SpellingSystemsByLang,
   type SpellingSystem,
 } from "../../core/language/index.js";
@@ -435,6 +436,7 @@ function TokenSpellingAndMainView({
       <TokenMainTextSpan
         astyle={astyle}
         isWord={isWordToken(token)}
+        lang={annotatedText.lang}
         mainLangFont={mainLangFont}
       >
         {token.text}
@@ -464,6 +466,7 @@ function TokenSpellingAndMainView({
           <TokenMainTextSpan
             astyle={astyle}
             isWord={false}
+            lang={annotatedText.lang}
             mainLangFont={mainLangFont}
           >
             {token.text}
@@ -536,6 +539,7 @@ function TokenPhoneticPartView({
 }): ReactNode {
   const chars = part?.[0] ?? tokenText;
   const backendSpelling = part?.[1];
+  const isWordSpace = isLangWordSpaced(lang) === true && /^\s+$/.test(chars);
   const formatSignature = [
     lang,
     chars,
@@ -547,12 +551,16 @@ function TokenPhoneticPartView({
     signature: string;
     value: string;
   } | null>(null);
-  const standaloneSpelling = part
-    ? phoneticPartToSpelling(part, lang, showMainText)
-    : visuallyEmpty;
+  const standaloneSpelling = isWordSpace
+    ? chars
+    : part
+      ? phoneticPartToSpelling(part, lang, showMainText)
+      : visuallyEmpty;
 
   useEffect(() => {
-    if (spellingSystem === undefined) return;
+    // Script word separators must survive spelling-system conversion too,
+    // especially when the spelling row is the only visible text.
+    if (spellingSystem === undefined || isWordSpace) return;
     let cancelled = false;
     const currentPart: PhoneticPart | null = part
       ? backendSpelling === undefined
@@ -593,6 +601,7 @@ function TokenPhoneticPartView({
     backendSpelling,
     chars,
     formatSignature,
+    isWordSpace,
     lang,
     part,
     showMainText,
@@ -628,6 +637,7 @@ function TokenPhoneticPartView({
         <TokenMainTextSpan
           astyle={astyle}
           isWord
+          lang={lang}
           mainLangFont={mainLangFont}
         >
           {chars}
@@ -664,6 +674,7 @@ function TokenSpellingTextSpan({
         boxSizing: "border-box",
         textAlign: "center",
         userSelect: "none",
+        whiteSpace: isLangWordSpaced(lang) === true ? "pre" : undefined,
         fontSize: `${localSpellingSize}px`,
         color: showMainText ? astyle.spellingColor : "#000",
         ...(astyle.spellingTextTransform
@@ -697,11 +708,13 @@ function TokenMainTextSpan({
   astyle,
   children,
   isWord,
+  lang,
   mainLangFont,
 }: {
   astyle: ResolvedAnnotatedTextStyle;
   children: ReactNode;
   isWord: boolean;
+  lang: string;
   mainLangFont: string | undefined;
 }): ReactNode {
   return (
@@ -709,6 +722,9 @@ function TokenMainTextSpan({
       className="main-text"
       style={{
         lineHeight: "1em",
+        // Whitespace-only phonetic parts are flex items. Preserve their width
+        // for word-spaced scripts, including phrases inside one word token.
+        whiteSpace: isLangWordSpaced(lang) === true ? "pre" : undefined,
         opacity: isWord ? 1 : 0.8,
         color: astyle.mainTextColor,
         fontSize: `${astyle.mainTextSize}px`,

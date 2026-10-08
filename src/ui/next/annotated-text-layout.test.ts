@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnnotatedText } from "../../core/annotation/types.js";
 import { AnnotatedTextView } from "./annotated-text.js";
+import { formatL10nWordAsAnnotatedText } from "./l10n-word-detail-utils.js";
 
 const annotatedText: AnnotatedText = {
   lang: "zh",
@@ -102,4 +103,69 @@ describe("AnnotatedTextView row layout", () => {
       );
     },
   );
+});
+
+describe("AnnotatedTextView word spaces", () => {
+  // Stored English phrases include whitespace-only phonetic parts. Normal CSS
+  // whitespace collapses those flex items to zero width, joining the words.
+  const phrase: AnnotatedText = {
+    lang: "en",
+    lang_text: "what kind of",
+    tokens: [{
+      text: "what kind of",
+      isWord: 1,
+      gloss: "what kind of",
+      phoneticToken: [["what", "whăt"], [" "], ["kind", "kînd"], [" "], ["of", "ŏf"]],
+    }],
+    containsGloss: true,
+    containsPhonetics: true,
+    ref: null,
+    owner_id: null,
+  };
+
+  it.each([16, 32])("preserves phrase spaces at a main-text size of %ipx", (mainTextSize) => {
+    const wordDetail = formatL10nWordAsAnnotatedText(phrase)!;
+    const html = renderToStaticMarkup(createElement(AnnotatedTextView, {
+      annotatedText: mainTextSize === 32 ? wordDetail.annotatedText : phrase,
+      astyle: { mainTextSize },
+      showGlossEmoji: "NEVER",
+    }));
+
+    expect(html.match(/class="main-text"[^>]*white-space:pre[^>]*> <\/span>/g)).toHaveLength(2);
+    expect(html.match(/class="phonic-spelling"[^>]*white-space:pre[^>]*> <\/span>/g)).toHaveLength(2);
+  });
+
+  it("preserves phrase spaces in spelling-only mode", () => {
+    const html = renderToStaticMarkup(createElement(AnnotatedTextView, {
+      annotatedText: phrase,
+      showMainText: false,
+      showGlossEmoji: "NEVER",
+    }));
+
+    expect(html).not.toContain('class="main-text"');
+    expect(html.match(/class="phonic-spelling"[^>]*white-space:pre[^>]*> <\/span>/g)).toHaveLength(2);
+  });
+
+  it("preserves separate space tokens without phonetics", () => {
+    const html = renderToStaticMarkup(createElement(AnnotatedTextView, {
+      annotatedText: {
+        ...phrase,
+        tokens: [{ text: "what", isWord: 1 }, { text: " ", isWord: 0 }, { text: "kind", isWord: 1 }],
+        containsPhonetics: false,
+        containsGloss: false,
+      },
+    }));
+
+    expect(html.match(/class="main-text"[^>]*white-space:pre[^>]*> <\/span>/g)).toHaveLength(1);
+  });
+
+  it.each(["ja", "th", "unknown"])("does not infer word spaces for %s", (lang) => {
+    const html = renderToStaticMarkup(createElement(AnnotatedTextView, {
+      annotatedText: { ...phrase, lang },
+      showGlossEmoji: "NEVER",
+    }));
+
+    expect(html).not.toContain("white-space:pre");
+    expect(html).not.toContain("column-gap:");
+  });
 });
