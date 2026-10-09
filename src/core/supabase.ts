@@ -11,6 +11,7 @@ export type SupabaseQueryLike<T = unknown[]> =
     eq(column: string, value: unknown): SupabaseQueryLike<T>;
     ilike(column: string, value: string): SupabaseQueryLike<T>;
     in(column: string, values: unknown[]): SupabaseQueryLike<T>;
+    filter(column: string, operator: string, value: unknown): SupabaseQueryLike<T>;
     is(column: string, value: unknown): SupabaseQueryLike<T>;
     order(column: string, options?: { ascending?: boolean }): SupabaseQueryLike<T>;
     range(from: number, to: number): SupabaseQueryLike<T>;

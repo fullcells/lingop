@@ -90,6 +90,14 @@ import {
   type WordListsV3ReadOptions,
   type WordListsV3TraversalOptions,
 } from "./word-lists-v3.js";
+import {
+  clearWordScoresCache,
+  getWordScores,
+  loadWordScoreKeys,
+  type WordScoreKey,
+  type WordScoresByWord,
+  type WordScoresReadOptions,
+} from "./word-scores.js";
 
 const emojiCoreWordResolvers = new WeakMap<object, IsNotCoreWord>();
 
@@ -241,6 +249,12 @@ export type LingoDataClient = {
   ): Promise<string[]>;
   /** Invalidates all v3 reads associated with this client's Supabase instance. */
   clearWordListsV3Cache(): void;
+  /** Loads public scoring methods, including their preferred sort direction. */
+  loadWordScoreKeys(options?: WordScoresReadOptions): Promise<WordScoreKey[]>;
+  /** Exact word-score lookups, batched and cached across overlapping word lists. */
+  getWordScores(words: readonly string[], lang: string, scoreKeyId: number, options?: WordScoresReadOptions): Promise<WordScoresByWord>;
+  /** Invalidates this Supabase client's scoring methods and word scores after edits. */
+  clearWordScoresCache(): void;
   /** Loads and caches Supabase emoji rows. */
   loadEmojiData(): Promise<EmojiRow[]>;
   /** Warms emoji rows and the supporting non-core-word cache. */
@@ -1421,6 +1435,13 @@ export function createLingoDataClient({
       getDescendantL10nsOfWordListsV3(listIds, lang, { ...options, supabaseClient: runtimeSupabaseClient }),
     clearWordListsV3Cache: () => {
       if (runtimeSupabaseClient) clearWordListsV3Cache(runtimeSupabaseClient);
+    },
+    loadWordScoreKeys: (options = {}) =>
+      loadWordScoreKeys({ ...options, supabaseClient: runtimeSupabaseClient }),
+    getWordScores: (words, lang, scoreKeyId, options = {}) =>
+      getWordScores(words, lang, scoreKeyId, { ...options, supabaseClient: runtimeSupabaseClient }),
+    clearWordScoresCache: () => {
+      if (runtimeSupabaseClient) clearWordScoresCache(runtimeSupabaseClient);
     },
     loadEmojiData: () =>
       loadEmojiData({

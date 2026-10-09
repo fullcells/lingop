@@ -404,6 +404,7 @@ Low-level annotation API calls, `callAnnotate_storedForOwner()` remains public a
 - `loadWordLists()`, `loadWordListMetaData()`, and `loadSBCacheWordListsForLang(lang)`: load and cache public word-list source and localization rows. They use the injected Supabase client but do not inspect or require an authenticated user.
 - `loadWordListMetaDataV3()`, `loadWordListsV3(lang)`, `getWordListL10nV3(listId, lang)`, and `getDescendantL10nsOfWordListsV3(listIds, lang)`: read exclusively from `word_lists_v3`, `word_list_words`, and `word_list_sublists`. These functions have no dependency on `word_lists` or `cache_word_list_l10n_words` and will continue working when those legacy tables are removed. See the v3 migration example below.
 - `clearWordListsV3Cache()`: invalidate this Supabase client's v3 catalog and language data after editing lists, words, or sublist relationships.
+- `loadWordScoreKeys()`, `getWordScores(words, lang, scoreKeyId)`, and `clearWordScoresCache()`: load scoring methods and batched, cached word scores. Use the standalone `sortWordsByScore()` helper to order and display scored words. See the scoring example below.
 - `preloadEmojiData()`, `loadEmojiData()`, `generateEmoji(en_gloss, study_word?, study_lang?)`, and `generateEmojis(en_glosses)`: warm Lingop's persistent browser cache, load shared Supabase emoji rows, and generate emoji text for English glosses. `preloadEmojiData()` also warms the small non-core-word dataset used to resolve compound or non-exact glosses. `generateEmojis()` deduplicates a view's glosses, initiates that preload itself, and resolves all results as one keyed batch. Cached emoji rows survive page reloads and browser restarts; stale data is served immediately while Lingop checks the row count and newest `created_at` value in the background. When editing an existing emoji row, advance its `created_at` value so clients detect the revision.
 - `isNotCoreWord(word_lang, word, gloss?)`, `getSBWordsForLangDir(word_lang, gloss_lang)`, `refreshCoreSBWordsCache(word_lang, gloss_lang)`, and `fetchAndGenGloss({ source_lang, source_word, target_lang })`: use the shared SBWords cache for core-word checks and one-word gloss generation.
 - `getHancharDecomposition(literal)`: returns one Unicode character's canonical component tree and available Japanese, Cantonese, and Mandarin readings from the public Han-character dataset. Repeated successful lookups are cached by the client instance.
@@ -497,6 +498,85 @@ The same v3 read functions are exported directly from `lingop/core` and accept
 caches when omitted. A configured Supabase client is required; no authenticated
 user is required for these public tables. V3 cache invalidation is independent of
 the legacy `clearWordListsCache()`.
+
+### Word scores and list ordering
+
+Scoring reads use `word_score_keys` (`id,title,sort_direction,updated_at`) and
+`word_scores` (`lang,word,score_key_id,value`). Words match **exactly by language
+and text**, including any stored explicitation markers. These APIs do not generate
+scores, normalize spelling, translate words, or change saved list positions.
+
+```ts
+import { createLingoDataClient, sortWordsByScore } from "lingop/core";
+
+const lingoData = createLingoDataClient({ supabaseClient }); // Reuse your existing client.
+const methods = await lingoData.loadWordScoreKeys(); // Populate the score-method picker.
+const method = methods.find(row => row.id === selectedScoreKeyId);
+if (!method) throw new Error("Choose an available scoring method.");
+
+const words = await lingoData.getDescendantL10nsOfWordListsV3(
+  selectedListIds, focusLang, { throwOnCycle: true },
+);
+const scores = await lingoData.getWordScores(words, focusLang, method.id);
+const ordered = sortWordsByScore(words, scores, method.sort_direction);
+// [{ word: "公仔麵", value: 1 }, ..., { word: "an unscored word", value: null }]
+// Display each value as its source score; it is not a newly assigned rank in this list.
+
+// After an editor finishes writing scores or changing a method's title/direction:
+lingoData.clearWordScoresCache();
+```
+
+- `loadWordScoreKeys(options?)` returns copied metadata ordered by stable numeric
+  ID. Store the ID in selections; titles are editable.
+- `getWordScores(words, lang, scoreKeyId, options?)` returns a new
+  `Map<string, number | null>` in first-input order. Duplicate input words are
+  looked up once. A missing row is `null`; zero, negative, and fractional scores
+  retain their numeric values. Choose a valid key from `loadWordScoreKeys`:
+  an unknown key has no matching scores and therefore returns nulls.
+- `sortWordsByScore(words, scores, direction)` is synchronous and does not mutate
+  its inputs. It returns `{ word, value }[]`, keeps duplicates if supplied, puts
+  missing scores last in either direction, and preserves input order for ties.
+  Re-sorting the same loaded scores makes no network requests.
+- All read APIs are also standalone exports from `lingop/core`, accepting
+  `{ supabaseClient, maxAgeMs?, forceRefresh? }` as their final argument. The shared
+  client methods accept the same options without `supabaseClient`.
+
+**Large lists and frequent reads:** lookups fetch only the requested words for one
+language/key, rather than downloading an entire corpus or requesting each word
+separately. IN filters contain at most 100 words and roughly 3,000 encoded
+characters, with four active score batches per Supabase client. Very long
+individual entries that exceed this filter budget reject explicitly. Queries are
+ordered and paginated, including when the server's row cap is smaller than the
+requested page. Text literals are escaped for PostgREST filters.
+
+Successful scores and confirmed missing rows are cached individually for five
+minutes, so overlapping lists reuse them. Identical pending lookups share work.
+The cache retains at most 20,000 word/language/key entries per Supabase client,
+evicting least recently used entries; larger reads still return all requested
+results. Scoring-method metadata has the same default TTL. Returned Maps and
+metadata can be edited without corrupting the cache. Failures reject and remain
+retryable; a failed batch never becomes a set of cached "missing" values.
+
+Use `{ maxAgeMs: 0 }` to bypass settled values, or another finite non-negative TTL.
+`{ forceRefresh: true }` or `clearWordScoresCache()` invalidates both scoring
+caches for that Supabase instance; older pending reads cannot refill the new
+cache. The standalone `clearWordScoresCache(supabaseClient?)` can clear one client
+or all clients. List caches are separate. Reads across batches are not a
+transactional snapshot, so finish imports before refreshing consumers. The
+key's `updated_at` is metadata, not automatic score-change detection: score rows
+have no timestamp and may change without the key changing.
+
+Caches are **in memory**, shared only by calls using the same Supabase instance.
+They do not survive a full browser reload or automatically share across visitors,
+server processes, or devices. Public pages with substantial repeated traffic
+should cache their public list/score response in the consumer's server/CDN with
+an appropriate expiry or invalidation policy. This layer does not introduce a
+database cache table, framework-specific caching, or persistent browser storage.
+The current `(lang, word, score_key_id)` primary key supports these exact lookups.
+
+Scores are JavaScript numbers: finite values are required and unsafe integers
+reject. Normal floating-point precision applies to fractions; arbitrary-precision
+Postgres numeric calculations are not provided by these APIs.
 
 The client also exposes two owned cache references for advanced callers:
 
