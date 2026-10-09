@@ -1,0 +1,64 @@
+name: Release prebuilt lingop
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing version tag to release (for example v0.7.953)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Check tag matches package version
+        run: |
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const { version } = JSON.parse(readFileSync("package.json", "utf8"));
+            if (!/^\d+\.\d+\.\d+$/.test(version) || process.env.RELEASE_TAG !== `v${version}`) {
+              throw new Error("Release tag must match the stable package version");
+            }
+          '
+      - name: Install build dependencies without preparing twice
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Test updater
+        run: npm run test:release
+      - name: Build and package once
+        run: npm run release:pack
+      - name: Test library
+        run: npx --no-install vitest run
+      - name: Verify installed package
+        run: npm run release:smoke
+      - name: Publish prebuilt asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          VERSION="${RELEASE_TAG#v}"
+          ASSET="releases/lingop-${VERSION}.tgz"
+          gh release create "$RELEASE_TAG" "$ASSET" --verify-tag --title "lingop $VERSION" --generate-notes --latest

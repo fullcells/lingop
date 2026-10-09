@@ -358,17 +358,76 @@ styles. Consumers can override the isolated `lingop-word-list-view*` classes.
 
 ## Install
 
-- `npm install lingop@github:fullcells/lingop#v0.3.X` // Installs Directly from Github // Replace `X` with version number.
+Use the prebuilt package attached to a [GitHub Release](https://github.com/fullcells/lingop/releases).
+For the first install or migration from a Git dependency:
 
-// To update existing lingop if outdated (`npm ls lingop` shows version number)
-- `npm update lingop`
+```sh
+npm install https://github.com/fullcells/lingop/releases/download/v0.7.953/lingop-0.7.953.tgz
+```
 
-Release tags follow the package version in `package.json`, so `0.3.X` is published as `v0.3.X`.
+Replace both version numbers when selecting a different release. These are public
+downloads; consumers do not need a GitHub account, token, or registry configuration.
+The archive includes compiled JavaScript, declarations, fonts, and stroke data.
+It does not compile lingop or install its build-time dependencies on the consumer.
 
-## To Tag a New Version
+Add this to the consumer's existing `package.json` scripts:
 
-- Commit and push everything first
-- `VERSION=v0.7.XX; git tag -a "$VERSION" -m "Release $VERSION" && git push origin "$VERSION"`
+```json
+"update:lingop": "lingop-update"
+```
+
+```sh
+npm run update:lingop                 # Latest stable GitHub Release
+npm run update:lingop -- --check       # Show latest release without changing files
+npm run update:lingop -- 0.7.953       # Select a specific version, including rollback
+```
+
+The updater ships inside lingop and updates along with it. Run it from the
+consumer's package directory. It preserves whether lingop is a production,
+development, or optional dependency and saves a version-specific archive URL.
+Commit `package.json` and `package-lock.json` together. Regular installs and
+deployments continue to use `npm ci`; do not run the updater automatically during
+builds. `npm update lingop` does not discover new versions of an archive URL.
+Release discovery uses GitHub's anonymous API (60 requests/hour per public IP);
+normal installs of an already pinned URL do not perform this lookup.
+
+Migration is per consumer: existing `github:fullcells/lingop` dependencies and
+their source-build `prepare` hook remain supported. Imports do not change.
+
+## Release a New Version
+
+1. Update the version in `package.json` and `package-lock.json` (for example,
+   `npm version patch --no-git-tag-version --ignore-scripts`).
+2. Commit and push the source changes, then push a matching `vX.Y.Z` tag.
+3. The **Release prebuilt lingop** GitHub Actions workflow builds, tests, packages,
+   verifies a clean installation, and publishes `lingop-X.Y.Z.tgz` on the release.
+
+For example, after committing and pushing version `0.7.953`:
+
+```sh
+git tag -a v0.7.953 -m "Release v0.7.953"
+git push origin v0.7.953
+```
+
+The workflow can also be run manually against an existing version tag. GitHub
+provides its publishing token automatically; no personal token or npm registry
+account is required. A version is available to archive consumers only after the
+workflow succeeds. Do not delete old release assets or replace a published
+version: pinned consumer builds depend on those exact archives. Publish a new
+version for fixes. The workflow deliberately fails if the release already exists.
+
+Local release checks:
+
+```sh
+npm run test:release
+npm run release:pack
+npm run release:smoke
+```
+
+`release:pack` builds once and creates the archive under ignored `releases/`.
+Only the archive's manifest omits build scripts and development dependencies;
+the source manifest retains them for Git consumers. GitHub's automatic source
+ZIP/tar downloads are not substitutes for the prebuilt `.tgz` asset.
 
 ## Lingo Data Usage
 

@@ -20,10 +20,12 @@ describe("shared learning content", () => {
   });
 
   it("exports the complete LingoDex dataset and derived indexes", () => {
-    expect(LingoDexData).toHaveLength(1197);
-    expect(lingoDexProcessableTexts).toHaveLength(4070);
-    expect(LingoDexData[0]?.devref).toBe("#00001");
+    // The October 3 dataset revision retired #00001 and revised its texts.
+    expect(LingoDexData).toHaveLength(1196);
+    expect(lingoDexProcessableTexts).toHaveLength(4067);
+    expect(LingoDexData[0]?.devref).toBe("#00002");
     expect(LingoDexData.at(-1)?.devref).toBe("#01095");
-    expect(lingoDexEntryByDevRef["#00001"]).toBe(LingoDexData[0]);
+    expect(lingoDexEntryByDevRef["#00001"]).toBeUndefined();
+    expect(lingoDexEntryByDevRef["#00002"]).toBe(LingoDexData[0]);
   });
 });

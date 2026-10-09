@@ -1,6 +1,6 @@
 {
   "name": "lingop",
-  "version": "0.7.952",
+  "version": "0.7.953",
   "description": "Shared TypeScript code for Lingo web and native apps.",
   "type": "module",
   "exports": {
@@ -172,7 +172,8 @@
   ],
   "bin": {
     "oat-preflight": "./bin/oat-preflight.js",
-    "prebake-preflight": "./bin/prebake-preflight.js"
+    "prebake-preflight": "./bin/prebake-preflight.js",
+    "lingop-update": "./bin/lingop-update.js"
   },
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
@@ -184,7 +185,10 @@
     "pretypecheck": "npm run generate:stroke-data",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "pretest": "npm run generate:stroke-data",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:release": "node --test scripts/test-release.mjs",
+    "release:pack": "npm run build && node scripts/package-release.mjs",
+    "release:smoke": "node scripts/smoke-release.mjs"
   },
   "peerDependencies": {
     "phaser": ">=3.80",
@@ -242,5 +246,9 @@
     "sinhala-text-converters": "^1.0.5",
     "wanakana": "^5.3.1",
     "wink-lemmatizer": "^3.0.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fullcells/lingop.git"
   }
 }
