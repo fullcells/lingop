@@ -1,6 +1,6 @@
 {
   "name": "lingop",
-  "version": "0.7.953",
+  "version": "0.7.954",
   "description": "Shared TypeScript code for Lingo web and native apps.",
   "type": "module",
   "exports": {
@@ -148,7 +148,11 @@
       "types": "./dist/core/camp-lingo-billing.d.ts",
       "default": "./dist/core/camp-lingo-billing.js"
     },
-    "./ui/next/camp-lingo-pricing.css": "./src/ui/next/camp-lingo-pricing.css"
+    "./ui/next/camp-lingo-pricing.css": "./src/ui/next/camp-lingo-pricing.css",
+    "./images": {
+      "types": "./dist/core/images.d.ts",
+      "default": "./dist/core/images.js"
+    }
   },
   "files": [
     "bin",

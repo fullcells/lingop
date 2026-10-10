@@ -27,7 +27,7 @@ try {
   assertPaths(pkg.exports);
   assertPaths(pkg.bin);
   console.log(npm(["run", "update:lingop", "--", "--help"]));
-  execFileSync(process.execPath, ["--input-type=module", "-e", 'await import("lingop/utils/string"); await import("lingop/stroke-order"); await import("lingop/content/lingodex");'], { cwd: consumer, stdio: "inherit" });
+  execFileSync(process.execPath, ["--input-type=module", "-e", 'await import("lingop/utils/string"); await import("lingop/stroke-order"); await import("lingop/content/lingodex"); const images = await import("lingop/images"); if (typeof images.createImageClient !== "function") throw new Error("Missing image client export");'], { cwd: consumer, stdio: "inherit" });
   console.log("Prebuilt package installation, exports, and updater smoke checks passed.");
 } finally {
   rmSync(consumer, { recursive: true, force: true });

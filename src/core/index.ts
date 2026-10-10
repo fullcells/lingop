@@ -17,3 +17,4 @@ export * from "./word-explicitations.js";
 export * from "./word-lists.js";
 export * from "./word-lists-v3.js";
 export * from "./word-scores.js";
+export * from "./images.js";

@@ -4,6 +4,90 @@ Shared TypeScript code for Lingo projects.
 
 This codebase is intended to be used from both web apps, such as Next.js TypeScript apps, and native apps, such as React Native TypeScript apps.
 
+## Images
+
+`lingop/images` provides public reads of `image_sets` and `image_files`, S3 URLs,
+and admin requests to Lingoprocessor. It has no UI dependencies. The Supabase
+client belongs to the consumer; credentials for S3, OpenAI and database writes
+stay in Lingoprocessor.
+
+```ts
+import { createImageClient, getImageFileURL, ImageRequestError } from "lingop/images";
+
+const images = createImageClient({
+  supabaseClient,
+  backendTarget: "production", // existing Replit host; or "staging" / "gcloud-run"
+});
+const sets = await images.findWordImageSets("yue", ["貓", "狗"]);
+const files = await images.getImageFiles(sets.map(set => set.id));
+const urls = files.map(getImageFileURL);
+const search = await images.searchImageFiles({
+  artist: "Change C.C.", service: "pexels", offset: 0, limit: 50,
+});
+// Also available: getImageSets(ids), getImageFile(id), and literal prompt search:
+// searchImageFiles({ prompt: "watercolour", imageSetId: "optional-set-id" }).
+```
+
+Word lookups use exact `{type: "word", lang, word}` reference fields, returning
+all matching sets (including distinct senses). LingoDex can keep storing its
+set IDs directly. Reads batch IDs/words and paginate past the database row cap.
+Batch and ID reads cache for 30 seconds per client; mutations and `clearCache()`
+invalidate them. Search returns `{files, count}` with explicit pagination.
+
+```ts
+const auth = { accessToken: session.access_token }; // signed-in superadmin
+const setId = crypto.randomUUID();
+await images.createImageSet({
+  id: setId, ref: { type: "word", lang: "yue", word: "貓" },
+}, auth);
+
+// File from a browser file picker; original filename and bytes are preserved.
+await images.uploadImageFile({
+  file_id: crypto.randomUUID(), image_set_id: setId,
+  file, filename: file.name, is_ai: false,
+  attribution: { artist: "Change C.C.", service: "pexels" },
+}, auth);
+
+// Keep this UUID in UI state/storage BEFORE sending; reuse it for recovery.
+const fileId = crypto.randomUUID();
+try {
+  const generated = await images.generateImage({
+    file_id: fileId, image_set_id: setId,
+    attribution: { artist: "Watercolour animal illustrator" },
+    prompt: "A watercolour illustration of a cat on a plain background",
+    model: "gpt-image-2.5-sunburst", quality: "high",
+    size: "1024x1024", output_format: "png",
+  }, auth);
+  console.log(getImageFileURL(generated));
+} catch (error) {
+  if (!(error instanceof ImageRequestError) || !error.uncertain) throw error;
+  const recovery = await images.recoverImage(fileId, auth);
+  // complete: use recovery.file; pending: check again after a short delay.
+  // uncertain: require an explicit choice before starting a new paid generation.
+  // not_found: no durable request marker/result was found at the time of checking.
+}
+```
+
+Uploads accept PNG, JPEG, WebP and GIF up to 10 MiB, with a matching extension.
+`uploadImage` accepts raw base64 for environments without a `Blob` implementation.
+Both require `is_ai` and an attribution object with a nonblank `artist`; uploads
+may include existing `ai_meta`. Generated images set `is_ai: true` and attribution
+`service: "openai"`. No compression or resizing occurs.
+
+Generation is one long HTTP request. The client consumes backend keep-alive
+messages and waits up to 285 seconds by default; request options also accept
+`signal`, `timeoutMs`, and `backendTarget`. Aborting the client does not cancel
+provider billing or guarantee the backend stopped. No automatic retry starts
+another generation. Reusing a file ID with changed inputs is rejected; a new
+intentional variant needs a new UUID. `recoverImage` never generates and can
+finish saving metadata for an image already uploaded to S3.
+
+`ai_meta` preserves the prompt, requested/returned model and settings, provider
+request ID, elapsed time and full raw `usage` including token breakdowns when
+provided. Missing usage is `null`, not zero. Cost estimates must apply the rates
+for that model/date to the individual usage categories. All image metadata is
+public under the tables' read policies.
+
 ## Sign-language data
 
 `lingop/sign-language` exposes the shared SignWords language names, available
