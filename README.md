@@ -12,7 +12,7 @@ client belongs to the consumer; credentials for S3, OpenAI and database writes
 stay in Lingoprocessor.
 
 ```ts
-import { createImageClient, getImageFileURL, ImageRequestError } from "lingop/images";
+import { createImageClient, createImageFileId, getImageFileURL, ImageRequestError } from "lingop/images";
 
 const images = createImageClient({
   supabaseClient,
@@ -41,15 +41,15 @@ await images.createImageSet({
   id: setId, ref: { type: "word", lang: "yue", word: "貓" },
 }, auth);
 
-// File from a browser file picker; original filename and bytes are preserved.
+// Original filename stays in metadata; original bytes go to <id>/original.ext.
 await images.uploadImageFile({
-  file_id: crypto.randomUUID(), image_set_id: setId,
+  file_id: createImageFileId(), image_set_id: setId,
   file, filename: file.name, is_ai: false,
   attribution: { artist: "Change C.C.", service: "pexels" },
 }, auth);
 
 // Keep this UUID in UI state/storage BEFORE sending; reuse it for recovery.
-const fileId = crypto.randomUUID();
+const fileId = createImageFileId();
 try {
   const generated = await images.generateImage({
     file_id: fileId, image_set_id: setId,
@@ -64,7 +64,9 @@ try {
   const recovery = await images.recoverImage(fileId, auth);
   // complete: use recovery.file; pending: check again after a short delay.
   // uncertain: require an explicit choice before starting a new paid generation.
-  // not_found: no durable request marker/result was found at the time of checking.
+  // not_found: no operation/result was found at the time of checking.
+  // expired: the old ID cannot start generation; only an intentional new attempt
+  // should allocate a new ID.
 }
 ```
 
@@ -81,6 +83,20 @@ provider billing or guarantee the backend stopped. No automatic retry starts
 another generation. Reusing a file ID with changed inputs is rejected; a new
 intentional variant needs a new UUID. `recoverImage` never generates and can
 finish saving metadata for an image already uploaded to S3.
+
+Use `createImageFileId()` for upload/generation IDs (UUIDv7), not
+`crypto.randomUUID()` (UUIDv4). New requests must start within 24 hours of ID
+creation, allowing five minutes of future clock skew. Existing operations can
+still be recovered afterwards. The timestamp remains part of the ID, preventing
+expired requests from being replayed after their temporary tracking is purged.
+Image-set IDs remain arbitrary nonblank strings.
+
+S3 paths are `images/camplingo/<file_id>/original.<extension>`, with a lowercase
+extension derived from `filename`. JPG, JPEG, PNG, WebP and GIF remain distinct
+formats; the UUID doesn't dictate a format. `image_tmp_operations` is private
+backend state, removed atomically when the final `image_files` row is saved.
+The current Camp Lingo daily maintenance reconciles/purges unfinished operations
+after seven days. There are no S3 request/result JSON files.
 
 `ai_meta` preserves the prompt, requested/returned model and settings, provider
 request ID, elapsed time and full raw `usage` including token breakdowns when

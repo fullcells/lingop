@@ -17,7 +17,7 @@ export interface ImageFile {
 }
 export interface CreateImageSetInput { id: string; ref: ImageRef }
 export interface UploadImageInput {
-  /** Allocate once per intentional upload/generation. Retain it after a timeout. */
+  /** Allocate with createImageFileId() once per intentional request. Retain after timeout. */
   file_id: string;
   image_set_id: string;
   filename: string;
@@ -38,7 +38,21 @@ export interface GenerateImageInput {
 }
 export type ImageOperationStatus =
   | { status: "complete"; file: ImageFile }
-  | { status: "not_found" | "pending" | "uncertain"; file_id: string };
+  | { status: "not_found" | "pending" | "uncertain" | "expired"; file_id: string };
+
+/** UUIDv7: its immutable timestamp prevents replay after temporary records expire. */
+export function createImageFileId(): string {
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
+  let timestamp = Date.now();
+  for (let i = 5; i >= 0; i--) {
+    bytes[i] = timestamp % 256;
+    timestamp = Math.floor(timestamp / 256);
+  }
+  bytes[6] = (bytes[6]! & 0x0f) | 0x70;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 
 export const IMAGE_MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 export const IMAGE_CLIENT_TIMEOUT_MS = 285_000;
@@ -49,7 +63,9 @@ export function getImageFileURL(file: Pick<ImageFile, "id" | "filename">): strin
   if (!file.filename || /[\\/\u0000-\u001f\u007f]/u.test(file.filename) || [".", ".."].includes(file.filename)) {
     throw new Error("Expected an original filename without a directory.");
   }
-  return `https://omnilingual-access.s3.us-east-1.amazonaws.com/images/camplingo/${encodeURIComponent(file.id)}/${encodeURIComponent(file.filename)}`;
+  const extension = file.filename.split(".").pop()?.toLowerCase();
+  if (!extension || !["png", "jpg", "jpeg", "webp", "gif"].includes(extension)) throw new Error("Unsupported image extension.");
+  return `https://omnilingual-access.s3.us-east-1.amazonaws.com/images/camplingo/${encodeURIComponent(file.id)}/original.${extension}`;
 }
 
 export class ImageRequestError extends Error {

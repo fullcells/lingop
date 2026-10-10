@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createImageClient, getImageFileURL, ImageRequestError } from "./images.js";
+import { createImageClient, createImageFileId, getImageFileURL, ImageRequestError } from "./images.js";
 
 const id = "a53bd4f9-7793-4fdb-8f61-ddb7f3fcbf2b";
 const file = { id, image_set_id: "cat", filename: "貓 #1.png", is_ai: true, attribution: { artist: "Painter", service: "openai" }, ai_meta: { prompt: "100% cat_name" }, created_at: "2026-10-10T00:00:00Z" };
@@ -35,9 +35,24 @@ function stream(events: unknown[]) {
   } }), { headers: { "content-type": "application/x-ndjson" } });
 }
 describe("shared image client", () => {
-  it("encodes filenames and rejects directory paths", () => {
-    expect(getImageFileURL(file)).toBe(`https://omnilingual-access.s3.us-east-1.amazonaws.com/images/camplingo/${id}/%E8%B2%93%20%231.png`);
+  it("uses original.ext for each format and retains the uploaded filename in metadata", () => {
+    expect(getImageFileURL(file)).toBe(`https://omnilingual-access.s3.us-east-1.amazonaws.com/images/camplingo/${id}/original.png`);
+    for (const ext of ["PNG", "JPG", "jpeg", "webp", "gif"]) {
+      expect(getImageFileURL({ ...file, filename: `貓 #1.${ext}` })).toContain(`/original.${ext.toLowerCase()}`);
+    }
     expect(() => getImageFileURL({ id, filename: "../cat.png" })).toThrow();
+    expect(() => getImageFileURL({ id, filename: "cat.svg" })).toThrow();
+  });
+  it("allocates unique UUIDv7 image request IDs with the current timestamp", () => {
+    const start = Date.now();
+    const ids = Array.from({ length: 100 }, createImageFileId);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const id of ids) {
+      expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+      const timestamp = parseInt(id.replace(/-/g, "").slice(0, 12), 16);
+      expect(timestamp).toBeGreaterThanOrEqual(start);
+      expect(timestamp).toBeLessThanOrEqual(Date.now());
+    }
   });
   it("batches exact language/word lookups, keeps senses, and pages below the requested row cap", async () => {
     const rows = Array.from({ length: 110 }, (_, i) => ({ id: String(i), ref: { type: "word", lang: "yue", word: `word${i}` } }));
