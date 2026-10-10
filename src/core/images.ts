@@ -11,12 +11,14 @@ export interface ImageFile {
   image_set_id: string;
   filename: string;
   is_ai: boolean;
+  is_archived: boolean;
   attribution: ImageAttribution;
   ai_meta: ImageAIMeta | null;
   created_at: string;
 }
 export interface CreateImageSetInput { id: string; ref: ImageRef }
 export interface UploadImageInput {
+  is_archived?: boolean;
   /** Allocate with createImageFileId() once per intentional request. Retain after timeout. */
   file_id: string;
   image_set_id: string;
@@ -27,6 +29,7 @@ export interface UploadImageInput {
   ai_meta?: ImageAIMeta | null;
 }
 export interface GenerateImageInput {
+  is_archived?: boolean;
   file_id: string;
   image_set_id: string;
   attribution: ImageAttribution;
@@ -57,7 +60,7 @@ export function createImageFileId(): string {
 export const IMAGE_MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 export const IMAGE_CLIENT_TIMEOUT_MS = 285_000;
 const SET_COLUMNS = "id,ref,updated_at";
-const FILE_COLUMNS = "id,image_set_id,filename,is_ai,attribution,ai_meta,created_at";
+const FILE_COLUMNS = "id,image_set_id,filename,is_ai,is_archived,attribution,ai_meta,created_at";
 
 export function getImageFileURL(file: Pick<ImageFile, "id" | "filename">): string {
   if (!file.filename || /[\\/\u0000-\u001f\u007f]/u.test(file.filename) || [".", ".."].includes(file.filename)) {
@@ -172,15 +175,19 @@ export function createImageClient(options: ImageClientOptions) {
   }
   const client = {
     clearCache,
-    async getImageFile(id: string): Promise<ImageFile | null> {
-      return cached(`file:${id}`, async () => (await pages<ImageFile>(() => db.from("image_files").select(FILE_COLUMNS, { count: "exact" }).eq("id", id)))[0] ?? null);
+    async getImageFile(id: string, filters: { includeArchived?: boolean } = {}): Promise<ImageFile | null> {
+      return cached(`file:${JSON.stringify([id, !!filters.includeArchived])}`, async () => (await pages<ImageFile>(() => {
+        const query = db.from("image_files").select(FILE_COLUMNS, { count: "exact" }).eq("id", id);
+        return filters.includeArchived ? query : query.eq("is_archived", false);
+      }))[0] ?? null);
     },
     /** Exact artist/service filters; prompt is a literal substring, not a SQL pattern. */
-    async searchImageFiles(filters: { artist?: string; service?: string; prompt?: string; imageSetId?: string; offset?: number; limit?: number } = {}): Promise<{ files: ImageFile[]; count: number | null }> {
+    async searchImageFiles(filters: { includeArchived?: boolean; artist?: string; service?: string; prompt?: string; imageSetId?: string; offset?: number; limit?: number } = {}): Promise<{ files: ImageFile[]; count: number | null }> {
       const offset = filters.offset ?? 0;
       const limit = filters.limit ?? 50;
       if (!Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid image search pagination.");
       let query = db.from("image_files").select(FILE_COLUMNS, { count: "exact" });
+      if (!filters.includeArchived) query = query.eq("is_archived", false);
       if (filters.imageSetId !== undefined) query = query.eq("image_set_id", filters.imageSetId);
       if (filters.artist !== undefined) query = query.eq("attribution->>artist", filters.artist);
       if (filters.service !== undefined) query = query.eq("attribution->>service", filters.service);
@@ -207,12 +214,13 @@ export function createImageClient(options: ImageClientOptions) {
         return result;
       });
     },
-    async getImageFiles(setIds: readonly string[], filters: { artist?: string; service?: string } = {}): Promise<ImageFile[]> {
+    async getImageFiles(setIds: readonly string[], filters: { includeArchived?: boolean; artist?: string; service?: string } = {}): Promise<ImageFile[]> {
       const keys = [...new Set(setIds)].sort();
-      return cached(`files:${JSON.stringify([keys, filters.artist, filters.service])}`, async () => {
+      return cached(`files:${JSON.stringify([keys, filters.artist, filters.service, !!filters.includeArchived])}`, async () => {
         const result: ImageFile[] = [];
         for (let i = 0; i < keys.length; i += 50) result.push(...await pages<ImageFile>(() => {
           let query = db.from("image_files").select(FILE_COLUMNS, { count: "exact" }).in("image_set_id", keys.slice(i, i + 50));
+          if (!filters.includeArchived) query = query.eq("is_archived", false);
           if (filters.artist !== undefined) query = query.eq("attribution->>artist", filters.artist);
           if (filters.service !== undefined) query = query.eq("attribution->>service", filters.service);
           return query;

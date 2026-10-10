@@ -26,6 +26,9 @@ const search = await images.searchImageFiles({
 });
 // Also available: getImageSets(ids), getImageFile(id), and literal prompt search:
 // searchImageFiles({ prompt: "watercolour", imageSetId: "optional-set-id" }).
+// File reads exclude is_archived=true by default. Admin review can opt in:
+// getImageFiles(ids, { includeArchived: true }), getImageFile(id, { includeArchived: true }),
+// searchImageFiles({ includeArchived: true }). Archives retain their original image_set_id.
 ```
 
 Word lookups use exact `{type: "word", lang, word}` reference fields, returning
@@ -83,6 +86,11 @@ provider billing or guarantee the backend stopped. No automatic retry starts
 another generation. Reusing a file ID with changed inputs is rejected; a new
 intentional variant needs a new UUID. `recoverImage` never generates and can
 finish saving metadata for an image already uploaded to S3.
+
+Upload/generation accepts optional `is_archived` (default
+false); admin candidates can start archived with `is_archived: true`. Recovery
+returns completed files even if archived and never generates another image.
+Archiving is a display/lookup filter, not an access-control boundary.
 
 Use `createImageFileId()` for upload/generation IDs (UUIDv7), not
 `crypto.randomUUID()` (UUIDv4). New requests must start within 24 hours of ID

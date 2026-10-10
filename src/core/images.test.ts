@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createImageClient, createImageFileId, getImageFileURL, ImageRequestError } from "./images.js";
 
 const id = "a53bd4f9-7793-4fdb-8f61-ddb7f3fcbf2b";
-const file = { id, image_set_id: "cat", filename: "貓 #1.png", is_ai: true, attribution: { artist: "Painter", service: "openai" }, ai_meta: { prompt: "100% cat_name" }, created_at: "2026-10-10T00:00:00Z" };
+const file = { id, image_set_id: "cat", filename: "貓 #1.png", is_ai: true, is_archived: false, attribution: { artist: "Painter", service: "openai" }, ai_meta: { prompt: "100% cat_name" }, created_at: "2026-10-10T00:00:00Z" };
 const generation = { file_id: id, image_set_id: "cat", attribution: { artist: "Painter" }, prompt: "cat" };
 function database(tables: Record<string, any[]>, cap = 1000) {
   const queries: { table: string; filters: [string, string, unknown][]; from: number; to: number }[] = [];
@@ -35,6 +35,19 @@ function stream(events: unknown[]) {
   } }), { headers: { "content-type": "application/x-ndjson" } });
 }
 describe("shared image client", () => {
+  it("excludes archives by default, with independent opt-in caches and filtered counts", async () => {
+    const archived = { ...file, id: "archived", is_archived: true };
+    const db = database({ image_files: [archived, file] }, 1);
+    const client = createImageClient({ supabaseClient: db.client });
+    expect(await client.getImageFiles(["cat"], { includeArchived: true })).toEqual([archived, file]);
+    expect(await client.getImageFiles(["cat"])).toEqual([file]);
+    expect(await client.getImageFiles(["cat"], { includeArchived: false })).toEqual([file]);
+    expect(await client.getImageFile("archived")).toBeNull();
+    expect(await client.getImageFile("archived", { includeArchived: true })).toEqual(archived);
+    expect(await client.getImageFile("archived")).toBeNull();
+    expect(await client.searchImageFiles()).toEqual({ files: [file], count: 1 });
+    expect(await client.searchImageFiles({ includeArchived: true })).toEqual({ files: [archived], count: 2 });
+  });
   it("uses original.ext for each format and retains the uploaded filename in metadata", () => {
     expect(getImageFileURL(file)).toBe(`https://omnilingual-access.s3.us-east-1.amazonaws.com/images/camplingo/${id}/original.png`);
     for (const ext of ["PNG", "JPG", "jpeg", "webp", "gif"]) {
