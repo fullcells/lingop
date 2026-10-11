@@ -2,7 +2,7 @@ import { createElement } from 'react';
 import { act, create, type ReactTestRenderer, type ReactTestInstance } from 'react-test-renderer';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { CampLingoPricing, type CampLingoPricingProps } from './camp-lingo-pricing.js';
-import { CAMP_LINGO_PRODUCTS } from '../../core/camp-lingo-billing.js';
+import { CAMP_LINGO_PRODUCTS, formatCampLingoAmount } from '../../core/camp-lingo-billing.js';
 
 const fixtures = vi.hoisted(() => ({ auth: {} as any, client: {} as any }));
 vi.mock('./supabase-auth.js', () => ({ useSupabaseSignedInStatus: () => fixtures.auth }));
@@ -13,7 +13,7 @@ let fetcher: ReturnType<typeof vi.fn>;
 let member: any;
 let session: any;
 let props: CampLingoPricingProps;
-const catalog = { currencies: ['usd', 'aud', 'hkd', 'jpy'], prices: { core: { amounts: { usd: 299, aud: 449, hkd: 1800, jpy: 480 } }, plus: { amounts: { usd: 899, aud: 1299, hkd: 5800, jpy: 1480 } } } };
+const catalog = { currencies: ['usd', 'aud', 'cad', 'eur', 'gbp', 'hkd', 'jpy', 'nzd', 'sgd'], prices: { core: { amounts: { usd: 299, aud: 449, cad: 449, eur: 299, gbp: 249, hkd: 1800, jpy: 480, nzd: 549, sgd: 399 } }, plus: { amounts: { usd: 899, aud: 1299, cad: 1299, eur: 799, gbp: 699, hkd: 5800, jpy: 1480, nzd: 1599, sgd: 1149 } } } };
 const deferred = () => { let resolve!: (value: any) => void; const promise = new Promise<any>(r => { resolve = r; }); return { promise, resolve }; };
 function text(node: ReactTestInstance): string { return node.children.map(child => typeof child === 'string' ? child : text(child)).join(''); }
 function buttons() { return tree.root.findAllByType('button'); }
@@ -42,6 +42,8 @@ beforeEach(() => {
     return { ok: true, json: async () => data };
   });
   vi.stubGlobal('fetch', fetcher);
+  const options = new Intl.DateTimeFormat().resolvedOptions();
+  vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockReturnValue({ ...options, timeZone: 'America/New_York' });
   const error = console.error;
   vi.spyOn(console, 'error').mockImplementation((...args) => { if (!String(args[0]).startsWith('react-test-renderer is deprecated')) error(...args); });
 });
@@ -138,4 +140,62 @@ it('scheduled or canceling memberships offer management instead of invalid repea
   member.cancelAtPeriodEnd = true;
   await act(async () => window.dispatchEvent(new Event('focus')));
   expect(button('Change to Core')).toBeUndefined(); expect(button('Manage billing')).toBeDefined();
+});
+
+function timeZone(zone: string) {
+  vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockReturnValue({ ...new Intl.DateTimeFormat().resolvedOptions(), timeZone: zone });
+}
+function planAmount(tier: 'core' | 'plus') {
+  const card = tree.root.findAllByType('article').find(card => text(card.findByType('h3')) === (tier === 'core' ? 'Core' : 'Plus'))!;
+  return text(card.findByProps({ className: 'lingop-pricing__amount' }));
+}
+it.each(['core', 'plus'] as const)('shows a USD reference for %s but requests an AUD checkout outside fixed markets', async tier => {
+  timeZone('Europe/Stockholm'); signedIn('free'); await render();
+  expect(tree.root.findByType('select').props.value).toBe('local');
+  expect(planAmount(tier)).toContain(formatCampLingoAmount(catalog.prices[tier].amounts.usd, 'usd'));
+  expect(planAmount(tier)).toContain('Reference price');
+  expect(text(tree.root)).toContain('Available local currencies, the final price');
+  await click(tier === 'core' ? 'Choose Core' : 'Choose Plus');
+  expect(JSON.parse(calls('session')[0]![1].body)).toMatchObject({ action: 'checkout', tier, currency: 'aud', locale: 'en', returnUrl: 'http://localhost:3000/en/es' });
+});
+it.each([
+  ['America/New_York', 'usd'], ['Australia/Sydney', 'aud'], ['America/Vancouver', 'cad'],
+  ['Europe/Paris', 'eur'], ['Europe/London', 'gbp'], ['Asia/Hong_Kong', 'hkd'],
+  ['Asia/Tokyo', 'jpy'], ['Pacific/Auckland', 'nzd'], ['Asia/Singapore', 'sgd'],
+] as const)('retains fixed display and Core/Plus checkout prices in %s', async (zone, currency) => {
+  timeZone(zone); signedIn('free'); await render();
+  expect(tree.root.findByType('select').props.value).toBe(currency);
+  expect(tree.root.findAllByProps({ value: 'local' })).toHaveLength(0);
+  for (const tier of ['core', 'plus'] as const) {
+    expect(planAmount(tier)).toContain(formatCampLingoAmount(catalog.prices[tier].amounts[currency], currency));
+    expect(planAmount(tier)).not.toContain('Reference price');
+    await click(tier === 'core' ? 'Choose Core' : 'Choose Plus');
+    expect(JSON.parse(calls('session').at(-1)![1].body)).toMatchObject({ tier, currency });
+  }
+});
+it.each(catalog.currencies)('an explicit %s choice overrides local checkout without changing the fixed price', async currency => {
+  timeZone('Europe/Stockholm'); signedIn('free'); await render();
+  await act(async () => tree.root.findByType('select').props.onChange({ target: { value: currency } }));
+  expect(tree.root.findByType('select').props.value).toBe(currency);
+  expect(planAmount('plus')).not.toContain('Reference price');
+  await click('Choose Plus');
+  expect(JSON.parse(calls('session')[0]![1].body)).toMatchObject({ tier: 'plus', currency });
+});
+it('can return from explicit USD to the USD reference/local-currency checkout option', async () => {
+  timeZone('Europe/Stockholm'); signedIn('free'); await render();
+  await act(async () => tree.root.findByType('select').props.onChange({ target: { value: 'usd' } }));
+  await click('Choose Plus');
+  expect(JSON.parse(calls('session')[0]![1].body).currency).toBe('usd');
+  await act(async () => tree.root.findByType('select').props.onChange({ target: { value: 'local' } }));
+  expect(planAmount('plus')).toContain('Reference price');
+  await click('Choose Plus');
+  expect(JSON.parse(calls('session')[1]![1].body).currency).toBe('aud');
+});
+it('an existing membership retains its currency when visiting from another market', async () => {
+  timeZone('Europe/Stockholm'); signedIn('core'); await render();
+  expect(tree.root.findByType('select').props.value).toBe('hkd');
+  expect(tree.root.findByType('select').props.disabled).toBe(true);
+  expect(text(tree.root)).not.toContain('Reference price');
+  await click('Upgrade to Plus');
+  expect(JSON.parse(calls('session')[0]![1].body).currency).toBe('hkd');
 });

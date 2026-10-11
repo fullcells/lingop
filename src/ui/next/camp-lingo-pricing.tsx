@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { asSupabaseRuntimeClient } from "../../core/supabase.js";
-import { formatCampLingoAmount, getCampLingoTier, guessCampLingoCurrency, requestCampLingoBilling, type CampLingoCatalog, type CampLingoCurrency, type CampLingoMembership, type CampLingoPaidTier, type CampLingoTier } from "../../core/camp-lingo-billing.js";
+import { formatCampLingoAmount, getCampLingoTier, guessCampLingoFixedCurrency, requestCampLingoBilling, type CampLingoCatalog, type CampLingoCurrency, type CampLingoMembership, type CampLingoPaidTier, type CampLingoTier } from "../../core/camp-lingo-billing.js";
 import { useLingopClientData } from "./lingop-client-data-provider.js";
 import { useSupabaseSignedInStatus } from "./supabase-auth.js";
 import { CampLingoAuthForm } from "./camp-lingo-auth-form.js";
@@ -31,7 +31,9 @@ export function CampLingoPricing({ guiLang, translate, recommendedTier = "core",
   const [catalog, setCatalog] = useState<CampLingoCatalog | null>(null);
   const [memberState, setMemberState] = useState<{ user: string; data: CampLingoMembership } | null>(null);
   const membership = memberState?.user === auth.supabaseUserID ? memberState.data : null;
-  const [currency, setCurrency] = useState<CampLingoCurrency>("usd");
+  const [currencyChoice, setCurrencyChoice] = useState<CampLingoCurrency | "local">("usd");
+  const [localCheckoutAvailable, setLocalCheckoutAvailable] = useState(false);
+  const currency = currencyChoice === "local" ? "usd" : currencyChoice;
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -44,6 +46,7 @@ export function CampLingoPricing({ guiLang, translate, recommendedTier = "core",
   identity.current = auth.supabaseUserID;
   const tier = membership?.tier ?? getCampLingoTier(auth.enabledSubProd);
   const subscribed = tier === "core" || tier === "plus";
+  const localCurrencyCheckout = currencyChoice === "local" && !subscribed;
   const errorText = error === "Unable to connect to billing. Please check your connection and try again." ? OAT("Unable to connect to billing. Please check your connection and try again.")
     : error === "Billing is temporarily unavailable. Please try again." ? OAT("Billing is temporarily unavailable. Please try again.")
     : error === "Please sign in to manage your membership." ? OAT("Please sign in to manage your membership.") : error;
@@ -62,7 +65,7 @@ export function CampLingoPricing({ guiLang, translate, recommendedTier = "core",
       const state = await requestCampLingoBilling<CampLingoMembership>("membership", { apiBaseUrl, accessToken: await getToken() });
       if (identity.current !== user) return;
       setMemberState({ user, data: state });
-      if (state.currency) setCurrency(state.currency as CampLingoCurrency);
+      if (state.currency) setCurrencyChoice(state.currency as CampLingoCurrency);
       await auth.refreshEnabledSubProd();
     })();
     pendingRefresh.current = { user, promise };
@@ -71,7 +74,9 @@ export function CampLingoPricing({ guiLang, translate, recommendedTier = "core",
   }, [apiBaseUrl, getToken, auth.supabaseUserID, auth.refreshEnabledSubProd]);
 
   useEffect(() => {
-    setCurrency(guessCampLingoCurrency());
+    const fixedCurrency = guessCampLingoFixedCurrency();
+    setCurrencyChoice(fixedCurrency ?? "local");
+    setLocalCheckoutAvailable(fixedCurrency === null);
     const controller = new AbortController();
     requestCampLingoBilling<CampLingoCatalog>("catalog", { apiBaseUrl, signal: controller.signal }).then(setCatalog).catch(e => { if (!controller.signal.aborted) setError(e.message); });
     return () => controller.abort();
@@ -101,7 +106,9 @@ export function CampLingoPricing({ guiLang, translate, recommendedTier = "core",
       if (identity.current !== user) return;
       const result = await requestCampLingoBilling<{ url?: string; message?: string }>("session", {
         apiBaseUrl, accessToken: await getToken(),
-        body: { action, tier: selected, currency, locale: guiLang, returnUrl: window.location.href },
+        // The USD reference display is separate from the AUD integration currency
+        // required for Adaptive Pricing. Explicit fixed-currency choices stay fixed.
+        body: { action, tier: selected, currency: localCurrencyCheckout ? "aud" : currency, locale: guiLang, returnUrl: window.location.href },
       });
       if (identity.current !== user) return;
       if (result.url) {
@@ -129,7 +136,7 @@ export function CampLingoPricing({ guiLang, translate, recommendedTier = "core",
       return <article className={`lingop-pricing__card ${plan === recommendedTier ? "lingop-pricing__card--recommended" : ""}`} key={plan}>
         <div className="lingop-pricing__badge">{current ? OAT("Current plan") : scheduled ? OAT("Scheduled") : disabled ? OAT("Unavailable") : plan === recommendedTier ? OAT("Recommended for this app") : "\u00a0"}</div>
         <h3>{plan === "free" ? OAT("Free") : plan === "core" ? "Core" : "Plus"}</h3>
-        <div className="lingop-pricing__amount">{amount === undefined ? "—" : formatCampLingoAmount(amount, currency, guiLang)}<small>{OAT("per month")}</small></div>
+        <div className="lingop-pricing__amount">{amount === undefined ? "—" : formatCampLingoAmount(amount, currency, guiLang)}<small>{OAT("per month")}</small>{plan !== "free" && localCurrencyCheckout && <small>{OAT("Reference price")}</small>}</div>
         <p>{plan === "free" ? OAT("Explore Camp Lingo at your own pace.") : plan === "core" ? OAT("More learning across Camp Lingo's ready-made content apps.") : OAT("Everything in Core, plus faster learning with your own translations.")}</p>
         <ul>{plan === "free" ? <><li>{OAT("Free learning features")}</li><li>{appMention(OAT("Limited fast translations in {_TRANSLATE_APP_}"))}</li></> : <><li>{OAT("Paid features across Camp Lingo's learning apps")}</li><li>{OAT("Ad-free Trivia and unlimited LingoDex hearts")}</li><li>{plan === "plus" ? appMention(OAT("Unlimited fast translations in {_TRANSLATE_APP_}")) : appMention(OAT("{_TRANSLATE_APP_} uses the Free limits"))}</li></>}</ul>
         {plans[plan]?.features}
@@ -141,8 +148,8 @@ export function CampLingoPricing({ guiLang, translate, recommendedTier = "core",
       </article>;
     })}</div>
     {confirmDowngrade && <div className="lingop-pricing__message" role="alert"><h3>{OAT("Change to Core at your next renewal?")}</h3><p>{appMention(OAT("You keep Plus until then. Afterward, {_TRANSLATE_APP_} returns to Free limits."))}</p><button type="button" disabled={busy} onClick={() => void act("downgrade", "core")}>{OAT("Confirm change to Core")}</button> <button type="button" disabled={busy} onClick={() => setConfirmDowngrade(false)}>{OAT("Keep Plus")}</button></div>}
-    <div className="lingop-pricing__toolbar"><label>{OAT("Currency")} <select aria-label={OAT("Currency")} value={currency} disabled={subscribed || busy || !catalog} onChange={e => setCurrency(e.target.value as CampLingoCurrency)}>{Array.from(new Set([...(catalog?.currencies ?? []), currency])).map(value => <option key={value} value={value}>{value.toUpperCase()}</option>)}</select></label></div>
+    <div className="lingop-pricing__toolbar"><label>{OAT("Currency")} <select aria-label={OAT("Currency")} value={localCurrencyCheckout ? "local" : currency} disabled={subscribed || busy || !catalog} onChange={e => setCurrencyChoice(e.target.value as CampLingoCurrency | "local")}>{localCheckoutAvailable && !subscribed && <option value="local">{OAT("USD reference (local currency at checkout)")}</option>}{Array.from(new Set([...(catalog?.currencies ?? []), currency])).map(value => <option key={value} value={value}>{value.toUpperCase()}</option>)}</select></label></div>
     <div ref={messageRef}>{error && <div role="alert" className="lingop-pricing__message"><p>{errorText}</p><button type="button" disabled={busy} onClick={() => { setError(""); void Promise.all([catalog ? Promise.resolve() : requestCampLingoBilling<CampLingoCatalog>("catalog", { apiBaseUrl }).then(setCatalog), refresh()]).catch(e => setError(e.message)); }}>{OAT("Try again")}</button></div>}</div>
-    <footer>{auth.signedInStatus && subscribed && <button type="button" disabled={busy} onClick={() => void act("portal")}>{OAT("Manage billing")}</button>}<p>{OAT("The final amount and any applicable tax are shown before you confirm payment.")}</p>{busy && <p role="status">{OAT("Opening secure billing…")}</p>}</footer>
+    <footer>{auth.signedInStatus && subscribed && <button type="button" disabled={busy} onClick={() => void act("portal")}>{OAT("Manage billing")}</button>}<p>{localCurrencyCheckout ? OAT("USD prices are for reference. Available local currencies, the final price and any applicable tax are shown at checkout.") : OAT("The final amount and any applicable tax are shown before you confirm payment.")}</p>{busy && <p role="status">{OAT("Opening secure billing…")}</p>}</footer>
   </section>;
 }

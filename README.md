@@ -1586,7 +1586,15 @@ to Plus. Unknown products fail closed. Always enforce costly access server-side.
 
 `CampLingoPricing` from `lingop/ui/next` supplies Free/Core/Plus comparison,
 fixed-currency prices from the billing service, sign-in, Checkout, upgrades,
-renewal-time downgrades, and billing management. Import
+renewal-time downgrades, and billing management. Buyers outside the nine fixed
+currency markets see USD reference prices, while Checkout starts from the AUD
+price so Managed Payments can offer eligible local currencies. The currency
+selector labels this automatic mode separately; choosing any of the nine fixed
+currencies (including USD) uses that currency's fixed price. Existing memberships
+retain their subscription currency. Browser time zone identifies the market,
+with browser-language region used only when no regional time zone is available.
+`guessCampLingoCurrency()` still returns USD for the visual fallback;
+`guessCampLingoFixedCurrency()` returns `null` for this reference-price mode. Import
 `lingop/ui/next/camp-lingo-pricing.css` once. Place it under the existing
 `LingopClientDataProvider` and OAT provider (or supply `onSignIn` for your own
 auth dialog). Pass `translate={OAT}` for localized feature copy.
