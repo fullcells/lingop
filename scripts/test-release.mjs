@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { dependencySection, getRelease, parseArgs, selectAsset, update } from "../bin/lingop-update.js";
+import { dependencySection, getRelease, packageManager, parseArgs, selectAsset, update } from "../bin/lingop-update.js";
 
 const version = "0.7.953";
 const url = `https://github.com/fullcells/lingop/releases/download/v${version}/lingop-${version}.tgz`;
@@ -70,7 +70,7 @@ test("installs the exact archive, preserves dependency type, and propagates npm 
     for (const [section, flag] of [["dependencies", "--save-prod"], ["devDependencies", "--save-dev"], ["optionalDependencies", "--save-optional"]]) {
       writeFileSync(join(cwd, "package.json"), JSON.stringify({ name: "app", [section]: { lingop: "github:fullcells/lingop" } }));
       let calls = 0;
-      await update([], { cwd, fetchImpl: okFetch, log: () => {}, run: (command, args, options) => {
+      await update([], { cwd, env: {}, fetchImpl: okFetch, log: () => {}, run: (command, args, options) => {
         calls++;
         assert.ok(args.includes(flag));
         assert.ok(args.includes("--package-lock=true"));
@@ -81,6 +81,49 @@ test("installs the exact archive, preserves dependency type, and propagates npm 
       } });
       assert.equal(calls, 1);
     }
-    await assert.rejects(update([], { cwd, fetchImpl: okFetch, log: () => {}, run: () => ({ status: 1 }) }), /npm install failed/);
+    await assert.rejects(update([], { cwd, env: {}, fetchImpl: okFetch, log: () => {}, run: () => ({ status: 1 }) }), /npm install failed/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("detects the declared manager, active CLI, or lockfile and rejects conflicts", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "lingop-manager-"));
+  try {
+    assert.equal(packageManager({}, cwd, {}).name, "npm");
+    assert.equal(packageManager({ packageManager: "pnpm@10.34.6" }, cwd, {}).name, "pnpm");
+    for (const [name, path] of [["npm", "/tools/npm-cli.js"], ["pnpm", "/tools/pnpm.cjs"]]) {
+      assert.deepEqual(packageManager({}, cwd, { npm_execpath: path }), { name, execPath: path });
+      assert.equal(packageManager({}, cwd, { npm_config_user_agent: `${name}/10 node/v22` }).name, name);
+    }
+    assert.throws(() => packageManager({ packageManager: "pnpm@10" }, cwd, { npm_config_user_agent: "npm/10" }), /run lingop-update through pnpm/);
+    assert.throws(() => packageManager({ packageManager: "yarn@4" }, cwd, {}), /Unsupported/);
+    writeFileSync(join(cwd, "pnpm-lock.yaml"), "");
+    assert.equal(packageManager({}, cwd, {}).name, "pnpm");
+    writeFileSync(join(cwd, "package-lock.json"), "{}");
+    assert.throws(() => packageManager({}, cwd, {}), /Both npm and pnpm/);
+  } finally { rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test("pnpm installs preserve dependency type, use the active CLI, and report the pnpm lockfile", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "lingop-pnpm-"));
+  const env = { npm_execpath: "/tools/pnpm.cjs", npm_config_user_agent: "pnpm/10.34.6 npm/? node/v22" };
+  try {
+    for (const [section, flag] of [["dependencies", "--save-prod"], ["devDependencies", "--save-dev"], ["optionalDependencies", "--save-optional"]]) {
+      writeFileSync(join(cwd, "package.json"), JSON.stringify({ name: "app", packageManager: "pnpm@10.34.6", [section]: { lingop: "old-url" } }));
+      const messages = [];
+      let calls = 0;
+      await update([], { cwd, env, fetchImpl: okFetch, log: (message) => messages.push(message), run: (command, args, options) => {
+        calls++;
+        assert.equal(command, process.execPath);
+        assert.deepEqual(args, [env.npm_execpath, "add", flag, "--save-exact", `lingop@${url}`]);
+        assert.deepEqual(options, { cwd, stdio: "inherit" });
+        return { status: 0 };
+      } });
+      assert.equal(calls, 1);
+      assert.match(messages.at(-1), /pnpm-lock.yaml/);
+    }
+    await update(["--check"], { cwd, env, fetchImpl: okFetch, log: () => {}, run: () => assert.fail("check must not install") });
+    await assert.rejects(update([], { cwd, env, fetchImpl: okFetch, log: () => {}, run: () => ({ status: 1 }) }), /pnpm add failed/);
+    await assert.rejects(update([], { cwd, env, fetchImpl: okFetch, log: () => {}, run: () => ({ error: new Error("missing executable") }) }), /missing executable/);
+    await assert.rejects(update([], { cwd, env: { npm_config_user_agent: "npm/10" }, fetchImpl: () => assert.fail("must fail before fetching") }), /run lingop-update through pnpm/);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });

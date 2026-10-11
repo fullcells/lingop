@@ -488,14 +488,23 @@ Add this to the consumer's existing `package.json` scripts:
 npm run update:lingop                 # Latest stable GitHub Release
 npm run update:lingop -- --check       # Show latest release without changing files
 npm run update:lingop -- 0.7.953       # Select a specific version, including rollback
+
+# pnpm consumers use the same update:lingop script:
+pnpm update:lingop
+pnpm update:lingop --check
+pnpm update:lingop 0.7.953
 ```
 
 The updater ships inside lingop and updates along with it. Run it from the
 consumer's package directory. It preserves whether lingop is a production,
 development, or optional dependency and saves a version-specific archive URL.
-Commit `package.json` and `package-lock.json` together. Regular installs and
-deployments continue to use `npm ci`; do not run the updater automatically during
-builds. `npm update lingop` does not discover new versions of an archive URL.
+The updater recognizes npm and pnpm from `packageManager` and the invoking CLI,
+falling back to the local lockfile when invoked directly (npm if neither exists).
+Conflicting declared and active managers are rejected before installing.
+Commit `package.json` and the matching lockfile (`package-lock.json` or
+`pnpm-lock.yaml`) together. Regular installs and deployments continue to use
+`npm ci` or `pnpm install --frozen-lockfile`; do not run the updater automatically
+during builds. `npm update lingop` does not discover new versions of an archive URL.
 Release discovery uses GitHub's anonymous API (60 requests/hour per public IP);
 normal installs of an already pinned URL do not perform this lookup.
 
