@@ -1,6 +1,6 @@
 {
   "name": "lingop",
-  "version": "0.7.958",
+  "version": "0.7.959",
   "description": "Shared TypeScript code for Lingo web and native apps.",
   "type": "module",
   "exports": {

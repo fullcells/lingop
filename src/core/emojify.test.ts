@@ -148,6 +148,67 @@ describe("emojify", () => {
     ).resolves.toBe("👬↥ [♔] / 👬↧");
   });
 
+  describe("embedded multiword matches", () => {
+    const foodRows: EmojiRow[] = [
+      { emoji: "🥤", en_gloss: "COLA" },
+      { emoji: "🧊", en_gloss: "ICE" },
+      { emoji: "🥛", en_gloss: "CREAM" },
+      { emoji: "🍨", en_gloss: "ICE CREAM" },
+      { emoji: "🛟", en_gloss: "FLOAT" },
+      { emoji: "🍬", en_gloss: "SWEET" },
+      { emoji: "➕", en_gloss: "AND" },
+      { emoji: "🍋", en_gloss: "SOUR" },
+      { emoji: "🍯🍋", en_gloss: "SWEET AND SOUR" },
+      { emoji: "🐖", en_gloss: "PORK" },
+    ];
+
+    it.each([
+      ["Cola ice cream float", "🥤 🍨 🛟"],
+      ["Sweet and sour pork", "🍯🍋 🐖"],
+      ["pork sweet and sour", "🐖 🍯🍋"],
+      ["ice cream sweet and sour pork ice cream", "🍨 🍯🍋 🐖 🍨"],
+      ["Cola ICE   CREAM\tfloat", "🥤 🍨 🛟"],
+      ["Cola ice\u00a0cream float", "🥤 🍨 🛟"],
+      ["Cola ice creams float", "🥤 🍨 🛟"],
+      ["Cola ice-cream float", "🥤 🍨 🛟"],
+      ["sweet-and-sour pork", "🍯🍋 🐖"],
+    ])("keeps stored phrases intact in %s", async (text, expected) => {
+      await expect(generateEmojiFromRows(text, foodRows)).resolves.toBe(expected);
+    });
+
+    it("prefers the whole gloss, then the longest phrase at the current position", async () => {
+      const overlappingRows = [
+        ...foodRows,
+        { emoji: "🍹", en_gloss: "ICE CREAM FLOAT" },
+      ];
+      await expect(generateEmojiFromRows("Cola ice cream float", overlappingRows)).resolves.toBe("🥤 🍹");
+      await expect(generateEmojiFromRows("Cola ice cream float", [
+        ...overlappingRows, { emoji: "🍧", en_gloss: "COLA ICE CREAM FLOAT" },
+      ])).resolves.toBe("🍧");
+    });
+
+    it("respects word boundaries and preserves alternatives and bracketed notes", async () => {
+      await expect(generateEmojiFromRows("nice cream", foodRows)).resolves.toBe("🥛");
+      await expect(generateEmojiFromRows("ice creamy", foodRows)).resolves.not.toContain("🍨");
+      await expect(generateEmojiFromRows("ice / cream", foodRows)).resolves.toBe("🧊 / 🥛");
+      await expect(generateEmojiFromRows("ice; cream", foodRows)).resolves.not.toContain("🍨");
+      await expect(generateEmojiFromRows("Cola ice cream float / Sweet and sour pork (ice cream)", foodRows)).resolves.toBe("🥤 🍨 🛟 / 🍯🍋 🐖 (🍨)");
+    });
+
+    it("normalizes stored whitespace, retains first-row precedence, and falls back to word morphology", async () => {
+      await expect(generateEmojiFromRows("Cola ice cream float", [
+        { emoji: "🍦", en_gloss: " ice\tcream " }, ...foodRows,
+      ])).resolves.toBe("🥤 🍦 🛟");
+      await expect(generateEmojiFromRows("running ice cream", [...foodRows, ...rows])).resolves.toBe("🏃… 🍨");
+    });
+
+    it("matches phrases before checking their individual non-core words", async () => {
+      const isNotCoreWord = vi.fn(async (_lang: string, word: string) => word.toLowerCase() === "and");
+      await expect(generateEmojiFromRows("Sweet and sour pork", foodRows, { isNotCoreWord })).resolves.toBe("🍯🍋 🐖");
+      expect(isNotCoreWord).not.toHaveBeenCalledWith("en", "and");
+    });
+  });
+
   it("indexes emoji rows instead of repeatedly scanning them", async () => {
     const indexedRows = [...rows];
     const find = vi.spyOn(indexedRows, "find");

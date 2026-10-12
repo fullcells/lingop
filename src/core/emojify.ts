@@ -103,6 +103,7 @@ type EmojiDataState = {
 
 const emojiDataStates = new WeakMap<object, Map<string, EmojiDataState>>();
 const emojiRowIndexes = new WeakMap<EmojiRow[], ReadonlyMap<string, EmojiRow>>();
+const emojiPhraseMaxWords = new WeakMap<EmojiRow[], number>();
 const emojiResultCaches = new WeakMap<
   EmojiRow[],
   WeakMap<IsNotCoreWord, Map<string, Promise<string | null>>>
@@ -791,6 +792,7 @@ async function generateEmoji_standard2(
   /**
    * - Progress through levels of splits: Nothing, then: space -> [:.+_;] -> '-' (hyphen last)
    * - Always try exact match (raw + normalized-delims) at each level
+   * - Before splitting spaces, consume the longest stored phrase at each position
    * - When a piece can’t split further: fall back to generateEmoji_fromWord
    */
 
@@ -821,7 +823,31 @@ async function generateEmoji_standard2(
     for (const re of splitters) {
       if (!re.test(s)) continue; // Only try splitting if delimiter exists (avoids useless split to [s])
       const parts = s.split(re).map((p) => p.trim()).filter(Boolean);
-      if (parts.length > 1) return parts.flatMap(recursiveSplitToAtomsWithExactMatchSearch);
+      if (parts.length <= 1) continue;
+      if (re !== splitters[0]) return parts.flatMap(recursiveSplitToAtomsWithExactMatchSearch);
+
+      // Keep contiguous stored phrases intact before falling back to individual
+      // words: e.g. "Cola [ice cream] float" and "[sweet and sour] pork".
+      // Bound lookahead by the dataset's longest phrase, not the input length.
+      const maxWords = emojiPhraseMaxWords.get(rows) ?? 1;
+      const atoms: Atom[] = [];
+      for (let start = 0; start < parts.length;) {
+        let matchedEnd = start;
+        for (let end = Math.min(parts.length, start + maxWords); end > start + 1; end -= 1) {
+          const emoji = exactEmoji(parts.slice(start, end).join(" "));
+          if (!emoji) continue;
+          atoms.push({ emoji });
+          matchedEnd = end;
+          break;
+        }
+        if (matchedEnd > start) {
+          start = matchedEnd;
+        } else {
+          atoms.push(...recursiveSplitToAtomsWithExactMatchSearch(parts[start]!));
+          start += 1;
+        }
+      }
+      return atoms;
     }
 
     return [{ word: s }];
@@ -1012,7 +1038,7 @@ function findCaseInsensitiveEmojiRowMatch(
   cachedEmojisData: EmojiRow[],
 ): EmojiRow | undefined {
   const index = getEmojiRowIndex(cachedEmojisData);
-  const normalizedGloss = enGlossText.toUpperCase();
+  const normalizedGloss = normalizeEmojiGloss(enGlossText);
   // 1. Exact Match
   let match = index.get(normalizedGloss);
   // 2. Attempt Match without trailing "s".
@@ -1022,6 +1048,10 @@ function findCaseInsensitiveEmojiRowMatch(
   return match;
 }
 
+function normalizeEmojiGloss(gloss: string): string {
+  return gloss.trim().replace(/\s+/g, " ").toUpperCase();
+}
+
 function getEmojiRowIndex(
   cachedEmojisData: EmojiRow[],
 ): ReadonlyMap<string, EmojiRow> {
@@ -1029,12 +1059,15 @@ function getEmojiRowIndex(
   if (cachedIndex) return cachedIndex;
 
   const index = new Map<string, EmojiRow>();
+  let maxWords = 1;
   for (const row of cachedEmojisData) {
-    const key = row.en_gloss.toUpperCase();
+    const key = normalizeEmojiGloss(row.en_gloss);
+    maxWords = Math.max(maxWords, key.split(" ").length);
     // Match Array.find semantics when duplicate gloss rows exist.
     if (!index.has(key)) index.set(key, row);
   }
   emojiRowIndexes.set(cachedEmojisData, index);
+  emojiPhraseMaxWords.set(cachedEmojisData, maxWords);
   return index;
 }
 
