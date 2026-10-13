@@ -47,6 +47,7 @@ import {
 import {
   fetchAndGenGloss,
   getSBWordsForLangDir,
+  getSBWordsForWords,
   isNotCoreWord,
   loadNonCoreWords,
   refreshCoreSBWordsCache,
@@ -273,6 +274,7 @@ export type LingoDataClient = {
   isNotCoreWord(word_lang: string, word: string, gloss?: string): Promise<boolean>;
   /** Loads cached SBWords for a word/gloss language direction. */
   getSBWordsForLangDir(word_lang: string, gloss_lang: string): Promise<SBWordRow2[]>;
+  getSBWordsForWords(word_lang: string, gloss_lang: string, words: readonly string[]): Promise<SBWordRow2[]>;
   /** Clears and reloads cached core SBWords for a word/gloss language direction. */
   refreshCoreSBWordsCache(word_lang: string, gloss_lang: string): Promise<void>;
   /** Fetches or generates a one-word translation/gloss using explicitations and SBWords. */
@@ -1463,6 +1465,8 @@ export function createLingoDataClient({
             }
           : {}),
       }),
+    getSBWordsForWords: (word_lang, gloss_lang, words) =>
+      getSBWordsForWords(word_lang, gloss_lang, words, { supabaseClient: runtimeSupabaseClient }),
     getSBWordsForLangDir: (word_lang, gloss_lang) =>
       getSBWordsForLangDir(word_lang, gloss_lang, {
         ...(runtimeSupabaseClient

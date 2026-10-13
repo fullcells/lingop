@@ -36,4 +36,17 @@ describe('shared V3 title policy', () => {
     expect(createWordListTitleResolverV3([native],await load())(native,'en')).toBe('Dim Sum');
     expect(createWordListTitleResolverV3([native],await load())(native,'en')).toBe('Updated');
   });
+
+  it('prefers the narrow reader without changing saved title priority', async () => {
+    const native = list(1, 'yue', '_點心#2');
+    const rows = [row(1, '點心', 'Dim Sum'), row(2, '_點心#2', 'Full title', true), row(3, '_點心#2', 'New automatic title')];
+    const broad = vi.fn(async () => rows), narrow = vi.fn(async () => rows);
+    const requests = [{ list: native, langs: ['en'] }];
+    const legacy = await loadWordListTitleGlossesV3({ getSBWordsForLangDir: broad }, [native], requests);
+    broad.mockClear();
+    const current = await loadWordListTitleGlossesV3({ getSBWordsForLangDir: broad, getSBWordsForWords: narrow }, [native], requests);
+    expect(current).toEqual(legacy);
+    expect(broad).not.toHaveBeenCalled();
+    expect(narrow).toHaveBeenCalledExactlyOnceWith('yue', 'en', ['_點心#2', '點心']);
+  });
 });

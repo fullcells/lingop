@@ -34,14 +34,62 @@ let nonCoreWordsPromise: Promise<SBWordRow2[]> | undefined;
 let sbWordsCache: SBWordRow2[] = [];
 const sbWordsCacheLoadedLangDirs: Set<string> = new Set();
 const inflightFetchesForSbWordsByLangDir: Record<string, Promise<SBWordRow2[]>> = {};
+let requestedWordsCache = new WeakMap<object, Map<string, { expires: number; rows: Promise<SBWordRow2[]> }>>();
 
 export function clearSBWordsCache(): void {
+  requestedWordsCache = new WeakMap();
   nonCoreWordsPromise = undefined;
   sbWordsCache = [];
   sbWordsCacheLoadedLangDirs.clear();
   for (const langDir of Object.keys(inflightFetchesForSbWordsByLangDir)) {
     delete inflightFetchesForSbWordsByLangDir[langDir];
   }
+}
+
+/** Read saved glosses for a small set of words, without loading the dictionary or generating translations. */
+export async function getSBWordsForWords(
+  word_lang: string,
+  gloss_lang: string,
+  words: readonly string[],
+  { supabaseClient }: { supabaseClient?: SupabaseSBWordsClient } = {},
+): Promise<SBWordRow2[]> {
+  const requested = [...new Set(words.map(word => word.trim().toLocaleLowerCase()))].sort();
+  if (!requested.length) return [];
+  const client = asSupabaseRuntimeClient(supabaseClient);
+  if (!client) throw new Error('A Supabase client is required to load saved word glosses.');
+  let cache = requestedWordsCache.get(client);
+  if (!cache) requestedWordsCache.set(client, cache = new Map());
+  const key = JSON.stringify([word_lang, gloss_lang, requested]);
+  const cached = cache.get(key);
+  if (cached && cached.expires > Date.now()) return cached.rows;
+
+  const rows = (async () => {
+    const result: SBWordRow2[] = [];
+    for (let start = 0; start < requested.length; start += 50) {
+      const batch = requested.slice(start, start + 50);
+      const wanted = new Set(batch);
+      // Literal, case-insensitive candidates; the final JS check preserves the
+      // title resolver's trim/lowercase matching, including stored whitespace.
+      const pattern = batch.map(word => word ? word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '^\\s*$').join('|');
+      for (let offset = 0; ; offset += SB_WORDS_BATCH_SIZE) {
+        const { data, error } = await client.from('words2').select(SB_WORDS_COLUMNS)
+          .eq('word_lang', word_lang).eq('gloss_lang', gloss_lang)
+          .in('is_core', [true, false]).filter('word', 'imatch', pattern)
+          .order('id', { ascending: true }).range(offset, offset + SB_WORDS_BATCH_SIZE - 1);
+        if (error) throw error;
+        const page = data ?? [];
+        result.push(...page.filter(isSBWordRow2).filter(row => wanted.has(row.word.trim().toLocaleLowerCase())));
+        if (page.length < SB_WORDS_BATCH_SIZE) break;
+      }
+    }
+    return result;
+  })();
+  // Bound memory per client, share concurrent requests, and allow failed reads to retry.
+  if (cache.size >= 100) cache.delete(cache.keys().next().value!);
+  const entry = { expires: Date.now() + 5 * 60_000, rows };
+  cache.set(key, entry);
+  try { return await rows; }
+  catch (error) { if (cache.get(key) === entry) cache.delete(key); throw error; }
 }
 
 function langDirKey(word_lang: string, gloss_lang: string): string {

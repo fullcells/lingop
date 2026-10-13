@@ -50,7 +50,7 @@ export const getWordListAnnotationGlosses = (annotation: AnnotatedText): string[
 export async function prepareWordListsV3({ client, rootListId, focusLangs, guiLangs, enrichment = { annotations: {}, glosses: {}, emojis: {} }, checkpoint = async () => {}, report = () => {}, services }: {
   /** Existing privileged batch-translation API for build-time cache misses. */
   services?: PrebakeBuildServices;
-  client: Pick<LingoDataClient, 'loadWordListMetaDataV3' | 'loadWordListsV3' | 'fetchAnnotation' | 'fetchAndGenGloss' | 'generateEmojis'> & Partial<Pick<LingoDataClient, 'getSBWordsForLangDir'>>;
+  client: Pick<LingoDataClient, 'loadWordListMetaDataV3' | 'loadWordListsV3' | 'fetchAnnotation' | 'fetchAndGenGloss' | 'generateEmojis'> & Partial<Pick<LingoDataClient, 'getSBWordsForLangDir' | 'getSBWordsForWords'>>;
   rootListId: number; focusLangs: string[]; guiLangs: string[];
   enrichment?: WordListsV3Enrichment;
   checkpoint?: (cache: WordListsV3Enrichment) => Promise<void>;
@@ -90,6 +90,7 @@ export async function prepareWordListsV3({ client, rootListId, focusLangs, guiLa
   // supported combinations, and validate titles before billable word enrichment.
   const requests = [...available].map(([list, langs]) => ({ list, langs }));
   const titleGlosses = await loadWordListTitleGlossesV3({
+    ...(client.getSBWordsForWords ? { getSBWordsForWords: client.getSBWordsForWords.bind(client) } : {}),
     getSBWordsForLangDir: (source, target) => {
       if (!client.getSBWordsForLangDir) throw new Error('V3 title glosses require getSBWordsForLangDir.');
       return client.getSBWordsForLangDir(source, target);

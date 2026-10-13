@@ -1610,9 +1610,9 @@ Annotations remain shared by exact focus language/text, and translations by
 English gloss/target language. Existing enrichment is retained, even when a list
 is no longer public, but it never grants publication or GlossTipLang eligibility.
 For English labels without an English list variant, preparation reads stored
-`words2` title glosses through `client.getSBWordsForLangDir`, once per required
-direction. Missing labels fail before word enrichment; no title/list variant is
-generated. The full `LingoDataClient` supplies that method automatically.
+`words2` title glosses through `client.getSBWordsForWords`, restricted to the
+required titles and directions. Missing labels fail before word enrichment; no
+title/list variant is generated. The full `LingoDataClient` supplies that method automatically.
 Family lookups reuse `createWordListL10nResolverV3(metadata)` rather than rebuilding
 an index for every title; existing one-off `resolveWordListL10nV3` calls still work.
 
@@ -1671,8 +1671,12 @@ by this display path.
 
 `loadWordListTitleGlossesV3(client, metadata, [{ list, langs }])` reads only fallback
 directions requested by the caller. Lists with language-family titles require no
-gloss reads. Requests share Lingop's existing words2 cache and retain only title
-matches. Pass already-filtered public lists and supported GlossTipLangs; the
+gloss reads. Current clients use small, paginated `getSBWordsForWords` queries,
+preserving case/whitespace matching and saved-gloss priority. These reads share a
+bounded five-minute cache per Supabase client, including concurrent requests;
+failures remain retryable and `clearSBWordsCache()` clears it. Older adapters
+that supply only `getSBWordsForLangDir` remain supported, and that dictionary API
+is unchanged. Pass already-filtered public lists and supported GlossTipLangs; the
 loader does not expand availability. `prepareWordListsV3` uses this same rule.
 
 `BilingualWordListTitle` from `lingop/ui/next` renders prepared or live labels,

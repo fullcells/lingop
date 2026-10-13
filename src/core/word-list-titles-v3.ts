@@ -31,12 +31,12 @@ export function resolveWordListTitleV3(metadata: readonly SBWordListV3Row[], lis
 }
 
 /** Read saved fallback titles only for caller-selected lists and languages.
- * Variant titles need no words2 read. Lingop's existing per-direction cache
- * shares concurrent reads; this function retains only requested title glosses.
+ * Variant titles need no words2 read. Current clients query only the requested
+ * words; older client adapters retain their existing per-direction read.
  * No translations or annotations are generated and no new persistent cache exists.
  */
 export async function loadWordListTitleGlossesV3(
-  client: Pick<LingoDataClient, 'getSBWordsForLangDir'>,
+  client: Pick<LingoDataClient, 'getSBWordsForLangDir'> & Partial<Pick<LingoDataClient, 'getSBWordsForWords'>>,
   metadata: readonly SBWordListV3Row[],
   requests: readonly WordListTitleRequestV3[],
 ): Promise<WordListTitleGlossesV3> {
@@ -52,7 +52,9 @@ export async function loadWordListTitleGlossesV3(
     directions.set(key, request);
   }
   return new Map(await Promise.all([...directions].map(async ([key, { source, target, titles }]) => {
-    const rows = await client.getSBWordsForLangDir(source, target);
+    const rows = client.getSBWordsForWords
+      ? await client.getSBWordsForWords(source, target, [...titles])
+      : await client.getSBWordsForLangDir(source, target);
     const preferred = new Map<string, SBWordRow2>();
     for (const row of rows) {
       const word = titleKey(row.word);

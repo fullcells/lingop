@@ -63,7 +63,11 @@ describe('V3 Prebake',()=>{
     expect(result.languages.yue?.lists['51']?.words.map(w=>w.glosses)).toEqual([{en:'shrimp dumpling'},{en:'shrimp dumpling'}]);
     expect(client.getSBWordsForLangDir).toHaveBeenCalledTimes(1);
     expect(client.getSBWordsForLangDir).toHaveBeenCalledWith('yue','en');
-    await prepareWordListsV3({...options, enrichment:JSON.parse(JSON.stringify(cache))});
+    const getSBWordsForWords = vi.fn(async () => client.getSBWordsForLangDir.mock.results[0]!.value);
+    const narrowResult = await prepareWordListsV3({...options, client: { ...client, getSBWordsForWords }, enrichment:JSON.parse(JSON.stringify(cache))});
+    expect(narrowResult).toEqual(result);
+    expect(getSBWordsForWords).toHaveBeenCalledExactlyOnceWith('yue', 'en', ['點心', '廣東美食']);
+    expect(client.getSBWordsForLangDir).toHaveBeenCalledTimes(1);
     expect(client.fetchAnnotation).toHaveBeenCalledTimes(1);
     expect(client.fetchAndGenGloss).not.toHaveBeenCalled();
     expect(client.generateEmojis).toHaveBeenCalledTimes(1);
