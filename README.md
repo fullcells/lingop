@@ -1661,3 +1661,36 @@ the central service allows exact loopback origins and return destinations,
 including development ports. The same verified-user authentication applies.
 
 Set `linkToTranslateApp={false}` when embedding `CampLingoPricing` inside Translate & Learn. Other consumers link mentions of the app to `https://translate.camplingo.com` in a new tab by default. Translations retain the `{_TRANSLATE_APP_}` placeholder so the component can render the brand and link safely.
+
+### Shared V3 title and label UI
+
+`createWordListTitleResolverV3(metadata, glosses)` in `lingop/core` resolves the
+list's own title when languages match, then its anchor family's target-language
+title, then a saved full-title gloss, then a saved base-title gloss with its
+counter retained. Missing translations return `null`. Verified glosses win over
+unverified entries, then the newest stored row wins. Titles are never generated
+by this display path.
+
+`loadWordListTitleGlossesV3(client, metadata, [{ list, langs }])` reads only fallback
+directions requested by the caller. Lists with language-family titles require no
+gloss reads. Requests share Lingop's existing words2 cache and retain only title
+matches. Pass already-filtered public lists and supported GlossTipLangs; the
+loader does not expand availability. `prepareWordListsV3` uses this same rule.
+
+`BilingualWordListTitle` from `lingop/ui/next` renders prepared or live labels,
+with GUI/source ordering, inline/stacked layout, language attributes, counters,
+and distinct loading/missing states. Same-language labels render once. It does
+not fetch data or require a provider.
+
+`WordListsSelectorV3` and `WordListViewV3` accept a caller-authorized V3 tree,
+metadata, title glosses and current languages. They preserve numeric list IDs,
+actual-word progress, selection, details and streak actions. They use the shared
+label and existing emoji/word-chip services, never the V2 list tables or Prebake
+provider. Consumers still own public/staging selection, routes and access checks.
+
+The previous `WordListsSelector` and `WordListView` exports are deprecated V2
+compatibility APIs. They and the V2 preparation CLI remain functional until
+remaining consumers migrate. Adopting V3 requires numeric IDs and language-owned
+word/child data; old string list keys and aligned V2 caches are not interchangeable.
+No database migration or automatic consumer switch occurs when installing this
+release.

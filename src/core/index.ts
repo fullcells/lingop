@@ -18,3 +18,5 @@ export * from "./word-lists.js";
 export * from "./word-lists-v3.js";
 export * from "./word-scores.js";
 export * from "./images.js";
+export * from "./word-list-titles-v3.js";
+export * from "./word-list-display-v3.js";

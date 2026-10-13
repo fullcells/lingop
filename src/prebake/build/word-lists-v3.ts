@@ -1,3 +1,4 @@
+import { loadWordListTitleGlossesV3, createWordListTitleResolverV3 } from '../../core/word-list-titles-v3.js';
 import { translatePrebakeTexts, type PrebakeBuildServices } from "./api.js";
 import type { LingoDataClient } from '../../core/lingo-data-client.js';
 import { createWordListGlossTipLangResolverV3, createWordListL10nResolverV3, type WordListV3 } from '../../core/word-lists-v3.js';
@@ -85,33 +86,23 @@ export async function prepareWordListsV3({ client, rootListId, focusLangs, guiLa
     tree.roots = tree.roots.filter(id => kept.has(id));
     tree.lists.forEach(list => { list.sublists = list.sublists.filter(edge => kept.has(edge.child_list_id)); });
   }
-  // Non-English standalone lists have English title glosses, not synthetic
-  // English list variants. Read saved words2 rows once per direction; never
-  // generate titles as a side effect of publication. Do not persist stale titles.
-  const titleIndexes = new Map<string, Promise<Map<string, string>>>();
-  const relatedList = createWordListL10nResolverV3(meta);
-  async function titleGloss(list: WordListV3, gui: string): Promise<string> {
-    const related = relatedList(list.id, gui);
-    if (related) return related.title;
-    const key = `${list.lang}:${gui}`;
-    if (!titleIndexes.has(key)) titleIndexes.set(key, (async () => {
+  // Use the same family-first title policy as runtime V3 consumers. Plan only
+  // supported combinations, and validate titles before billable word enrichment.
+  const requests = [...available].map(([list, langs]) => ({ list, langs }));
+  const titleGlosses = await loadWordListTitleGlossesV3({
+    getSBWordsForLangDir: (source, target) => {
       if (!client.getSBWordsForLangDir) throw new Error('V3 title glosses require getSBWordsForLangDir.');
-      const rows = await client.getSBWordsForLangDir(list.lang, gui);
-      const index = new Map<string, string>();
-      for (const row of [...rows].filter(row => row.word_lang === list.lang && row.gloss_lang === gui && row.gloss?.trim())
-        .sort((a, b) => Number(b.is_human_verified) - Number(a.is_human_verified) || b.created_at.localeCompare(a.created_at) || b.id - a.id)) {
-        if (!index.has(row.word)) index.set(row.word, row.gloss.trim());
-      }
-      return index;
-    })());
-    const gloss = (await titleIndexes.get(key)!).get(list.title);
-    if (!gloss) throw new Error(`Missing stored V3 title gloss: ${list.lang}/${list.title} → ${gui}`);
-    return gloss;
-  }
-  // Verify all required title labels before performing billable enrichment.
+      return client.getSBWordsForLangDir(source, target);
+    },
+  }, meta, requests);
+  const resolveTitle = createWordListTitleResolverV3(meta, titleGlosses);
   const titles = new Map<WordListV3, Record<string, string>>();
-  for (const tree of Object.values(trees)) for (const list of tree.lists) {
-    titles.set(list, Object.fromEntries(await Promise.all(available.get(list)!.map(async gui => [gui, await titleGloss(list, gui)]))));
+  for (const { list, langs } of requests) {
+    titles.set(list, Object.fromEntries(langs.map(gui => {
+      const title = resolveTitle(list, gui);
+      if (title === null) throw new Error(`Missing stored V3 title gloss: ${list.lang}/${list.title} → ${gui}`);
+      return [gui, title];
+    })));
   }
   const cache = enrichment;
   async function batches<T>(items: T[], task: (item: T) => Promise<void>) {

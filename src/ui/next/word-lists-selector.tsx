@@ -83,6 +83,7 @@ function wordListHref(basePath: string, title: string): string {
  * current languages. Translation and word-streak data come from Lingop's
  * existing providers.
  */
+/** @deprecated V2 compatibility only. New consumers should use WordListsSelectorV3. */
 export function WordListsSelector({
   supabaseClient,
   guiLang,

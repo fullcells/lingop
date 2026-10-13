@@ -259,3 +259,5 @@ button.lingop-word-lists-selector__branch-title:hover {
     transform: rotate(360deg);
   }
 }
+
+.lingop-word-list-title--strong { font-weight: 700; }

@@ -110,6 +110,7 @@ export const lingopOATSourceData: OATSourceData = {
       "Simple",
       "Simplified Chinese Script",
       "Slow speech sounds better with Browser Voices.",
+      "Something went wrong.",
       "Sorry, that email-password pair didn't match any of our records. Please try again with different details.",
       "Speed",
       "Spelling",

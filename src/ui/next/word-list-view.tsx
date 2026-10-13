@@ -69,6 +69,7 @@ function joinClassNames(...values: Array<string | false | undefined>): string {
  * WordListsSelector, with UI intended for displaying the list contents rather
  * than selecting lists.
  */
+/** @deprecated V2 compatibility only. New consumers should use WordListViewV3. */
 export function WordListView({
   rootListPk,
   guiLang,
