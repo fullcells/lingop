@@ -297,7 +297,7 @@ function Example() {
 }
 ```
 
-`WordListsSelector`, `WordListVisualLeafNode`, `AnnotatedTextView`, `CampLingoAuthForm`, `UserWordStreaksDataProvider`, and `useSupabaseSignedInStatus()` use the provider when present. Their explicit Supabase-client inputs remain temporarily available for migration or intentional overrides. Non-React APIs, including `speechSynthTTS`, cannot read React context and retain explicit client options.
+`AnnotatedTextView`, `CampLingoAuthForm`, `UserWordStreaksDataProvider`, and `useSupabaseSignedInStatus()` use the provider when present. Their explicit Supabase-client inputs remain temporarily available for migration or intentional overrides. Non-React APIs, including `speechSynthTTS`, cannot read React context and retain explicit client options.
 
 `lingop/react` works with Next.js and React Native and imports no UI renderer,
 CSS, browser speech, or Expo modules. Its `"use client"` directive preserves the
@@ -410,59 +410,42 @@ import "lingop/ui/next/camp-lingo-auth-form.css";
 
 The stylesheet provides the default Camp Lingo appearance. Consumers can override the `lingop-camp-lingo-auth-form*` classes or pass an additional root `className`.
 
-## Word-list selector in Next.js
+## Word Lists V3 selector and view in Next.js
 
-`WordListsSelector` and its `WordListVisualLeafNode` use plain React and CSS, with no Chakra UI or other visual-framework dependency. They use `LingopClientDataProvider` together with the existing Prebake and user-word-streak providers; the consumer supplies the current language pair.
+`WordListsSelectorV3` and `WordListViewV3` use plain React and CSS. Consumers
+supply a Word Lists V3 tree already filtered for their public/staging root and
+language pair, its metadata, and any saved title glosses. Both use
+`LingopClientDataProvider` and `UserWordStreaksDataProvider`; the detail view
+also uses `OATDataProvider`. Neither requires `PrebakedDataProvider`.
 
 ```tsx
-import { WordListsSelector } from "lingop/ui/next";
+import { WordListsSelectorV3, WordListViewV3 } from "lingop/ui/next";
 import "lingop/ui/next/word-lists-selector.css";
-
-<WordListsSelector
-  guiLang={guiLang}
-  focusLang={focusLang}
-  rootListPk="_public"
-  mode="EXPLORE"
-  onSelectedWordListPks={(listPks) => openSession(listPks[0])}
-  showWordStreaks
-/>;
-```
-
-## Word-list view in Next.js
-
-`WordListView` recursively renders one localized word-list tree. By default,
-terminal lists use Lingop's `WordChipsArrayView`; one word-details popover is
-shared across the full tree. `LingopClientDataProvider` and
-`PrebakedDataProvider` are required. `UserWordStreaksDataProvider` is optional
-unless `showWordStreaks` is enabled.
-
-```tsx
-import { WordListView } from "lingop/ui/next";
 import "lingop/ui/next/word-list-view.css";
 
-<WordListView
-  rootListPk="_public"
+<WordListsSelectorV3
+  tree={tree}
+  metadata={metadata}
+  titleGlosses={titleGlosses}
   guiLang={guiLang}
   focusLang={focusLang}
-  showWordStreaks
+  onSelect={({ id }) => openSession(id)}
+  onDetails={(id) => openDetails(id)}
+/>;
+
+<WordListViewV3
+  tree={selectedTree}
+  metadata={metadata}
+  titleGlosses={titleGlosses}
+  guiLang={guiLang}
+  focusLang={focusLang}
 />;
 ```
 
-Site-specific terminal cards can remain consumer-owned through `renderLeaf`:
-
-```tsx
-<WordListView
-  rootListPk={wordListPk}
-  guiLang={guiLang}
-  focusLang={focusLang}
-  renderLeaf={({ words, listPk }) => (
-    <MyWordCardGrid words={words} wordListPk={listPk} />
-  )}
-/>;
-```
-
-The aggregate stylesheet includes the default word-chip and word-details
-styles. Consumers can override the isolated `lingop-word-list-view*` classes.
+The detail view renders each list's own words with `WordChipsArrayView` and
+provides list streak actions. Its aggregate stylesheet includes word-chip and
+word-details styles. Consumers can override the isolated
+`lingop-word-list-view*` classes or retain their own word-card renderer.
 
 ## Install
 
@@ -595,14 +578,15 @@ Additional core helpers:
 - `fetchBinderDocsByMinL10nsOrder({ supabaseClient, binder_id, lang, priorityDocIds? })`: loads `cache_binder_doc_l10ns` rows for a binder/language pair and returns the same recommended ordering.
 - Low-level `loadWordExplicitationsRows({ supabaseClient })` and `getOneWayWordExplicitations(input, { supabaseClient })` remain exported for gradual migration, but app code should prefer the existing `LingoDataClient`.
 
-### Word lists v3: gradual migration
+### Word Lists V3: gradual migration
 
-The v3 readers use only `word_lists_v3`, `word_list_words`, and `word_list_sublists`.
+The Word Lists V3 readers use only `word_lists_v3`, `word_list_words`, and `word_list_sublists`.
 They do not query or fall back to `word_lists` or `cache_word_list_l10n_words`.
-The legacy and v3 APIs coexist as separate read paths during migration.
-Existing word-list methods, `WordListView`, `WordListsSelector`, and Prebake keep
-their legacy behavior. Consumers opt into v3 explicitly; these readers neither
-update tables nor generate translations.
+The Word Lists V2 and Word Lists V3 data APIs coexist as separate read paths.
+Word Lists V2 data methods and Prebake retain their existing behavior for legacy
+consumers, including Admin Word Lists. The unused Word Lists V2 selector/view
+components have been removed. Consumers opt into Word Lists V3 data explicitly;
+these readers neither update tables nor generate translations.
 
 ```ts
 import { createLingoDataClient, buildWordListTreeV3 } from "lingop/core";
@@ -1662,7 +1646,7 @@ including development ports. The same verified-user authentication applies.
 
 Set `linkToTranslateApp={false}` when embedding `CampLingoPricing` inside Translate & Learn. Other consumers link mentions of the app to `https://translate.camplingo.com` in a new tab by default. Translations retain the `{_TRANSLATE_APP_}` placeholder so the component can render the brand and link safely.
 
-### Shared V3 title and label UI
+### Shared Word Lists V3 title and label UI
 
 `createWordListTitleResolverV3(metadata, glosses)` in `lingop/core` resolves the
 list's own title when languages match, then its anchor family's target-language
@@ -1682,15 +1666,16 @@ with GUI/source ordering, inline/stacked layout, language attributes, counters,
 and distinct loading/missing states. Same-language labels render once. It does
 not fetch data or require a provider.
 
-`WordListsSelectorV3` and `WordListViewV3` accept a caller-authorized V3 tree,
+`WordListsSelectorV3` and `WordListViewV3` accept a caller-authorized Word Lists V3 tree,
 metadata, title glosses and current languages. They preserve numeric list IDs,
 actual-word progress, selection, details and streak actions. They use the shared
-label and existing emoji/word-chip services, never the V2 list tables or Prebake
+label and existing emoji/word-chip services, never the Word Lists V2 tables or Prebake
 provider. Consumers still own public/staging selection, routes and access checks.
 
-The previous `WordListsSelector` and `WordListView` exports are deprecated V2
-compatibility APIs. They and the V2 preparation CLI remain functional until
-remaining consumers migrate. Adopting V3 requires numeric IDs and language-owned
-word/child data; old string list keys and aligned V2 caches are not interchangeable.
-No database migration or automatic consumer switch occurs when installing this
-release.
+The unused Word Lists V2 `WordListsSelector`, `WordListVisualLeafNode`, and
+`WordListView` exports and their component prop types have been removed. Their
+stylesheet paths remain available because the Word Lists V3 components use them.
+Word Lists V2 data APIs and the preparation CLI remain available. Adopting
+Word Lists V3 requires numeric IDs and language-owned word/child data; old string
+list keys and aligned Word Lists V2 caches are not interchangeable. No database
+migration or automatic consumer data switch occurs when installing this release.

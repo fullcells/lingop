@@ -20,7 +20,7 @@ export type WordListsSelectorV3Props = {
   onDetails: (id: number) => void;
 };
 
-/** V3 selector. Callers supply their permitted tree; no V2 reads or Prebake provider. */
+/** Word Lists V3 selector for a permitted tree; no Word Lists V2 reads or Prebake provider. */
 export function WordListsSelectorV3({ tree, metadata, titleGlosses, titlesLoading = false, guiLang, focusLang, onSelect, onDetails }: WordListsSelectorV3Props) {
   const resolveTitle = useMemo(() => createWordListTitleResolverV3(metadata, titleGlosses), [metadata, titleGlosses]);
   function render(node: WordListV3TreeNode, level = 1): React.ReactNode {

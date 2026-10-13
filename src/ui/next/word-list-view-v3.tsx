@@ -11,7 +11,7 @@ import { BilingualWordListTitle } from './bilingual-word-list-title.js';
 import type { WordListsSelectorV3Props } from './word-lists-selector-v3.js';
 
 export type WordListViewV3Props = Omit<WordListsSelectorV3Props, 'onSelect' | 'onDetails'>;
-/** V3 detail/streak UI for a caller-authorized tree. Never reads legacy V2 tables. */
+/** Word Lists V3 detail/streak UI for a permitted tree. Never reads Word Lists V2 tables. */
 export function WordListViewV3({ tree, metadata, titleGlosses, titlesLoading = false, guiLang, focusLang }: WordListViewV3Props) {
   const { OAT } = useOAT();
   const resolveTitle = useMemo(() => createWordListTitleResolverV3(metadata, titleGlosses), [metadata, titleGlosses]);
