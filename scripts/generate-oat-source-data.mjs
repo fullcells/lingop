@@ -5,7 +5,7 @@ import { createJiti } from "jiti";
 const projectRoot = process.cwd();
 const jiti = createJiti(import.meta.url);
 const {
-  extractOATCalleeStringsFromFile,
+  extractOATStringsFromFile,
   getAllOATSourceFiles,
 } = await jiti.import(
   path.join(projectRoot, "src/oat/build/source-extractor.ts"),
@@ -15,11 +15,13 @@ const sourceFiles = getAllOATSourceFiles([path.join(projectRoot, "src")])
   .filter((file) => !/\.test\.[jt]sx?$/.test(file))
   .filter((file) => !file.endsWith("lingop-source-data.generated.ts"));
 
+const extractedFiles = sourceFiles.map((file) =>
+  extractOATStringsFromFile(file, ["OAT", "OAT2", "getStaticFocusLangAText"]),
+);
+
 function collectTexts(calleeName) {
   return [...new Set(
-    sourceFiles.flatMap((file) =>
-      extractOATCalleeStringsFromFile(file, calleeName),
-    ),
+    extractedFiles.flatMap((texts) => texts[calleeName]),
   )].sort((a, b) => a.localeCompare(b));
 }
 

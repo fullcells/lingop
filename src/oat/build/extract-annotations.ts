@@ -10,10 +10,12 @@ import {
 import type { OATConfig } from "./config.js";
 import { readOATJsonFile, writeOATJsonFile } from "./file-io.js";
 import { collectAllOATSourceData } from "./source-data.js";
+import type { OATSourceData } from "../types.js";
 
 export async function extractOATAnnotations(
   config: OATConfig,
   services: OATBuildServices,
+  sourceData: OATSourceData = collectAllOATSourceData(config),
 ): Promise<void> {
   const translationsOutputDir = path.join(
     config.generatedAssetsRoot,
@@ -25,7 +27,7 @@ export async function extractOATAnnotations(
   );
 
   // Get list of 'enTexts' (for Requested AText) from code files' getStaticFocusLangAText.
-  const enTextsByFocusLangPath = collectAllOATSourceData(config).staticFocusTextsByScope;
+  const enTextsByFocusLangPath = sourceData.staticFocusTextsByScope;
 
   // Get enTexts (sourceTexts of the Requested AText) by FocusLang.
   const enTextsByTargetLang: Record<string, Set<string>> = {};

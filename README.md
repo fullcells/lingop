@@ -208,6 +208,11 @@ OAT and Prebake use Lingop's shared backend selection. Production is the default
 
 Lingop developers write normal `OAT("source text")`, `OAT2("source text")`, and `getStaticFocusLangAText("source text")` calls directly in shared components. Lingop's build scans those calls and generates `lingopOATSourceData`; the packaged `oat-preflight` inherently combines it with the consumer's locally scanned calls. Consumers do not maintain a separate string list or configure shared source data.
 
+Each preflight parses each consumer source file once and shares the collected
+texts between translation and annotation preparation. Every invocation reads
+the source again, so edits are picked up without a scan-cache invalidation step.
+Translation refresh rules and annotation batch ordering are unchanged.
+
 At runtime, import `OATDataProvider` and `useOAT` from `lingop/oat/react`. The provider receives `guiLang` and `focusLang` read-only plus consumer-provided `loadTranslations` and `loadStaticAnnotations` functions. Web consumers can load the generated files with `fetch`; React Native consumers can use an asset manifest or another native-compatible loader.
 
 ## Prebake: Build-Time Content Translations and Annotations

@@ -279,8 +279,12 @@ export function useL10nWordDetail({
     }
 
     void lingopClient
-      .getSBWordsForLangDir(l10nWordAnnotatedText.lang, "en")
-      .then((sbWords) => {
+      .getSBWordsForWords(l10nWordAnnotatedText.lang, "en", [l10nWordToken.text])
+      .then((rows) => {
+        // The direction-wide cache returned non-core rows first, then core
+        // rows, each in ID order. Preserve that tie-break without mutating the
+        // targeted cache (list titles use their own verified/newest priority).
+        const sbWords = [...rows].sort((a, b) => Number(a.is_core) - Number(b.is_core) || a.id - b.id);
         const sbWord =
           sbWords.find(({ word }) => word === l10nWordToken.text) ??
           sbWords.find(({ word }) => ilike(word, l10nWordToken.text));

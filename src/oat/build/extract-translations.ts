@@ -5,18 +5,19 @@ import { translateOATTexts, type OATBuildServices } from "./api.js";
 import type { OATConfig } from "./config.js";
 import { readOATJsonFile, writeOATJsonFile } from "./file-io.js";
 import { collectAllOATSourceData, mergeOATTextsByScope } from "./source-data.js";
+import type { OATSourceData } from "../types.js";
 
 // FUTURE: NonDefault Option to set useNextJSCachedTranslations:true to use existing oa.{lang}.json data - reducing load on API calls.
 
 export async function extractOATTranslations(
   config: OATConfig,
   services: OATBuildServices,
+  sourceData: OATSourceData = collectAllOATSourceData(config),
 ): Promise<void> {
   const translationsOutputDir = path.join(
     config.generatedAssetsRoot,
     OAT_ASSET_DIRS.translations,
   );
-  const sourceData = collectAllOATSourceData(config);
   const oat1TextsByGuiLangPath = sourceData.guiTextsByScope;
   const oat2TextsByFocusLangPath = mergeOATTextsByScope([
     sourceData.focusTextsByScope,

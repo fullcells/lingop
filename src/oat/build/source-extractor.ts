@@ -36,18 +36,27 @@ export function extractOATCalleeStringsFromFile(
   filename: string,
   calleeName: string,
 ): string[] {
+  return extractOATStringsFromFile(filename, [calleeName])[calleeName]!;
+}
+
+/** Parse each file once, collecting all requested call types in source order. */
+export function extractOATStringsFromFile(
+  filename: string,
+  calleeNames: readonly string[],
+): Record<string, string[]> {
   const code = fs.readFileSync(filename, "utf-8");
   const ast = parse(code, {
     sourceType: "module",
     plugins: ["typescript", "jsx"],
   });
 
-  const strings: string[] = [];
+  const strings = Object.fromEntries(calleeNames.map((name) => [name, [] as string[]]));
+  const warnings = Object.fromEntries(calleeNames.map((name) => [name, [] as string[]]));
   traverse(ast, {
     CallExpression({ node }) {
       if (
         node.callee.type !== "Identifier" ||
-        node.callee.name !== calleeName ||
+        !Object.hasOwn(strings, node.callee.name) ||
         node.arguments.length === 0
       ) {
         return;
@@ -55,18 +64,21 @@ export function extractOATCalleeStringsFromFile(
 
       const arg = node.arguments[0];
       if (!arg) return;
+      const calleeName = node.callee.name;
       if (arg.type === "StringLiteral") {
-        strings.push(arg.value);
+        strings[calleeName]!.push(arg.value);
         return;
       }
 
       // Ignore calls such as OAT(variable), OAT(getString()), and template literals, but make them visible to developers.
       const loc = arg.loc?.start;
       const location = loc ? `${filename}:${loc.line}:${loc.column}` : filename;
-      console.warn(
+      warnings[calleeName]!.push(
         `[WARN] ${calleeName}() call with non-string argument at ${location}: will be skipped.`,
       );
     },
   });
+  // Retain the old per-callee warning order even though traversal is shared.
+  for (const name of calleeNames) warnings[name]!.forEach((warning) => console.warn(warning));
   return strings;
 }

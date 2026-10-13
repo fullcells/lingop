@@ -2,7 +2,7 @@ import type { OATSourceData, OATTextsByScope } from "../types.js";
 import { lingopOATSourceData } from "../lingop-source-data.generated.js";
 import type { OATConfig } from "./config.js";
 import {
-  extractOATCalleeStringsFromFile,
+  extractOATStringsFromFile,
   getAllOATSourceFiles,
 } from "./source-extractor.js";
 
@@ -34,22 +34,23 @@ export function collectOATSourceData(config: OATConfig): OATSourceData {
   const staticFocusTextsByScope: Record<string, Set<string>> = {};
 
   for (const file of getAllOATSourceFiles(config.scanDirs)) {
+    const texts = extractOATStringsFromFile(file, ["OAT", "OAT2", "getStaticFocusLangAText"]);
     const guiScope = getScopeForFile(file, config.guiLangsByScope);
     const focusScope = getScopeForFile(file, config.focusLangsByScope);
     addTexts(
       guiTextsByScope,
       guiScope,
-      extractOATCalleeStringsFromFile(file, "OAT"),
+      texts.OAT!,
     );
     addTexts(
       focusTextsByScope,
       focusScope,
-      extractOATCalleeStringsFromFile(file, "OAT2"),
+      texts.OAT2!,
     );
     addTexts(
       staticFocusTextsByScope,
       focusScope,
-      extractOATCalleeStringsFromFile(file, "getStaticFocusLangAText"),
+      texts.getStaticFocusLangAText!,
     );
   }
 
