@@ -1584,7 +1584,10 @@ behavior is unchanged. Explicitation display can still resolve its emoji.
 List data is refreshed each run. Enrichment is retained until the consumer removes
 selected entries for editorial refresh; no automatic wording rewrite occurs.
 Use `checkpoint(cache)` to persist completed batches atomically and `report()` for
-progress. Missing required annotations or glosses fail the build before publication.
+progress. A failed batch waits for its other requests and checkpoints completed
+work before reporting the error, so retries can reuse it. Missing English word
+glosses fail before downstream translations or emoji requests. Missing required
+annotations or glosses fail the build before publication.
 The consumer must publish a fresh build to expose list edits to a static site.
 
 #### GlossTipLang eligibility
@@ -1612,6 +1615,8 @@ For English labels without an English list variant, preparation reads stored
 `words2` title glosses through `client.getSBWordsForLangDir`, once per required
 direction. Missing labels fail before word enrichment; no title/list variant is
 generated. The full `LingoDataClient` supplies that method automatically.
+Family lookups reuse `createWordListL10nResolverV3(metadata)` rather than rebuilding
+an index for every title; existing one-off `resolveWordListL10nV3` calls still work.
 
 ### Camp Lingo memberships
 

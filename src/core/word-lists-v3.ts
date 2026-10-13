@@ -226,7 +226,8 @@ export async function loadWordListsV3(lang: string, options: WordListsV3Options 
   return (await listsForLang(context(options), lang)).map(cloneList);
 }
 
-function resolver(rows: readonly SBWordListV3Row[]) {
+/** Index a metadata snapshot once for repeated direct-family lookups. */
+export function createWordListL10nResolverV3(rows: readonly SBWordListV3Row[]) {
   const byId = new Map(rows.map((row) => [row.id, row]));
   const families = new Map<number, Map<string, SBWordListV3Row[]>>();
   for (const row of rows) {
@@ -252,7 +253,7 @@ function resolver(rows: readonly SBWordListV3Row[]) {
 export function resolveWordListL10nV3(
   rows: readonly SBWordListV3Row[], listId: WordListV3Id, lang: string,
 ): SBWordListV3Row | null {
-  return resolver(rows)(listId, lang);
+  return createWordListL10nResolverV3(rows)(listId, lang);
 }
 
 /** GlossTipLang policy, independent of publication, GUI choices and cached glosses.
@@ -285,7 +286,7 @@ export async function getWordListL10nV3(
   listId: WordListV3Id, lang: string, options: WordListsV3Options = {},
 ): Promise<WordListV3 | null> {
   const ctx = context(options);
-  const row = resolver(await metadata(ctx))(listId, lang);
+  const row = createWordListL10nResolverV3(await metadata(ctx))(listId, lang);
   if (!row) return null;
   const list = (await listsForLang(ctx, lang)).find((candidate) => candidate.id === row.id);
   return list ? cloneList(list) : null;
@@ -329,7 +330,7 @@ export async function getDescendantL10nsOfWordListsV3(
   if (listIds.length === 0) return [];
   const ctx = context(options);
   const [rows, lists] = await Promise.all([metadata(ctx), listsForLang(ctx, lang)]);
-  const resolve = resolver(rows);
+  const resolve = createWordListL10nResolverV3(rows);
   const byId = new Map(lists.map((list) => [list.id, list]));
   const visited = new Set<number>();
   const path = new Set<number>();

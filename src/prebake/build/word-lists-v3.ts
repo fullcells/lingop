@@ -1,6 +1,6 @@
 import { translatePrebakeTexts, type PrebakeBuildServices } from "./api.js";
 import type { LingoDataClient } from '../../core/lingo-data-client.js';
-import { createWordListGlossTipLangResolverV3, resolveWordListL10nV3, type WordListV3 } from '../../core/word-lists-v3.js';
+import { createWordListGlossTipLangResolverV3, createWordListL10nResolverV3, type WordListV3 } from '../../core/word-lists-v3.js';
 import type { AnnotatedText } from '../../core/annotation/types.js';
 
 export type WordListsV3Enrichment = {
@@ -16,11 +16,12 @@ export type PreparedWordListsV3 = { version: 3; languages: Record<string, { root
  * borrow another language's words, order, or child relationships. */
 export function collectPublicWordListsV3(all: WordListV3[], lang: string, rootId: number) {
   const byId = new Map(all.map(list => [list.id, list]));
+  const resolve = createWordListL10nResolverV3(all);
   const resolved = new Map<number, WordListV3>();
   function visit(id: number, path: Set<number>): number | null {
     const source = byId.get(id);
     if (!source) throw new Error(`Missing V3 child ${id}`);
-    const match = resolveWordListL10nV3(all, id, lang);
+    const match = resolve(id, lang);
     const list = match ? byId.get(match.id)! : source.words.length === 0 && source.title.startsWith('_') ? source : null;
     if (!list) return null;
     if (path.has(list.id)) throw new Error(`V3 cycle at ${list.id}`);
@@ -88,8 +89,9 @@ export async function prepareWordListsV3({ client, rootListId, focusLangs, guiLa
   // English list variants. Read saved words2 rows once per direction; never
   // generate titles as a side effect of publication. Do not persist stale titles.
   const titleIndexes = new Map<string, Promise<Map<string, string>>>();
+  const relatedList = createWordListL10nResolverV3(meta);
   async function titleGloss(list: WordListV3, gui: string): Promise<string> {
-    const related = resolveWordListL10nV3(meta, list.id, gui);
+    const related = relatedList(list.id, gui);
     if (related) return related.title;
     const key = `${list.lang}:${gui}`;
     if (!titleIndexes.has(key)) titleIndexes.set(key, (async () => {
@@ -113,7 +115,14 @@ export async function prepareWordListsV3({ client, rootListId, focusLangs, guiLa
   }
   const cache = enrichment;
   async function batches<T>(items: T[], task: (item: T) => Promise<void>) {
-    for (let i = 0; i < items.length; i += 6) { await Promise.all(items.slice(i, i + 6).map(task)); await checkpoint(cache); }
+    for (let i = 0; i < items.length; i += 6) {
+      // Finish and persist successful peers even when one request fails, so the
+      // next build does not pay to repeat their work.
+      const results = await Promise.allSettled(items.slice(i, i + 6).map(task));
+      await checkpoint(cache);
+      const failed = results.find(result => result.status === 'rejected');
+      if (failed) throw failed.reason;
+    }
   }
   for (const lang of focusLangs) {
     const words = [...new Set(trees[lang]!.lists.flatMap(l => l.words.map(w => w.text)))];
@@ -125,6 +134,10 @@ export async function prepareWordListsV3({ client, rootListId, focusLangs, guiLa
       if (!a || a.lang !== lang || a.lang_text !== text || !a.tokens.length) throw new Error(`Missing V3 annotation: ${lang}/${text}`);
       annotations[text] = { ...a, owner_id: null, ref: null };
     });
+    // Validate before any downstream translation or emoji requests.
+    for (const text of words) if (!getWordListAnnotationGlosses(annotations[text]!).length) {
+      throw new Error(`Missing V3 English annotation gloss: ${lang}/${text}`);
+    }
   }
   const glosses = [...new Set(focusLangs.flatMap(lang => trees[lang]!.lists.flatMap(l => l.words.flatMap(w => getWordListAnnotationGlosses(cache.annotations[lang]![w.text]!)))))];
   for (const lang of [...new Set(guiLangs)].filter(l => l !== 'en')) {
@@ -173,7 +186,6 @@ export async function prepareWordListsV3({ client, rootListId, focusLangs, guiLa
       words: list.words.map(word => {
         const a = cache.annotations[lang]![word.text]!;
         const gs = getWordListAnnotationGlosses(a);
-        if (!gs.length) throw new Error(`Missing V3 English annotation gloss: ${lang}/${word.text}`);
         return { id: word.id, text: word.text, annotation: { ...a, owner_id: null, ref: null },
           glosses: Object.fromEntries(available.get(list)!.map(gui => [gui, gs.map(g => gui === 'en' ? g : cache.glosses[gui]![g]).join(' · ')])),
           emoji: gs.map(g => cache.emojis[g] ?? '').join(' '),

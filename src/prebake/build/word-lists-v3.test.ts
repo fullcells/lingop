@@ -5,6 +5,45 @@ const list=(id:number,lang:string,title:string,anchor:number|null=null,words:str
 const fixtures=[list(1,'en','_public',null,[],[2,3]),list(2,'en','Body',null,['eye']),list(3,'en','People',null,['grandfather']),list(20,'th','ร่างกาย',2,['ตา','ตา']),list(30,'th','ผู้คน',3,['ตา']),list(21,'es','Cuerpo',2),list(31,'es','Personas',3)];
 const annotation={lang:'th',lang_text:'ตา',tokens:[{text:'ตา',isWord:1,gloss:"eye / mom's dad"}],containsGloss:true,containsPhonetics:false,ref:null,owner_id:null};
 describe('V3 Prebake',()=>{
+  it('checkpoints completed work in a failed batch and retries only missing annotations', async () => {
+    const cache: WordListsV3Enrichment = {annotations:{},glosses:{},emojis:{}};
+    const saved: WordListsV3Enrichment[] = [];
+    let fail = true;
+    const client = {loadWordListMetaDataV3:async()=>fixtures,loadWordListsV3:async(lang:string)=>fixtures.filter(l=>l.lang===lang),
+      fetchAnnotation:vi.fn(async({localization:{text}}:{localization:{text:string}})=>{
+        if (fail && text === 'grandfather') throw new Error('temporary failure');
+        await Promise.resolve();
+        return {...annotation,lang:'en',lang_text:text,tokens:[{text,isWord:1,gloss:text}]};
+      }),fetchAndGenGloss:vi.fn(),generateEmojis:vi.fn(async()=>({eye:'👁️',grandfather:'👴'}))};
+    const options = {client,rootListId:1,focusLangs:['en'],guiLangs:['en'],enrichment:cache,
+      checkpoint:async(data:WordListsV3Enrichment)=>{saved.push(JSON.parse(JSON.stringify(data)));}};
+    await expect(prepareWordListsV3(options)).rejects.toThrow('temporary failure');
+    expect(saved.at(-1)?.annotations.en?.eye).toBeDefined();
+    expect(saved.at(-1)?.annotations.en?.grandfather).toBeUndefined();
+    fail = false;
+    await prepareWordListsV3({...options,enrichment:saved.at(-1)!});
+    expect(client.fetchAnnotation.mock.calls.map(([input])=>input.localization.text)).toEqual(['eye','grandfather','grandfather']);
+  });
+  it('rejects missing English glosses before requesting translations or emojis', async () => {
+    const rows = [list(1,'en','_public',null,[],[2]),list(2,'en','Body',null,['eye','unknown']),list(3,'es','Cuerpo',2)];
+    const client = {loadWordListMetaDataV3:async()=>rows,loadWordListsV3:async(lang:string)=>rows.filter(l=>l.lang===lang),
+      fetchAnnotation:vi.fn(),fetchAndGenGloss:vi.fn(),generateEmojis:vi.fn()};
+    const annotations = Object.fromEntries(['eye','unknown'].map(text=>[text,{...annotation,lang:'en',lang_text:text,tokens:[{text,isWord:1,gloss:text==='eye'?'eye':''}]}]));
+    await expect(prepareWordListsV3({client,rootListId:1,focusLangs:['en'],guiLangs:['en','es'],enrichment:{annotations:{en:annotations},glosses:{},emojis:{}}})).rejects.toThrow('Missing V3 English annotation gloss');
+    expect(client.fetchAndGenGloss).not.toHaveBeenCalled();
+    expect(client.generateEmojis).not.toHaveBeenCalled();
+  });
+  it('translates only eligible words in a mixed catalogue, once per destination', async () => {
+    const rows = [list(1,'en','_public',null,[],[2,3]),list(2,'en','Native',null,['native only','shared']),
+      list(3,'en','Common',null,['shared','shared']),list(4,'ja','共通',3)];
+    const annotations = Object.fromEntries(['native only','shared'].map(text=>[text,{...annotation,lang:'en',lang_text:text,tokens:[{text,isWord:1,gloss:text}]}]));
+    const client = {loadWordListMetaDataV3:async()=>rows,loadWordListsV3:async(lang:string)=>rows.filter(l=>l.lang===lang),
+      fetchAnnotation:vi.fn(),fetchAndGenGloss:vi.fn(async()=>({targetWord:'共通',is_human_verified:true})),generateEmojis:vi.fn()};
+    const result = await prepareWordListsV3({client,rootListId:1,focusLangs:['en'],guiLangs:['en','ja'],enrichment:{annotations:{en:annotations},glosses:{},emojis:{'native only':'','shared':''}}});
+    expect(client.fetchAndGenGloss).toHaveBeenCalledExactlyOnceWith({source_lang:'en',source_word:'shared',target_lang:'ja',generateIfMissing:true});
+    expect(result.languages.en?.lists['2']?.words.map(word=>word.glosses)).toEqual([{en:'native only'},{en:'shared'}]);
+    expect(result.languages.en?.lists['3']?.words.map(word=>word.glosses)).toEqual([{en:'shared',ja:'共通'},{en:'shared',ja:'共通'}]);
+  });
   it('prepares standalone Cantonese content only in English, including its category titles', async () => {
     const rows = [list(1,'en','_public',null,[],[]), list(10,'yue','_公開',1,[],[50]),
       list(50,'yue','廣東美食',null,[],[51]), list(51,'yue','點心',null,['蝦餃','蝦餃'])];
