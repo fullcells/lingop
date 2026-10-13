@@ -112,6 +112,8 @@ button.lingop-word-lists-selector__branch-title:hover {
 }
 
 .lingop-word-list-leaf {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   overflow: hidden;
   border: 1px solid #edf2f7;
@@ -130,8 +132,11 @@ button.lingop-word-lists-selector__branch-title:hover {
 
 .lingop-word-list-leaf__main {
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  text-align: center;
   width: 100%;
   gap: 0;
   padding: 0.5rem;
@@ -156,6 +161,7 @@ button.lingop-word-lists-selector__branch-title:hover {
 .lingop-word-list-leaf__secondary-title {
   display: flex;
   align-items: baseline;
+  justify-content: center;
   gap: 0.25rem;
   font-weight: 500;
   line-height: 1.2;

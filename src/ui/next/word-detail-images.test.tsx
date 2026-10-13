@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ImageFile } from "../../core/images.js";
 
 const context = vi.hoisted(() => ({ db: undefined as unknown }));
+vi.mock("../../oat/react/index.js", () => ({ useOAT: () => ({ OAT: (text: string) => text }) }));
 vi.mock("./lingop-client-data-provider.js", () => ({ useLingopClientData: () => ({ supabaseClient: context.db }) }));
 import { WordDetailImages } from "./word-detail-images.js";
 
@@ -30,9 +31,25 @@ function database(load: (table: string, filters: Filter[]) => Promise<unknown[]>
     }; return query;
   } };
 }
+const dialogNodes: ReturnType<typeof mockDialog>[] = [];
+function mockDialog() {
+  const listeners = new Map<string, (event: KeyboardEvent) => void>();
+  const node = {
+    open: false,
+    showModal: vi.fn(() => { node.open = true; }),
+    close: vi.fn(() => { node.open = false; }),
+    ownerDocument: { defaultView: {
+      addEventListener: (name: string, listener: (event: KeyboardEvent) => void) => listeners.set(name, listener),
+      removeEventListener: (name: string) => listeners.delete(name),
+    } },
+    listeners,
+  };
+  dialogNodes.push(node);
+  return node;
+}
 async function mount(word = "蝦餃", lang = "yue") {
   let view!: ReactTestRenderer;
-  await act(async () => { view = create(<WordDetailImages word={word} lang={lang} />); });
+  await act(async () => { view = create(<WordDetailImages word={word} lang={lang} />, { createNodeMock: element => element.type === "dialog" ? mockDialog() : null }); });
   views.push(view); return view;
 }
 
@@ -48,10 +65,32 @@ describe("word-detail image sets", () => {
     expect(view.root.findAllByType("img")).toHaveLength(1);
     expect(view.root.findByType("img").props.alt).toBe("蝦餃");
     expect(view.root.findByType("img").props.loading).toBe("lazy");
+    expect(JSON.stringify(view.toJSON())).not.toContain("Photographer");
+    expect(view.root.findAllByType("a")).toHaveLength(0);
+    await act(async () => view.root.findByType("button").props.onClick());
+    expect(view.root.findByType("dialog").props["aria-label"]).toBe("蝦餃");
+    await act(async () => view.root.findByType("dialog").props.onClose({ currentTarget: { open: true } }));
+    expect(view.root.findAllByType("dialog")).toHaveLength(1); // queued Strict Mode cleanup event
     expect(JSON.stringify(view.toJSON())).toContain("Photographer");
-    expect(view.root.findAllByType("a").map(a => a.props.href)).toEqual([
-      expect.stringContaining("/photo/original.webp"), "https://example.org/license",
-    ]);
+    expect(view.root.findAllByType("a").map(a => a.props.href)).toEqual(["https://example.org/license"]);
+    await act(async () => view.root.findByType("dialog").props.onCancel());
+    expect(view.root.findAllByType("dialog")).toHaveLength(0);
+    expect(view.root.findAllByType("img")).toHaveLength(1);
+  });
+
+  it("handles image Escape before consumer document listeners and removes the listener on close", async () => {
+    context.db = database(async table => table === "image_sets" ? [set()] : [file("photo")]);
+    const view = await mount();
+    await act(async () => view.root.findByType("button").props.onClick());
+    const dialog = dialogNodes.at(-1)!;
+    const event = { key: "Escape", composedPath: () => [dialog], preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    dialog.listeners.get("keydown")!(event as unknown as KeyboardEvent);
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(event.stopPropagation).toHaveBeenCalledOnce();
+    expect(dialog.open).toBe(false);
+    await act(async () => view.root.findByType("dialog").props.onClose({ currentTarget: dialog }));
+    expect(view.root.findAllByType("dialog")).toHaveLength(0);
+    expect(dialog.listeners.size).toBe(0);
   });
 
   it("renders nothing for absent, empty, archived-only, or unconfigured sets", async () => {
