@@ -8,8 +8,22 @@ import {
   loadWordListMetaDataV3,
   loadWordListsV3,
   resolveWordListL10nV3,
+  getWordListGlossTipLangsV3,
   type SBWordListV3Row,
 } from "./word-lists-v3.js";
+
+describe('GlossTipLang eligibility', () => {
+  it('defaults standalone anchors to English, independent of their own language', () => {
+    expect(getWordListGlossTipLangsV3([list(1, 'yue')], 1)).toEqual(['en']);
+    expect(getWordListGlossTipLangsV3([list(1, 'en')], 1)).toEqual(['en']);
+  });
+  it('includes every family language for anchor and variants without losing English', () => {
+    const rows = [list(1, 'yue'), list(2, 'ja', 1), list(3, 'es', 1), list(4, 'ko')];
+    for (const id of [1, 2, 3]) expect(getWordListGlossTipLangsV3(rows, id)).toEqual(['en', 'es', 'ja', 'yue']);
+    expect(getWordListGlossTipLangsV3(rows, 4)).toEqual(['en']);
+    expect(() => getWordListGlossTipLangsV3(rows, 99)).toThrow('Unknown');
+  });
+});
 
 type Row = Record<string, unknown>;
 function list(id: number, lang = "en", anchor: number | null = null): SBWordListV3Row {

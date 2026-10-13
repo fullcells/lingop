@@ -255,6 +255,32 @@ export function resolveWordListL10nV3(
   return resolver(rows)(listId, lang);
 }
 
+/** GlossTipLang policy, independent of publication, GUI choices and cached glosses.
+ * English is always supported. A family with alt-language variants also supports
+ * every language in that family (including its anchor). A standalone list does
+ * not implicitly support its own language. Parent/child links grant no support.
+ * This is eligibility to prepare glosses, not evidence that they already exist.
+ */
+export function createWordListGlossTipLangResolverV3(rows: readonly SBWordListV3Row[]) {
+  const byId = new Map(rows.map(row => [row.id, row]));
+  const families = new Map<number, Set<string>>();
+  for (const row of rows) {
+    const id = row.anchor_list_id ?? row.id;
+    if (!families.has(id)) families.set(id, new Set());
+    families.get(id)!.add(row.lang);
+  }
+  return (listId: WordListV3Id): string[] => {
+    const row = byId.get(listId);
+    if (!row) throw new Error(`Unknown V3 list ${listId}`);
+    const languages = families.get(row.anchor_list_id ?? row.id)!;
+    return ['en', ...(languages.size > 1 ? [...languages].filter(lang => lang !== 'en').sort() : [])];
+  };
+}
+
+export function getWordListGlossTipLangsV3(rows: readonly SBWordListV3Row[], listId: WordListV3Id): string[] {
+  return createWordListGlossTipLangResolverV3(rows)(listId);
+}
+
 export async function getWordListL10nV3(
   listId: WordListV3Id, lang: string, options: WordListsV3Options = {},
 ): Promise<WordListV3 | null> {

@@ -2,9 +2,54 @@ import { describe, it, expect, vi } from 'vitest';
 import { collectPublicWordListsV3, prepareWordListsV3, type WordListsV3Enrichment } from './word-lists-v3.js';
 import type { WordListV3 } from '../../core/word-lists-v3.js';
 const list=(id:number,lang:string,title:string,anchor:number|null=null,words:string[]=[],children:number[]=[]):WordListV3=>({id,lang,title,anchor_list_id:anchor,updated_at:'2026-10-06',words:words.map((text,i)=>({id:id*10+i,list_id:id,text,position:i+1})),sublists:children.map((child_list_id,i)=>({parent_list_id:id,child_list_id,position:i+1}))});
-const fixtures=[list(1,'en','_public',null,[],[2,3]),list(2,'en','Body',null,['eye']),list(3,'en','People',null,['grandfather']),list(20,'th','ร่างกาย',2,['ตา','ตา']),list(30,'th','ผู้คน',3,['ตา'])];
+const fixtures=[list(1,'en','_public',null,[],[2,3]),list(2,'en','Body',null,['eye']),list(3,'en','People',null,['grandfather']),list(20,'th','ร่างกาย',2,['ตา','ตา']),list(30,'th','ผู้คน',3,['ตา']),list(21,'es','Cuerpo',2),list(31,'es','Personas',3)];
 const annotation={lang:'th',lang_text:'ตา',tokens:[{text:'ตา',isWord:1,gloss:"eye / mom's dad"}],containsGloss:true,containsPhonetics:false,ref:null,owner_id:null};
 describe('V3 Prebake',()=>{
+  it('prepares standalone Cantonese content only in English, including its category titles', async () => {
+    const rows = [list(1,'en','_public',null,[],[]), list(10,'yue','_公開',1,[],[50]),
+      list(50,'yue','廣東美食',null,[],[51]), list(51,'yue','點心',null,['蝦餃','蝦餃'])];
+    const a = {...annotation, lang:'yue', lang_text:'蝦餃', tokens:[{text:'蝦餃',isWord:1,gloss:'shrimp dumpling'}]};
+    const cache: WordListsV3Enrichment = {annotations:{},glosses:{ja:{'shrimp dumpling':'old cached Japanese'}},emojis:{}};
+    const client = {loadWordListMetaDataV3:vi.fn(async()=>rows), loadWordListsV3:vi.fn(async(lang:string)=>rows.filter(l=>l.lang===lang)),
+      fetchAnnotation:vi.fn(async()=>a),fetchAndGenGloss:vi.fn(),generateEmojis:vi.fn(async()=>({'shrimp dumpling':'🥟'})),
+      getSBWordsForLangDir:vi.fn(async()=>[
+        {id:1,word_lang:'yue',gloss_lang:'en',word:'廣東美食',gloss:'Cantonese Food',is_core:false,is_human_verified:true,created_at:'2026-10-13'},
+        {id:2,word_lang:'yue',gloss_lang:'en',word:'點心',gloss:'Dim Sum',is_core:false,is_human_verified:true,created_at:'2026-10-13'},
+      ])};
+    const options = {client,rootListId:1,focusLangs:['yue','en'],guiLangs:['en','ja','yue','es'],enrichment:cache};
+    const result = await prepareWordListsV3(options);
+    expect(result.languages.en?.lists).toEqual({});
+    expect(result.languages.yue?.lists['50']?.titles).toEqual({en:'Cantonese Food'});
+    expect(result.languages.yue?.lists['51']?.glossTipLangs).toEqual(['en']);
+    expect(result.languages.yue?.lists['51']?.words.map(w=>w.glosses)).toEqual([{en:'shrimp dumpling'},{en:'shrimp dumpling'}]);
+    expect(client.getSBWordsForLangDir).toHaveBeenCalledTimes(1);
+    expect(client.getSBWordsForLangDir).toHaveBeenCalledWith('yue','en');
+    await prepareWordListsV3({...options, enrichment:JSON.parse(JSON.stringify(cache))});
+    expect(client.fetchAnnotation).toHaveBeenCalledTimes(1);
+    expect(client.fetchAndGenGloss).not.toHaveBeenCalled();
+    expect(client.generateEmojis).toHaveBeenCalledTimes(1);
+    expect(cache.glosses.ja?.['shrimp dumpling']).toBe('old cached Japanese');
+  });
+  it('does no enrichment for branches unavailable in the requested GlossTipLang', async () => {
+    const rows = [list(1,'en','_public',null,[],[2]),list(2,'en','Standalone',null,['unused'],[3]),
+      list(3,'en','Child',null,['also unused']),list(4,'ja','子',3)];
+    const client = {loadWordListMetaDataV3:async()=>rows,loadWordListsV3:async(lang:string)=>rows.filter(l=>l.lang===lang),
+      fetchAnnotation:vi.fn(),fetchAndGenGloss:vi.fn(),generateEmojis:vi.fn(),getSBWordsForLangDir:vi.fn()};
+    const result = await prepareWordListsV3({client,rootListId:1,focusLangs:['en'],guiLangs:['ja']});
+    expect(result.languages.en).toEqual({roots:[],lists:{}});
+    expect(client.fetchAnnotation).not.toHaveBeenCalled();
+    expect(client.fetchAndGenGloss).not.toHaveBeenCalled();
+    expect(client.generateEmojis).not.toHaveBeenCalled();
+    expect(client.getSBWordsForLangDir).not.toHaveBeenCalled();
+  });
+  it('requires stored English title glosses before doing enrichment', async () => {
+    const rows = [list(1,'en','_public',null,[],[2]),list(2,'yue','未譯',null,['詞'])];
+    const client = {loadWordListMetaDataV3:async()=>rows,loadWordListsV3:async(lang:string)=>rows.filter(l=>l.lang===lang),
+      fetchAnnotation:vi.fn(),fetchAndGenGloss:vi.fn(),generateEmojis:vi.fn(),getSBWordsForLangDir:vi.fn(async()=>[])};
+    await expect(prepareWordListsV3({client,rootListId:1,focusLangs:['yue'],guiLangs:['en']})).rejects.toThrow('Missing stored V3 title gloss');
+    expect(client.fetchAnnotation).not.toHaveBeenCalled();
+    expect(client.fetchAndGenGloss).not.toHaveBeenCalled();
+  });
   it('follows localized edges and preserves duplicate word rows',()=>{const tree=collectPublicWordListsV3(fixtures,'th',1);expect(tree.roots).toEqual([20,30]);expect(tree.lists.find(l=>l.id===20)?.words.map(w=>w.text)).toEqual(['ตา','ตา']);});
   it('omits unavailable content rather than falling back to English',()=>{expect(collectPublicWordListsV3(fixtures,'ja',1).lists).toEqual([]);});
   it('rejects dangling child edges and cycles',()=>{expect(()=>collectPublicWordListsV3([list(1,'en','_public',null,[],[99])],'en',1)).toThrow('Missing V3 child');expect(()=>collectPublicWordListsV3([list(1,'en','_public',null,[],[2]),list(2,'en','Cycle',null,[],[1])],'en',1)).toThrow('cycle');});

@@ -1587,6 +1587,32 @@ Use `checkpoint(cache)` to persist completed batches atomically and `report()` f
 progress. Missing required annotations or glosses fail the build before publication.
 The consumer must publish a fresh build to expose list edits to a static site.
 
+#### GlossTipLang eligibility
+
+`getWordListGlossTipLangsV3(metadata, listId)` and the reusable
+`createWordListGlossTipLangResolverV3(metadata)` are exported from `lingop/core`.
+Every list supports English. A family with more than one language also supports
+all its family languages, including the anchor's language. A standalone Cantonese
+list therefore supports only English; adding a Japanese variant allows English,
+Japanese and Cantonese. Parent/sublist relationships grant no extra support.
+This policy expresses eligibility, not translation completeness or review status.
+
+V3 preparation intersects that policy with the consumer's `guiLangs` before any
+enrichment. It follows eligible public branches and emits `glossTipLangs` on each
+prepared list. Consumers must filter their navigation, descendant traversal,
+direct routes and language links using those prepared languages. A shared child
+may remain reachable through another eligible branch. Read-only list APIs and
+the V2 pipeline keep their existing behavior.
+
+Only eligible words contribute to each GlossTipLang's translation requests.
+Annotations remain shared by exact focus language/text, and translations by
+English gloss/target language. Existing enrichment is retained, even when a list
+is no longer public, but it never grants publication or GlossTipLang eligibility.
+For English labels without an English list variant, preparation reads stored
+`words2` title glosses through `client.getSBWordsForLangDir`, once per required
+direction. Missing labels fail before word enrichment; no title/list variant is
+generated. The full `LingoDataClient` supplies that method automatically.
+
 ### Camp Lingo memberships
 
 `lingop/billing` exports `getCampLingoTier` and `hasCampLingoAccess`. Core grants

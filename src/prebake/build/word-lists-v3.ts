@@ -1,6 +1,6 @@
 import { translatePrebakeTexts, type PrebakeBuildServices } from "./api.js";
 import type { LingoDataClient } from '../../core/lingo-data-client.js';
-import { resolveWordListL10nV3, type WordListV3 } from '../../core/word-lists-v3.js';
+import { createWordListGlossTipLangResolverV3, resolveWordListL10nV3, type WordListV3 } from '../../core/word-lists-v3.js';
 import type { AnnotatedText } from '../../core/annotation/types.js';
 
 export type WordListsV3Enrichment = {
@@ -9,7 +9,7 @@ export type WordListsV3Enrichment = {
   emojis: Record<string, string>;
 };
 export type PreparedWordV3 = { id: number; text: string; annotation: AnnotatedText; glosses: Record<string, string>; emoji: string };
-export type PreparedListV3 = { id: number; familyId: number; lang: string; title: string; titles: Record<string, string>; updatedAt: string; words: PreparedWordV3[]; children: number[] };
+export type PreparedListV3 = { id: number; familyId: number; lang: string; title: string; titles: Record<string, string>; glossTipLangs: string[]; updatedAt: string; words: PreparedWordV3[]; children: number[] };
 export type PreparedWordListsV3 = { version: 3; languages: Record<string, { roots: number[]; lists: Record<string, PreparedListV3> }> };
 
 /** Curated structural roots may be shared across languages. Content lists never
@@ -48,7 +48,7 @@ export const getWordListAnnotationGlosses = (annotation: AnnotatedText): string[
 export async function prepareWordListsV3({ client, rootListId, focusLangs, guiLangs, enrichment = { annotations: {}, glosses: {}, emojis: {} }, checkpoint = async () => {}, report = () => {}, services }: {
   /** Existing privileged batch-translation API for build-time cache misses. */
   services?: PrebakeBuildServices;
-  client: Pick<LingoDataClient, 'loadWordListMetaDataV3' | 'loadWordListsV3' | 'fetchAnnotation' | 'fetchAndGenGloss' | 'generateEmojis'>;
+  client: Pick<LingoDataClient, 'loadWordListMetaDataV3' | 'loadWordListsV3' | 'fetchAnnotation' | 'fetchAndGenGloss' | 'generateEmojis'> & Partial<Pick<LingoDataClient, 'getSBWordsForLangDir'>>;
   rootListId: number; focusLangs: string[]; guiLangs: string[];
   enrichment?: WordListsV3Enrichment;
   checkpoint?: (cache: WordListsV3Enrichment) => Promise<void>;
@@ -58,6 +58,59 @@ export async function prepareWordListsV3({ client, rootListId, focusLangs, guiLa
   const all: WordListV3[] = [];
   for (const lang of [...new Set(meta.map(l => l.lang))]) all.push(...await client.loadWordListsV3(lang));
   const trees = Object.fromEntries(focusLangs.map(lang => [lang, collectPublicWordListsV3(all, lang, rootListId)]));
+  const supported = createWordListGlossTipLangResolverV3(meta);
+  // Plan before enrichment. Parents never grant support to their children, and
+  // a hidden branch creates no translation work unless reachable elsewhere.
+  const available = new Map<WordListV3, string[]>();
+  for (const tree of Object.values(trees)) {
+    const byId = new Map(tree.lists.map(list => [list.id, list]));
+    for (const gui of new Set(guiLangs)) {
+      const visited = new Map<number, boolean>();
+      const visit = (id: number): boolean => {
+        const list = byId.get(id);
+        if (!list || !supported(id).includes(gui)) return false;
+        if (visited.has(id)) return visited.get(id)!;
+        const children = list.sublists.map(edge => visit(edge.child_list_id));
+        const keep = !list.sublists.length || list.words.length > 0 || children.some(Boolean);
+        visited.set(id, keep);
+        if (!keep) return false; // Do not publish empty headings left by filtering.
+        available.set(list, [...(available.get(list) ?? []), gui]);
+        return true;
+      };
+      tree.roots.forEach(visit);
+    }
+    tree.lists = tree.lists.filter(list => available.has(list));
+    const kept = new Set(tree.lists.map(list => list.id));
+    tree.roots = tree.roots.filter(id => kept.has(id));
+    tree.lists.forEach(list => { list.sublists = list.sublists.filter(edge => kept.has(edge.child_list_id)); });
+  }
+  // Non-English standalone lists have English title glosses, not synthetic
+  // English list variants. Read saved words2 rows once per direction; never
+  // generate titles as a side effect of publication. Do not persist stale titles.
+  const titleIndexes = new Map<string, Promise<Map<string, string>>>();
+  async function titleGloss(list: WordListV3, gui: string): Promise<string> {
+    const related = resolveWordListL10nV3(meta, list.id, gui);
+    if (related) return related.title;
+    const key = `${list.lang}:${gui}`;
+    if (!titleIndexes.has(key)) titleIndexes.set(key, (async () => {
+      if (!client.getSBWordsForLangDir) throw new Error('V3 title glosses require getSBWordsForLangDir.');
+      const rows = await client.getSBWordsForLangDir(list.lang, gui);
+      const index = new Map<string, string>();
+      for (const row of [...rows].filter(row => row.word_lang === list.lang && row.gloss_lang === gui && row.gloss?.trim())
+        .sort((a, b) => Number(b.is_human_verified) - Number(a.is_human_verified) || b.created_at.localeCompare(a.created_at) || b.id - a.id)) {
+        if (!index.has(row.word)) index.set(row.word, row.gloss.trim());
+      }
+      return index;
+    })());
+    const gloss = (await titleIndexes.get(key)!).get(list.title);
+    if (!gloss) throw new Error(`Missing stored V3 title gloss: ${list.lang}/${list.title} → ${gui}`);
+    return gloss;
+  }
+  // Verify all required title labels before performing billable enrichment.
+  const titles = new Map<WordListV3, Record<string, string>>();
+  for (const tree of Object.values(trees)) for (const list of tree.lists) {
+    titles.set(list, Object.fromEntries(await Promise.all(available.get(list)!.map(async gui => [gui, await titleGloss(list, gui)]))));
+  }
   const cache = enrichment;
   async function batches<T>(items: T[], task: (item: T) => Promise<void>) {
     for (let i = 0; i < items.length; i += 6) { await Promise.all(items.slice(i, i + 6).map(task)); await checkpoint(cache); }
@@ -74,9 +127,12 @@ export async function prepareWordListsV3({ client, rootListId, focusLangs, guiLa
     });
   }
   const glosses = [...new Set(focusLangs.flatMap(lang => trees[lang]!.lists.flatMap(l => l.words.flatMap(w => getWordListAnnotationGlosses(cache.annotations[lang]![w.text]!)))))];
-  for (const lang of guiLangs.filter(l => l !== 'en')) {
+  for (const lang of [...new Set(guiLangs)].filter(l => l !== 'en')) {
     const dictionary = cache.glosses[lang] ??= {};
-    const missing = glosses.filter(g => !dictionary[g]);
+    const required = [...new Set(Object.entries(trees).flatMap(([focus, tree]) => tree.lists
+      .filter(list => available.get(list)!.includes(lang))
+      .flatMap(list => list.words.flatMap(word => getWordListAnnotationGlosses(cache.annotations[focus]![word.text]!)))))];
+    const missing = required.filter(g => !dictionary[g]);
     report(`${lang}: ${missing.length} missing interface glosses`);
     const unresolved: string[] = [];
     await batches(missing, async gloss => {
@@ -111,13 +167,15 @@ export async function prepareWordListsV3({ client, rootListId, focusLangs, guiLa
     output.languages[lang] = { roots: tree.roots, lists };
     for (const list of tree.lists) lists[list.id] = {
       id: list.id, familyId: list.anchor_list_id ?? list.id, lang, title: list.title,
-      titles: Object.fromEntries(guiLangs.map(gui => [gui, resolveWordListL10nV3(all, list.id, gui)?.title ?? list.title])),
+      glossTipLangs: available.get(list)!,
+      titles: titles.get(list)!,
       updatedAt: list.updated_at, children: list.sublists.map(e => e.child_list_id),
       words: list.words.map(word => {
         const a = cache.annotations[lang]![word.text]!;
         const gs = getWordListAnnotationGlosses(a);
+        if (!gs.length) throw new Error(`Missing V3 English annotation gloss: ${lang}/${word.text}`);
         return { id: word.id, text: word.text, annotation: { ...a, owner_id: null, ref: null },
-          glosses: Object.fromEntries(guiLangs.map(gui => [gui, gs.map(g => gui === 'en' ? g : cache.glosses[gui]![g]).join(' · ')])),
+          glosses: Object.fromEntries(available.get(list)!.map(gui => [gui, gs.map(g => gui === 'en' ? g : cache.glosses[gui]![g]).join(' · ')])),
           emoji: gs.map(g => cache.emojis[g] ?? '').join(' '),
         };
       }),
