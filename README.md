@@ -316,6 +316,20 @@ receive it from `useLingopClientData()`; their existing prop APIs are unchanged.
 Supabase client for standalone auth state, and accepts `null` to disable auth.
 Its subscription fields use the provider's client only when no override is passed.
 
+## Images in web word details
+
+`L10nWordDetailContent` automatically shows a compact, horizontally scrollable
+image strip when the exact word and language have non-archived image files.
+Images link to their full-size originals; photographs retain their saved credits
+and license links. Empty sets, unavailable images, and read failures leave no
+placeholder. The image lookup runs only while details are mounted, independently
+of annotation loading, using the provider's existing Supabase client.
+
+The existing image client caches reads for 30 seconds and deduplicates concurrent
+requests, including across popover reopenings. No image generation, translation,
+extra annotation, or whole-list image preparation is performed. This applies to
+the Next.js/web detail component; native word details are unchanged.
+
 ## Shared user language-display preferences
 
 `UserLingoPrefsDataProvider` persists the browser user's spelling, main-text,

@@ -46,6 +46,7 @@ import {
 } from "./l10n-word-detail-utils.js";
 import { useOptionalUserWordStreaksData } from "./user-word-streaks.js";
 import { StrokeOrderView } from "./stroke-order-view.js";
+import { WordDetailImages } from "./word-detail-images.js";
 
 export type L10nWordDetailResolutionStatus =
   | "IDLE"
@@ -359,12 +360,19 @@ export function L10nWordDetailContent({
 
   if (!l10nWordDetailData) return null;
 
+  const imageWord = l10nWordDetailData.l10nWord ?? l10nWordToken?.text;
+  const imageLang = l10nWordDetailData.l10nAText?.lang ?? l10nWordDetailData.l10nLang ?? focusLang;
+  const images = imageWord && imageLang
+    ? <WordDetailImages key={JSON.stringify([imageLang, imageWord])} word={imageWord} lang={imageLang} />
+    : null;
+
   if (!l10nWordAnnotatedText) {
     return (
       <div className={["lingop-word-detail", className].filter(Boolean).join(" ")}>
         <div className="lingop-word-detail__word">
           {l10nWordDetailData.l10nWord}
         </div>
+        {images}
         {resolutionStatus === "LOADING" && (
           <span className="lingop-word-detail__spinner" aria-label="Loading" />
         )}
@@ -439,6 +447,8 @@ export function L10nWordDetailContent({
           </ul>
         )}
       </div>
+
+      {images}
 
       {/* WORD'S SUB-MORPHEMES - e.g. root-and-pattern languages such as Maltese/Arabic. */}
       {wordSubMorphemes && wordSubMorphemes.length > 1 && (
