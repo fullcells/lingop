@@ -59,10 +59,6 @@ export type WordListsV3TraversalOptions = {
 export const WORD_LISTS_V3_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
 const PAGE_SIZE = 1000;
 const ID_BATCH_SIZE = 250;
-const MAX_CONCURRENT_READS = 2;
-type ReadQueue = { active: number; waiting: (() => void)[] };
-// Separate from caches: invalidation must not create extra slots for pending reads.
-const readQueues = new WeakMap<SupabaseRuntimeClient, ReadQueue>();
 type CacheEntry = { promise: Promise<unknown>; completedAt?: number };
 type Cache = Map<string, CacheEntry>;
 let caches = new WeakMap<SupabaseRuntimeClient, Cache>();
@@ -95,20 +91,6 @@ function context(options: WordListsV3Options) {
 }
 
 type Context = ReturnType<typeof context>;
-
-async function limitedRead<T>(ctx: Context, read: () => PromiseLike<T>): Promise<T> {
-  let queue = readQueues.get(ctx.client);
-  if (!queue) readQueues.set(ctx.client, queue = { active: 0, waiting: [] });
-  if (queue.active < MAX_CONCURRENT_READS) queue.active++;
-  else await new Promise<void>(resolve => queue.waiting.push(resolve));
-  try {
-    return await read();
-  } finally {
-    const next = queue.waiting.shift();
-    if (next) next(); // Transfer the slot directly, keeping FIFO order.
-    else queue.active--;
-  }
-}
 
 function cached<T>(ctx: Context, key: string, read: () => Promise<T>): Promise<T> {
   const existing = ctx.cache.get(key);
@@ -158,56 +140,31 @@ function isSublist(value: unknown): value is SBWordListSublistRow {
 }
 
 async function pages<T>(
-  ctx: Context,
   table: string,
   query: () => SupabaseQueryLike,
   validate: (row: unknown) => row is T,
 ): Promise<T[]> {
   const result: T[] = [];
-  const read = (from: number, size: number) => limitedRead(ctx, async () => {
-    const { data, error, count } = await query().range(from, from + size - 1);
+  // Keep each page chain sequential: speculative pages can open extra cold
+  // connections. Independent language loads retain their own word/edge reads.
+  // Exact counts also support projects configured with a row cap below PAGE_SIZE.
+  for (let offset = 0; ; ) {
+    const { data, error, count } = await query().range(offset, offset + PAGE_SIZE - 1);
     if (error) throw new Error(`Failed to load ${table}.`, { cause: error });
     if (!Array.isArray(data) || !data.every(validate)) {
       throw new Error(`Invalid rows returned by ${table}.`);
     }
-    return { data: data as T[], count };
-  });
-  let parallel = true;
-  // Exact counts also support projects configured with a row cap below PAGE_SIZE.
-  for (let offset = 0; ; ) {
-    const { data, count } = await read(offset, PAGE_SIZE);
     result.push(...data);
     offset += data.length;
     if (typeof count === "number") {
       if (offset >= count) return result;
       if (data.length === 0) throw new Error(`Incomplete page returned by ${table}.`);
-      // Learn the actual server page cap from the first response. At most two
-      // adjacent pages are requested together, with the same shared client budget.
-      while (parallel && offset < count) {
-        const starts = [offset];
-        if (offset + data.length < count) starts.push(offset + data.length);
-        const settled = await Promise.allSettled(starts.map(from => read(from, data.length)));
-        const batch: { data: T[]; count: number | null | undefined }[] = [];
-        for (const page of settled) {
-          if (page.status === 'rejected') throw page.reason;
-          batch.push(page.value);
-        }
-        if (batch.some((page, i) => page.count !== count ||
-          page.data.length !== Math.min(data.length, count - starts[i]!))) {
-          // Count/cap changed during the read. Discard speculative pages and
-          // resume the original sequential path at the last confirmed offset.
-          parallel = false;
-          break;
-        }
-        for (const page of batch) { result.push(...page.data); offset += page.data.length; }
-      }
-      if (parallel && offset >= count) return result;
     } else if (data.length < PAGE_SIZE) return result;
   }
 }
 
 function metadata(ctx: Context): Promise<SBWordListV3Row[]> {
-  return cached(ctx, "metadata", () => pages(ctx, "word_lists_v3", () =>
+  return cached(ctx, "metadata", () => pages("word_lists_v3", () =>
     ctx.client.from("word_lists_v3")
       .select("id,lang,title,anchor_list_id,updated_at", { count: "exact" })
       .order("id", { ascending: true }), isList));
@@ -226,7 +183,7 @@ async function children<T>(
   // Bounded IN filters avoid a query per list and unbounded URL lengths.
   for (let start = 0; start < ids.length; start += ID_BATCH_SIZE) {
     const batch = ids.slice(start, start + ID_BATCH_SIZE);
-    result.push(...await pages(ctx, table, () => {
+    result.push(...await pages(table, () => {
       let query = ctx.client.from(table).select(columns, { count: "exact" }).in(parentColumn, batch);
       for (const column of orderColumns) query = query.order(column, { ascending: true });
       return query;

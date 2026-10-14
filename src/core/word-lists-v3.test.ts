@@ -110,38 +110,40 @@ describe("v3 word lists", () => {
   beforeEach(() => clearWordListsV3Cache());
   afterEach(() => vi.useRealTimers());
 
-  it('overlaps adjacent pages but preserves row order when they finish out of order', async () => {
+  it('keeps a page chain sequential without speculative cold connections', async () => {
     const rows = Array.from({ length: 2001 }, (_, i) => list(i + 1));
     const db = database({ word_lists_v3: rows }, 750);
     let release!: () => void;
     const slow = new Promise<void>(resolve => { release = resolve; });
     db.delayWith((_table, from) => from === 750 ? slow : Promise.resolve());
     const pending = loadWordListMetaDataV3(db);
-    await vi.waitFor(() => expect(db.requests.map(r => r.from)).toEqual([0, 750, 1500]));
-    expect(db.peak()).toBe(2);
+    await vi.waitFor(() => expect(db.requests.map(r => r.from)).toEqual([0, 750]));
+    expect(db.peak()).toBe(1);
     release();
     expect(await pending).toEqual(rows);
+    expect(db.requests.map(r => r.from)).toEqual([0, 750, 1500]);
   });
 
-  it('shares a two-read budget across languages, words, edges, and cache invalidation', async () => {
+  it('does not serialize independent languages behind a shared read queue', async () => {
     const tables = {
       word_lists_v3: [list(1, 'en'), list(2, 'ja'), list(3, 'yue')],
       word_list_words: Array.from({ length: 27 }, (_, i) => word(i + 1, i % 3 + 1, `word-${i}`, i + 1)),
       word_list_sublists: [edge(1, 2, 1), edge(2, 3, 1), edge(3, 1, 1)],
     };
     const db = database(tables, 2);
-    db.delayWith(() => new Promise(resolve => setTimeout(resolve, 1)));
-    const oldRead = loadWordListMetaDataV3(db);
-    await vi.waitFor(() => expect(db.requests.length).toBeGreaterThan(0));
-    clearWordListsV3Cache(db.supabaseClient);
-    const actual = await Promise.all(['en', 'ja', 'yue'].map(lang => loadWordListsV3(lang, db)));
-    await oldRead;
+    await loadWordListMetaDataV3(db);
+    let release!: () => void;
+    db.pause(new Promise<void>(resolve => { release = resolve; }));
+    const pending = Promise.all(['en', 'ja', 'yue'].map(lang => loadWordListsV3(lang, db)));
+    await vi.waitFor(() => expect(db.requests.filter(r => r.table !== 'word_lists_v3')).toHaveLength(6));
+    expect(db.peak()).toBe(6); // One word and one edge read per independent language.
+    release();
     const expected = await Promise.all(['en', 'ja', 'yue'].map(lang => loadWordListsV3(lang, database(tables))));
-    expect(actual).toEqual(expected);
-    expect(db.peak()).toBe(2);
+    expect(await pending).toEqual(expected);
+    expect(db.peak()).toBe(6);
   });
 
-  it('falls back to sequential reads when page sizes change, without skipping rows', async () => {
+  it('advances by actual page lengths when server page sizes change', async () => {
     const rows = Array.from({ length: 7 }, (_, i) => list(i + 1));
     const db = database({ word_lists_v3: rows }, 2);
     let changed = false;
@@ -149,10 +151,10 @@ describe("v3 word lists", () => {
       if (from === 2 && !changed) { result.data = result.data!.slice(0, 1); changed = true; }
     });
     expect(await loadWordListMetaDataV3(db)).toEqual(rows);
-    expect(db.requests.map(r => r.from)).toEqual([0, 2, 4, 2, 4, 6]);
+    expect(db.requests.map(r => r.from)).toEqual([0, 2, 3, 5]);
   });
 
-  it('falls back to current sequential counts when rows are added during paging', async () => {
+  it('uses current counts when rows are added during paging', async () => {
     const rows = Array.from({ length: 6 }, (_, i) => list(i + 1));
     const db = database({ word_lists_v3: rows }, 2);
     let changed = false;
@@ -160,10 +162,10 @@ describe("v3 word lists", () => {
       if (from === 2 && !changed) { rows.push(list(7)); result.count = 7; changed = true; }
     });
     expect(await loadWordListMetaDataV3(db)).toEqual(rows);
-    expect(db.requests.map(r => r.from)).toEqual([0, 2, 4, 2, 4, 6]);
+    expect(db.requests.map(r => r.from)).toEqual([0, 2, 4, 6]);
   });
 
-  it('keeps unknown counts sequential and releases the shared slots after a page failure', async () => {
+  it('keeps unknown counts sequential and retries failed page chains', async () => {
     const rows = Array.from({ length: 2001 }, (_, i) => list(i + 1));
     const db = database({ word_lists_v3: rows });
     db.rewriteWith((_table, _from, result) => { result.count = null; });
@@ -175,7 +177,7 @@ describe("v3 word lists", () => {
     await expect(loadWordListMetaDataV3(db)).rejects.toThrow('Failed to load');
     db.failWith();
     expect(await loadWordListMetaDataV3(db)).toEqual(rows);
-    expect(db.peak()).toBeLessThanOrEqual(2);
+    expect(db.peak()).toBe(1);
   });
 
   it("pages metadata and words without truncation, even with a smaller server cap", async () => {

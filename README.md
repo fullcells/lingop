@@ -674,10 +674,11 @@ await lingoData.loadWordListsV3("ja", { forceRefresh: true });
   requests and cache successful results for five minutes, scoped to the injected
   Supabase client instance. Reuse that instance. Words and edges load concurrently
   in batches of up to 250 list IDs, with stable pagination and exact counts to
-  respect server row limits. Adjacent pages overlap within a shared limit of two
-  in-flight V3 reads per client across languages, words, and edges. Unknown counts
-  stay sequential; changing counts/page caps fall back to sequential reads. Cache
-  invalidation does not reset the concurrency budget. There is no per-list request or additional
+  respect server row limits. Pages within each read are sequential, advancing by
+  the actual number of rows returned. Independent language loads do not share a
+  read queue; each loads its words and edges concurrently, as before 0.7.967. This
+  avoids speculative cold connections and cross-language startup bottlenecks.
+  Translation and annotation scheduling is unaffected. There is no per-list request or additional
   database cache table. Warm reads make no network requests. Failed or malformed
   reads reject and remain retryable; returned arrays are copies so consumer edits
   cannot corrupt the cache. Pass `{ maxAgeMs: 0 }` to bypass completed cached
