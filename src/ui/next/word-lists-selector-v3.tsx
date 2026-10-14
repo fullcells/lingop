@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useLingopClientData } from './lingop-client-data-provider.js';
 import { useUserWordStreaksData } from './user-word-streaks.js';
 import { segmentWordListTitle, type SBWordListV3Row, type WordListV3TreeNode } from '../../core/index.js';
@@ -9,6 +9,13 @@ import { BilingualWordListTitle } from './bilingual-word-list-title.js';
 
 type TitleResolver = ReturnType<typeof createWordListTitleResolverV3>;
 export type WordListSelectionV3 = { id: number; title: string };
+export type WordListSecondaryActionV3 = {
+  /** Icon/content only; the selector supplies the accessible button. */
+  icon: ReactNode;
+  /** Accessible name and tooltip, localized by the consumer for this list. */
+  label: (list: WordListSelectionV3) => string;
+  onSelect: (list: WordListSelectionV3) => void;
+};
 export type WordListsSelectorV3Props = {
   tree: WordListV3TreeNode;
   metadata: SBWordListV3Row[];
@@ -18,10 +25,12 @@ export type WordListsSelectorV3Props = {
   focusLang: string;
   onSelect: (list: WordListSelectionV3) => void;
   onDetails: (id: number) => void;
+  /** Optional independent action beside level-one branch headings. */
+  secondaryAction?: WordListSecondaryActionV3 | undefined;
 };
 
 /** Word Lists V3 selector for a permitted tree; no Word Lists V2 reads or Prebake provider. */
-export function WordListsSelectorV3({ tree, metadata, titleGlosses, titlesLoading = false, guiLang, focusLang, onSelect, onDetails }: WordListsSelectorV3Props) {
+export function WordListsSelectorV3({ tree, metadata, titleGlosses, titlesLoading = false, guiLang, focusLang, onSelect, onDetails, secondaryAction }: WordListsSelectorV3Props) {
   const resolveTitle = useMemo(() => createWordListTitleResolverV3(metadata, titleGlosses), [metadata, titleGlosses]);
   function render(node: WordListV3TreeNode, level = 1): React.ReactNode {
     if (!node.children.length || level >= 2) {
@@ -29,10 +38,18 @@ export function WordListsSelectorV3({ tree, metadata, titleGlosses, titlesLoadin
     }
     const gloss = resolveTitle(node.list, guiLang);
     const title = displayListTitle(gloss ?? node.list.title);
+    const selection = { id: node.list.id, title };
+    const secondaryLabel = secondaryAction?.label(selection);
     return <section key={node.list.id} className="lingop-word-lists-selector__branch">
-      <button type="button" className="lingop-word-lists-selector__branch-title" onClick={() => onSelect({ id: node.list.id, title })}>
+      <div className="lingop-word-lists-selector__branch-heading">
+      <button type="button" className="lingop-word-lists-selector__branch-title" onClick={() => onSelect(selection)}>
         <BilingualWordListTitle title={node.list.title} translatedTitle={gloss} lang={node.list.lang} guiLang={guiLang} loading={titlesLoading} primaryClassName="lingop-word-list-title--strong" />
       </button>
+      {secondaryAction && <button type="button" className="lingop-word-lists-selector__secondary-action"
+        aria-label={secondaryLabel} title={secondaryLabel} onClick={() => secondaryAction.onSelect(selection)}>
+        <span aria-hidden="true">{secondaryAction.icon}</span>
+      </button>}
+      </div>
       <div className="lingop-word-lists-selector__leaf-grid">{node.children.map(child => render(child, level + 1))}<span className="lingop-word-lists-selector__scroll-spacer" /></div>
     </section>;
   }

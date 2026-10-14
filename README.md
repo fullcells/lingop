@@ -450,6 +450,11 @@ import "lingop/ui/next/word-list-view.css";
   focusLang={focusLang}
   onSelect={({ id }) => openSession(id)}
   onDetails={(id) => openDetails(id)}
+  secondaryAction={{
+    icon: <CustomActionIcon />,
+    label: ({ title }) => `Practice ${title}`,
+    onSelect: ({ id }) => openPractice(id),
+  }}
 />;
 
 <WordListViewV3
@@ -460,6 +465,12 @@ import "lingop/ui/next/word-list-view.css";
   focusLang={focusLang}
 />;
 ```
+
+`secondaryAction` is optional and appears beside level-one branch headings.
+Supply icon content (not a button), a localized per-list accessible label, and
+an action callback. Lingop renders a separate keyboard-accessible button; the
+heading keeps calling `onSelect`. Cards and deeper lists retain their existing
+controls. The secondary action has no built-in lesson or review semantics.
 
 The detail view renders each list's own words with `WordChipsArrayView` and
 provides list streak actions. Its aggregate stylesheet includes word-chip and
