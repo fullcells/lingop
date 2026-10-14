@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-14",
+  "scope": "Development dependencies only; runtime package versions and public API unchanged. Lingop remains npm-managed.",
+  "updates": {
+    "vitest": {
+      "before": "3.2.6",
+      "after": "4.1.11"
+    },
+    "source-map-js": {
+      "before": "1.2.1",
+      "after": "1.2.2"
+    }
+  },
+  "audit": {
+    "command": "npm audit --json; npm audit --omit=dev --json",
+    "before": {
+      "critical": 2,
+      "high": 16,
+      "moderate": 6,
+      "affectedPackages": 24
+    },
+    "after": {
+      "critical": 0,
+      "high": 15,
+      "moderate": 5,
+      "affectedPackages": 20
+    },
+    "productionAfter": 0,
+    "remainingRootAdvisories": [
+      {
+        "package": "braces",
+        "severity": "high",
+        "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm"
+      },
+      {
+        "package": "sprintf-js",
+        "severity": "moderate",
+        "url": "https://github.com/advisories/GHSA-hp3w-g68c-fv3c"
+      }
+    ],
+    "remainingExplanation": "Two underlying unpatched packages in React Native/Metro/Jest development tooling propagate to 20 affected-package entries. No advisories suppressed. Avoid forcing React Native 0.83 to 0.87 as part of this maintenance pass."
+  },
+  "checks": {
+    "unitTests": 571,
+    "testFiles": 84,
+    "releaseTests": 8,
+    "build": "passed, including TypeScript compilation",
+    "isolatedInstall": "npm 11 used after bundled npm 10 crashed in peer resolution; no peer-compatibility bypass flags."
+  },
+  "publication": "Local commit only; not pushed or deployed. No runtime changes require a consumer release."
+}
