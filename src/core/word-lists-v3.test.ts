@@ -39,6 +39,9 @@ function database(tables: Record<string, Row[]>, cap = 1000) {
   const requests: { table: string; from: number; ids?: unknown[] }[] = [];
   let fail: ((table: string, from: number) => boolean) | undefined;
   let gate: Promise<void> | undefined;
+  let delay: ((table: string, from: number) => Promise<void>) | undefined;
+  let rewrite: ((table: string, from: number, result: { data: Row[] | null; error: Error | null; count: number | null }) => void) | undefined;
+  let active = 0, peak = 0;
   const supabaseClient = {
     from(table: string) {
       return {
@@ -52,6 +55,7 @@ function database(tables: Record<string, Row[]>, cap = 1000) {
             range(start: number, end: number) { from = start; to = end; return query; },
             then(resolve: (value: unknown) => unknown, reject: (error: unknown) => unknown) {
               requests.push({ table, from, ...(filter ? { ids: filter.ids } : {}) });
+              peak = Math.max(peak, ++active);
               const rows = [...(tables[table] ?? [])]
                 .filter((row) => !filter || filter.ids.includes(row[filter.column]))
                 .sort((a, b) => {
@@ -64,7 +68,9 @@ function database(tables: Record<string, Row[]>, cap = 1000) {
               const result = fail?.(table, from)
                 ? { data: null, error: new Error("offline"), count: null }
                 : { data: rows.slice(from, Math.min(to + 1, from + cap)).map((row) => ({ ...row })), error: null, count: rows.length };
-              return (gate ?? Promise.resolve()).then(() => result).then(resolve, reject);
+              rewrite?.(table, from, result);
+              return (delay?.(table, from) ?? gate ?? Promise.resolve()).then(() => result)
+                .finally(() => { active--; }).then(resolve, reject);
             },
           };
           return query;
@@ -76,6 +82,9 @@ function database(tables: Record<string, Row[]>, cap = 1000) {
     supabaseClient, requests,
     failWith(callback?: typeof fail) { fail = callback; },
     pause(promise?: Promise<void>) { gate = promise; },
+    delayWith(callback: typeof delay) { delay = callback; },
+    rewriteWith(callback: typeof rewrite) { rewrite = callback; },
+    peak: () => peak,
   };
 }
 
@@ -100,6 +109,74 @@ function familyDatabase() {
 describe("v3 word lists", () => {
   beforeEach(() => clearWordListsV3Cache());
   afterEach(() => vi.useRealTimers());
+
+  it('overlaps adjacent pages but preserves row order when they finish out of order', async () => {
+    const rows = Array.from({ length: 2001 }, (_, i) => list(i + 1));
+    const db = database({ word_lists_v3: rows }, 750);
+    let release!: () => void;
+    const slow = new Promise<void>(resolve => { release = resolve; });
+    db.delayWith((_table, from) => from === 750 ? slow : Promise.resolve());
+    const pending = loadWordListMetaDataV3(db);
+    await vi.waitFor(() => expect(db.requests.map(r => r.from)).toEqual([0, 750, 1500]));
+    expect(db.peak()).toBe(2);
+    release();
+    expect(await pending).toEqual(rows);
+  });
+
+  it('shares a two-read budget across languages, words, edges, and cache invalidation', async () => {
+    const tables = {
+      word_lists_v3: [list(1, 'en'), list(2, 'ja'), list(3, 'yue')],
+      word_list_words: Array.from({ length: 27 }, (_, i) => word(i + 1, i % 3 + 1, `word-${i}`, i + 1)),
+      word_list_sublists: [edge(1, 2, 1), edge(2, 3, 1), edge(3, 1, 1)],
+    };
+    const db = database(tables, 2);
+    db.delayWith(() => new Promise(resolve => setTimeout(resolve, 1)));
+    const oldRead = loadWordListMetaDataV3(db);
+    await vi.waitFor(() => expect(db.requests.length).toBeGreaterThan(0));
+    clearWordListsV3Cache(db.supabaseClient);
+    const actual = await Promise.all(['en', 'ja', 'yue'].map(lang => loadWordListsV3(lang, db)));
+    await oldRead;
+    const expected = await Promise.all(['en', 'ja', 'yue'].map(lang => loadWordListsV3(lang, database(tables))));
+    expect(actual).toEqual(expected);
+    expect(db.peak()).toBe(2);
+  });
+
+  it('falls back to sequential reads when page sizes change, without skipping rows', async () => {
+    const rows = Array.from({ length: 7 }, (_, i) => list(i + 1));
+    const db = database({ word_lists_v3: rows }, 2);
+    let changed = false;
+    db.rewriteWith((_table, from, result) => {
+      if (from === 2 && !changed) { result.data = result.data!.slice(0, 1); changed = true; }
+    });
+    expect(await loadWordListMetaDataV3(db)).toEqual(rows);
+    expect(db.requests.map(r => r.from)).toEqual([0, 2, 4, 2, 4, 6]);
+  });
+
+  it('falls back to current sequential counts when rows are added during paging', async () => {
+    const rows = Array.from({ length: 6 }, (_, i) => list(i + 1));
+    const db = database({ word_lists_v3: rows }, 2);
+    let changed = false;
+    db.rewriteWith((_table, from, result) => {
+      if (from === 2 && !changed) { rows.push(list(7)); result.count = 7; changed = true; }
+    });
+    expect(await loadWordListMetaDataV3(db)).toEqual(rows);
+    expect(db.requests.map(r => r.from)).toEqual([0, 2, 4, 2, 4, 6]);
+  });
+
+  it('keeps unknown counts sequential and releases the shared slots after a page failure', async () => {
+    const rows = Array.from({ length: 2001 }, (_, i) => list(i + 1));
+    const db = database({ word_lists_v3: rows });
+    db.rewriteWith((_table, _from, result) => { result.count = null; });
+    expect(await loadWordListMetaDataV3(db)).toEqual(rows);
+    expect(db.peak()).toBe(1);
+    clearWordListsV3Cache(db.supabaseClient);
+    db.rewriteWith(undefined);
+    db.failWith((_table, from) => from === 1000);
+    await expect(loadWordListMetaDataV3(db)).rejects.toThrow('Failed to load');
+    db.failWith();
+    expect(await loadWordListMetaDataV3(db)).toEqual(rows);
+    expect(db.peak()).toBeLessThanOrEqual(2);
+  });
 
   it("pages metadata and words without truncation, even with a smaller server cap", async () => {
     const db = database({
