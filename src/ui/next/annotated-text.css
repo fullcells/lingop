@@ -257,3 +257,12 @@
   }
 }
 */
+
+/* An entirely empty spelling row should not push the visible text off centre.
+ * Keep placeholders when another word has spelling, so mixed hints and
+ * punctuation retain their shared baseline. Spelling-only text is never marked
+ * empty: its whitespace still separates words. */
+.annotated-text-view:not(:has(.phonic-spelling:not([data-empty="true"])))
+  .phonic-spelling[data-empty="true"] {
+  display: none;
+}

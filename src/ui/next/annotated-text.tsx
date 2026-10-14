@@ -668,6 +668,7 @@ function TokenSpellingTextSpan({
   return (
     <span
       className="phonic-spelling"
+      data-empty={showMainText && typeof children === "string" && children.trim() === "" ? "true" : undefined}
       style={{
         minHeight: "1em",
         width: "100%",
