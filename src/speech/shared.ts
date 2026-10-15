@@ -93,11 +93,14 @@ function getFetch(fetchImpl?: SpeechFetch): SpeechFetch {
 
 // API VOICES
 
-const siDefaultOpenAIVoice: SpeechSynthTTSVoice = {
-  service: "OPENAI",
-  voice_id: "cedar",
-  voice_lang: "si",
+const siDefaultMicrosoftVoice: SpeechSynthTTSVoice = {
+  service: "MICROSOFT",
+  voice_id: "si-LK-SameeraNeural",
+  voice_lang: "si-LK",
 }; // DEV TEMP: manually set until OpenAI Voices can be delivered via BE API // SINHALA
+// 20261015: The temporary note above describes the former OpenAI default.
+// Google Cloud currently advertises no Sinhala voice; use Microsoft only as the
+// cloud fallback, preserving browser/device-first selection.
 // OPENAI Voice Note: Cedar ♂ and Marin ♀ were released in August 2025. [Ash Ballad, Coral, Sage, Verse] were Oct 2024. [Alloy, Echo, Fable, Onyx, Nova, Shimmer] were Nov 2023 (initial launch). (Different ones are available depending on which TTS API is used).
 
 const apiVoiceRequests = new Map<string, Promise<SpeechSynthTTSVoice[]>>();
@@ -136,8 +139,10 @@ export async function getAPIVoices(
     const voices = Array.isArray(data)
       ? data.filter(isSpeechSynthTTSVoice)
       : [];
-    voices.push(siDefaultOpenAIVoice); // DEV TEMP: Manually add SINHALA OPENAI Voices (since OpenAI Voices aren't provided )
-    return voices;
+    // DEV TEMP: Manually add SINHALA OPENAI Voices (since OpenAI Voices aren't provided )
+    // 20261015: Historical injection retired. Discovery now comes from the backend;
+    // filtering here also hides retired voices from mixed or cached catalogues.
+    return voices.filter(voice => voice.service !== "OPENAI");
   })();
 
   apiVoiceRequests.set(key, request);
@@ -308,7 +313,7 @@ export const API_VOICE_ACCESS_PROFILE__CAMPLINGOV1: Record<
       voice_lang: "en-US",
     },
   ],
-  si: [siDefaultOpenAIVoice],
+  si: [siDefaultMicrosoftVoice],
   "cmn-hant": [
     {
       service: "MICROSOFT",
@@ -326,6 +331,8 @@ export function selectVoiceOptions(
   const voiceLangSuffixes = getVoiceSearchLangSuffixes(lang);
   const voicesForLang: SpeechSynthTTSVoice[] = [];
   const matchedVoiceKeys = new Set<string>();
+  // OPENAI remains in metadata/types for stored audio, but never in new voice choices.
+  VOICES = VOICES.filter(voice => voice.service !== "OPENAI");
   for (const voiceLangSuffix of voiceLangSuffixes) {
     let matches: SpeechSynthTTSVoice[] = [];
     if (voiceLangSuffix.includes("-")) {
@@ -379,6 +386,7 @@ export function selectVoiceOptions(
       // Find this voice in apiVoices by voice_id and voice_lang
       const match = apiVoices.find(
         (v) =>
+          v.service === profileVoice.service &&
           v.voice_id === profileVoice.voice_id &&
           v.voice_lang === profileVoice.voice_lang,
       );
