@@ -596,9 +596,64 @@ Low-level annotation API calls, `callAnnotate_storedForOwner()` remains public a
 - `loadWordScoreKeys()`, `getWordScores(words, lang, scoreKeyId)`, and `clearWordScoresCache()`: load scoring methods and batched, cached word scores. Use the standalone `sortWordsByScore()` helper to order and display scored words. See the scoring example below.
 - `preloadEmojiData()`, `loadEmojiData()`, `generateEmoji(en_gloss, study_word?, study_lang?)`, and `generateEmojis(en_glosses)`: warm Lingop's persistent browser cache, load shared Supabase emoji rows, and generate emoji text for English glosses. `preloadEmojiData()` also warms the small non-core-word dataset used to resolve compound or non-exact glosses. `generateEmojis()` deduplicates a view's glosses, initiates that preload itself, and resolves all results as one keyed batch. Cached emoji rows survive page reloads and browser restarts; stale data is served immediately while Lingop checks the row count and newest `created_at` value in the background. When editing an existing emoji row, advance its `created_at` value so clients detect the revision.
 - Emoji matching prefers a whole-gloss match, then the longest contiguous stored phrase at each position before falling back to individual words. For example, `Cola ice cream float` retains `ice cream`, and `Sweet and sour pork` retains `sweet and sour`. Matching ignores case and repeated whitespace, preserves word order, and keeps slash alternatives and bracketed notes separate.
+- `traceEmoji(en_gloss, study_word?, study_lang?)`: opt-in inspection of the emoji entries that contribute to the result. Clients returned by `createLingoDataClient()` expose this method; it is optional on the base `LingoDataClient` type to keep consumer-provided implementations compatible. Existing generation methods and their return values are unchanged. See the inspection example below.
 - `isNotCoreWord(word_lang, word, gloss?)`, `getSBWordsForLangDir(word_lang, gloss_lang)`, `refreshCoreSBWordsCache(word_lang, gloss_lang)`, and `fetchAndGenGloss({ source_lang, source_word, target_lang })`: use the shared SBWords cache for core-word checks and one-word gloss generation.
 - `getHancharDecomposition(literal)`: returns one Unicode character's canonical component tree and available Japanese, Cantonese, and Mandarin readings from the public Han-character dataset. Repeated successful lookups are cached by the client instance.
 - `createWordExposureRow(...)`, `addWORDExposureNow(...)`, `getWORDExposureRow(...)`, and `deleteWORDExposureRow(...)`: manage the authenticated user's per-word exposure rows through the Supabase client already owned by `LingoDataClient`.
+
+#### Inspecting EmojiGloss source entries
+
+Use the tracing API when opening an inspector, rather than for ordinary rendering:
+
+```ts
+import { createLingoDataClient, traceEmojiFromRows } from "lingop/core";
+
+const client = createLingoDataClient({ supabaseClient });
+const trace = await client.traceEmoji("Cola ice cream float");
+console.log(trace.emoji); // The same matching/rendering rules as generateEmoji().
+for (const match of trace.matches) {
+  console.log(match.input, match.lookup, match.kind);
+  console.log(match.row.id, match.row.en_gloss, match.row.emoji, match.row.created_at);
+}
+
+// Or inspect an exact caller-owned snapshot with no network requests:
+await traceEmojiFromRows("running", [
+  { id: 1, en_gloss: "RUN", emoji: "🏃" },
+  { id: 2, en_gloss: "-ING", emoji: "…" },
+]);
+```
+
+`traceEmoji()` and `traceEmojiFromRows()` are also standalone exports from
+`lingop/core`, `lingop/emojify`, and the root package. Supply `supabaseClient`
+in their options; the standalone tracer also accepts `isNotCoreWord` and
+`cacheKey`. The client method uses its existing project key and core-word resolver.
+
+The result contains `en_gloss`, `emoji`, and ordered `matches`. Each match has
+the handled `input`, actual `lookup`, `kind` (`exact`, `plural`, `normalized`,
+`lemma`, `affix`, or `annotation`), zero-based `rowIndex`, and a copy of the
+source `row`. Repeated uses are separate matches. Only contributing entries
+are reported: skipped non-core words, unused alternatives/suffixes, and generated
+separators or formatting do not acquire fictitious source rows. A row's emoji may
+itself contain several symbols; matching is by the generator's selection, not by
+reverse-searching those visible symbols. `traceEmojiFromRows()` accepts ordinary
+`EmojiRow[]` too, with IDs and timestamps retained when the caller supplies them.
+
+Inspection reuses the existing lightweight emoji snapshot used by generation.
+It fetches `id, emoji, en_gloss, created_at` only for distinct contributing
+entries, one row per lookup, in parallel. The row-position index is built lazily
+once per snapshot and reused across clicks. There is no separate inspection
+snapshot, expiry timer, or full-table metadata reload. Normal generation keeps
+its existing data/result caches and collects no trace. To refresh the emoji data,
+use the existing `loadEmojiData({ supabaseClient, cacheKey, forceRefresh: true })`.
+
+The trace preserves the cached EmojiGloss and source values. Metadata describes
+the first current database entry matching that normalized gloss (case and
+whitespace insensitive). If its emoji differs or it has disappeared, its ID and
+timestamp are unavailable; an inspector should offer the existing data refresh.
+Metadata query failures reject. This does not recover historical row identities:
+identical duplicate entries may have changed since the snapshot was loaded.
+`traceEmojiFromRows()` avoids all metadata queries and preserves any IDs in the
+provided snapshot. No Supabase schema changes or writes are involved.
 
 Additional core helpers:
 

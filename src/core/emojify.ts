@@ -15,6 +15,40 @@ export type EmojiRow = {
   // created_at: string;
 };
 
+/** Metadata is optional so tracing also works with existing, lightweight row arrays. */
+export type EmojiTraceRow = EmojiRow & {
+  id?: number | string;
+  created_at?: string;
+};
+
+export type EmojiMatchKind = "exact" | "plural" | "normalized" | "lemma" | "affix" | "annotation";
+
+export type EmojiTraceMatch = {
+  /** Input fragment handled by this match; suffix matches retain their parent word. */
+  input: string;
+  /** Actual lookup text (for example DOG when the input was dogs). */
+  lookup: string;
+  kind: EmojiMatchKind;
+  /** Zero-based index in the supplied snapshot, preserving duplicate-row precedence. */
+  rowIndex: number;
+  row: EmojiTraceRow;
+};
+
+export type EmojiTrace = {
+  en_gloss: string;
+  emoji: string | null;
+  /** Contributing entries in output order. Repeated uses remain separate. */
+  matches: EmojiTraceMatch[];
+};
+
+export type EmojiTraceOptions = {
+  supabaseClient?: SupabaseEmojiClient | undefined;
+  cacheKey?: string | undefined;
+  isNotCoreWord?: IsNotCoreWord | undefined;
+};
+
+type EmojiTraceSink = (input: string, lookup: string, row: EmojiRow, kind: EmojiMatchKind) => void;
+
 export type EmojiDataRevision = {
   count: number;
   newestCreatedAt: string | null;
@@ -108,6 +142,7 @@ const emojiResultCaches = new WeakMap<
   EmojiRow[],
   WeakMap<IsNotCoreWord, Map<string, Promise<string | null>>>
 >();
+const emojiTraceRowIndexes = new WeakMap<EmojiRow[], ReadonlyMap<EmojiRow, number>>();
 
 async function defaultIsNotCoreWord(): Promise<boolean> {
   return false;
@@ -542,6 +577,78 @@ function isEmojiDataCacheEntry(value: unknown): value is EmojiDataCacheEntry {
   );
 }
 
+/** Trace the shared generation snapshot, then fetch only the contributing entries.
+ * Missing IDs mean the cached content no longer matches a current database entry.
+ */
+export async function traceEmoji(
+  en_gloss: string,
+  study_word?: string,
+  study_lang?: string,
+  { supabaseClient, cacheKey = DEFAULT_EMOJI_CACHE_KEY, isNotCoreWord }: EmojiTraceOptions = {},
+): Promise<EmojiTrace> {
+  const client = asSupabaseRuntimeClient(supabaseClient);
+  if (!client) throw new Error("A Supabase client is required to inspect emoji entries.");
+  const rows = await loadEmojiData({ supabaseClient, cacheKey });
+  if (!getEmojiDataState(client, cacheKey).rows) throw new Error("Could not load emoji data for inspection.");
+  if (!rows.length) return { en_gloss, emoji: null, matches: [] };
+  if (!en_gloss.length) return { en_gloss, emoji: "", matches: [] };
+  const result = await traceEmojiFromRows(en_gloss, rows, { study_word, study_lang, isNotCoreWord });
+  const unique = new Map(result.matches.map(match => [match.rowIndex, match.row]));
+  const entries = await Promise.all([...unique].map(async ([index, row]) => {
+    // Literal, case-insensitive, whitespace-normalized matching, including
+    // glosses containing LIKE wildcards or regex punctuation. First ID wins,
+    // just as in the normal generator's ordered snapshot.
+    const pattern = "^\\s*" + normalizeEmojiGloss(row.en_gloss).split(" ")
+      .map(part => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s+") + "\\s*$";
+    const { data, error } = await withTimeout(client.from("emojis")
+      .select("id, emoji, en_gloss, created_at")
+      .filter("en_gloss", "imatch", pattern)
+      .order("id", { ascending: true }).range(0, 0),
+      EMOJI_FETCH_TIMEOUT_MS, "emoji entry inspection");
+    if (error) throw error;
+    const current = data?.[0];
+    return [index, isEmojiRow(current) && current.emoji === row.emoji
+      && normalizeEmojiGloss(current.en_gloss) === normalizeEmojiGloss(row.en_gloss)
+      ? current as EmojiTraceRow : undefined] as const;
+  }));
+  const metadata = new Map(entries);
+  result.matches.forEach(match => {
+    const row = metadata.get(match.rowIndex);
+    if (row) match.row = { ...row };
+  });
+  return result;
+}
+
+/** Trace the same renderer against a caller-owned snapshot, without network
+ * requests or result-cache mutation. IDs are retained when supplied in rows.
+ */
+export async function traceEmojiFromRows(
+  en_gloss: string,
+  rows: EmojiTraceRow[],
+  { study_word, study_lang, isNotCoreWord = defaultIsNotCoreWord }: {
+    study_word?: string | undefined;
+    study_lang?: string | undefined;
+    isNotCoreWord?: IsNotCoreWord | undefined;
+  } = {},
+): Promise<EmojiTrace> {
+  const matches: EmojiTraceMatch[] = [];
+  let rowIndexes = emojiTraceRowIndexes.get(rows);
+  if (!rowIndexes) {
+    const index = new Map<EmojiRow, number>();
+    rows.forEach((row, position) => { if (!index.has(row)) index.set(row, position); });
+    emojiTraceRowIndexes.set(rows, index);
+    rowIndexes = index;
+  }
+  const trace: EmojiTraceSink = (input, lookup, row, kind) => {
+    const normalizedLookup = normalizeEmojiGloss(lookup);
+    const resolvedKind = kind === "exact" && normalizedLookup !== normalizeEmojiGloss(row.en_gloss)
+      && normalizedLookup.endsWith("S") ? "plural" : kind;
+    matches.push({ input, lookup, kind: resolvedKind, rowIndex: rowIndexes.get(row)!, row: { ...row } });
+  };
+  const emoji = await generateEmojiFromRowsUncached(en_gloss, rows, { study_word, study_lang, isNotCoreWord, trace });
+  return { en_gloss, emoji, matches };
+}
+
 // 1. `generateEmoji` is the main call root-level call for generating Emojis.
 export async function generateEmoji(
   en_gloss: string,
@@ -626,10 +733,12 @@ async function generateEmojiFromRowsUncached(
     study_word,
     study_lang,
     isNotCoreWord,
+    trace,
   }: {
     study_word?: string | undefined;
     study_lang?: string | undefined;
     isNotCoreWord: IsNotCoreWord;
+    trace?: EmojiTraceSink;
   },
 ): Promise<string | null> {
   // 0. IF FOUND IN NO_EMOJI_WORDS LIST, RETURN STUDY_WORD AS IS (e.g. "ja":"は")
@@ -644,6 +753,7 @@ async function generateEmojiFromRowsUncached(
   const exact_match = findCaseInsensitiveEmojiRowMatch(en_gloss, cachedEmojisData);
   if (exact_match) {
     // console.log('generateEmoji: exact match:', en_gloss, exact_match.emoji);
+    trace?.(en_gloss, en_gloss, exact_match, "exact");
     return exact_match.emoji;
   }
 
@@ -654,6 +764,7 @@ async function generateEmojiFromRowsUncached(
     // 0. EXACT MATCH CHECK FIRST
     const exact_match = findCaseInsensitiveEmojiRowMatch(slashGroup, cachedEmojisData);
     if (exact_match) {
+      trace?.(slashGroup, slashGroup, exact_match, "exact");
       slashGroupsEmoji.push(exact_match.emoji);
       continue;
     }
@@ -667,6 +778,7 @@ async function generateEmojiFromRowsUncached(
       wordSense,
       cachedEmojisData,
       isNotCoreWord,
+      trace,
     );
 
     // 3. Emojis for bracketed notes.
@@ -678,10 +790,9 @@ async function generateEmojiFromRowsUncached(
           `${bracket}${part}${bracket === "[" ? "]" : ")"}`,
           cachedEmojisData,
         );
-        emojis.push(
-          exactMatch?.emoji ??
-            (await generateEmoji_standard2(part, cachedEmojisData, isNotCoreWord)),
-        );
+        if (exactMatch) trace?.(part, `${bracket}${part}${bracket === "[" ? "]" : ")"}`, exactMatch, "annotation");
+        emojis.push(exactMatch?.emoji ??
+          (await generateEmoji_standard2(part, cachedEmojisData, isNotCoreWord, trace)));
       }
       annotationPrints.push(
         `${bracket}${emojis.join(",")}${bracket === "[" ? "]" : ")"}`,
@@ -788,6 +899,7 @@ async function generateEmoji_standard2(
   en_gloss: string,
   rows: EmojiRow[],
   isNotCoreWord: IsNotCoreWord,
+  trace?: EmojiTraceSink,
 ): Promise<string> {
   /**
    * - Progress through levels of splits: Nothing, then: space -> [:.+_;] -> '-' (hyphen last)
@@ -797,17 +909,17 @@ async function generateEmoji_standard2(
    */
 
   // Exact-match (raw + "fancy delim" normalization)
-  const exactEmoji = (s: string): string | null => {
+  const exactRow = (s: string): EmojiRow | undefined => {
     const a = findCaseInsensitiveEmojiRowMatch(s, rows);
-    if (a) return a.emoji;
+    if (a) return a;
 
     const norm = s.replace(/[\-:.+_]+/g, " ");
     const b = findCaseInsensitiveEmojiRowMatch(norm, rows);
-    return b?.emoji ?? null;
+    return b;
   };
 
   // We build "atoms" so we can do core-word logic after we know all leaf-words.
-  type Atom = { emoji?: string; word?: string };
+  type Atom = { emoji?: string; word?: string; row?: EmojiRow; input?: string };
 
   // Split order (spaces first, hyphen last)
   const splitters: RegExp[] = [/\s+/, /[.:+_;]+/, /-+/];
@@ -817,8 +929,8 @@ async function generateEmoji_standard2(
     const s = raw.trim();
     if (!s) return [];
 
-    const exactMatchEmoji = exactEmoji(s);
-    if (exactMatchEmoji) return [{ emoji: exactMatchEmoji }];
+    const exactMatch = exactRow(s);
+    if (exactMatch?.emoji) return [{ emoji: exactMatch.emoji, ...(trace ? { row: exactMatch, input: s } : {}) }];
 
     for (const re of splitters) {
       if (!re.test(s)) continue; // Only try splitting if delimiter exists (avoids useless split to [s])
@@ -834,9 +946,10 @@ async function generateEmoji_standard2(
       for (let start = 0; start < parts.length;) {
         let matchedEnd = start;
         for (let end = Math.min(parts.length, start + maxWords); end > start + 1; end -= 1) {
-          const emoji = exactEmoji(parts.slice(start, end).join(" "));
-          if (!emoji) continue;
-          atoms.push({ emoji });
+          const input = parts.slice(start, end).join(" ");
+          const row = exactRow(input);
+          if (!row?.emoji) continue;
+          atoms.push({ emoji: row.emoji, ...(trace ? { row, input } : {}) });
           matchedEnd = end;
           break;
         }
@@ -871,16 +984,28 @@ async function generateEmoji_standard2(
   ).some(Boolean);
 
   // 2) Render atoms (also in parallel; order preserved by Promise.all)
+  // Parallel rendering must not put trace entries in promise-completion order.
+  const atomMatches = trace ? atoms.map(() => [] as Parameters<EmojiTraceSink>[]) : undefined;
   const prints: string[] = await Promise.all(
-    atoms.map(async (a) => {
-      if (a.emoji) return a.emoji; // exact-match emoji atom
+    atoms.map(async (a, index) => {
+      const atomTrace: EmojiTraceSink | undefined = trace
+        ? (...match) => { atomMatches![index]!.push(match); } : undefined;
+      if (a.emoji) {
+        if (a.row && a.input) {
+          const rawMatch = findCaseInsensitiveEmojiRowMatch(a.input, rows);
+          const lookup = rawMatch === a.row ? a.input : a.input.replace(/[\-:.+_]+/g, " ");
+          atomTrace?.(a.input, lookup, a.row, rawMatch === a.row ? "exact" : "normalized");
+        }
+        return a.emoji;
+      }
       if (!a.word) return ""; // safety (shouldn't happen much)
       // If phrase has core words, hide non-core words via visible whitespace
       if (hasCore && !(await isCore(a.word))) return "\u2007";
       // Otherwise generate emoji from word (or empty string if null)
-      return generateEmoji_fromWord(a.word, rows) ?? "";
+      return generateEmoji_fromWord(a.word, rows, atomTrace) ?? "";
     }),
   );
+  if (trace) atomMatches!.forEach(matches => matches.forEach(match => trace(...match)));
 
   let output: string = prints.filter(Boolean).join(" ");
   output = output.replaceAll("  ", " ");
@@ -893,22 +1018,23 @@ async function generateEmoji_standard2(
 function generateEmoji_fromWord(
   enWord: string,
   cachedEmojisData: EmojiRow[],
+  trace?: EmojiTraceSink,
 ): string | null {
   // 1. EXACT-MATCH SEARCH
   const exact_match = findCaseInsensitiveEmojiRowMatch(enWord, cachedEmojisData);
-  if (exact_match) return exact_match.emoji;
+  if (exact_match) { trace?.(enWord, enWord, exact_match, "exact"); return exact_match.emoji; }
 
   // 20251218: NOTE: Compared to the BE version of 'emojify.ts'. `generateEmoji_fromWord` has now been drastically updated so that AFFIX Catching is up in generateEmoji_fromWord, and Morpheme lemmatization is drastically simplified.
 
   // 2A. ["…ING"] AFFIX CATCHING
   if (enWord.toUpperCase().endsWith("ING")) {
     const enWordPrefix: string = enWord.toUpperCase().replace(/ING$/, ""); // HIDING→HID, SWIMMING→SWIMM
-    const _ingEmoji: string =
-      findCaseInsensitiveEmojiRowMatch("-ING", cachedEmojisData)?.emoji ?? ""; // "-ing" emoji
+    const ingRow = findCaseInsensitiveEmojiRowMatch("-ING", cachedEmojisData);
+    const _ingEmoji = ingRow?.emoji ?? "";
     // A. Check for exact match with split 'prefix -suffix'
     const word__ing: string = enWordPrefix + " -ing";
     const exact_match = findCaseInsensitiveEmojiRowMatch(word__ing, cachedEmojisData);
-    if (exact_match) return exact_match.emoji;
+    if (exact_match) { trace?.(enWord, word__ing, exact_match, "affix"); return exact_match.emoji; }
 
     // B. Split up so we emojify {baseWord} + "-ing" separately.
     const hasDouble = /([A-Z])\1$/.test(enWordPrefix); // True for e.g. SWIMM, RUNN
@@ -931,7 +1057,10 @@ function generateEmoji_fromWord(
       if (exact || plusOne || dedupMatch) break; // This will return as soon as any match is found, rather than prioritizing exact > plusOne > dedupMatch. // If want to prioritize order, do something like: `if (exact && plusOne && (!hasDouble || dedupMatch)) break; // short-circuit if all found`
     }
     if (exact || plusOne || dedupMatch) {
-      return (exact || plusOne || dedupMatch)?.emoji + _ingEmoji;
+      const row = (exact || plusOne || dedupMatch)!;
+      trace?.(enWord, row.en_gloss, row, "affix");
+      if (ingRow && _ingEmoji) trace?.(enWord, "-ING", ingRow, "affix");
+      return row.emoji + _ingEmoji;
     }
   }
   // 2B. ["…'S"] AFFIX CATCHING
@@ -942,43 +1071,51 @@ function generateEmoji_fromWord(
     void __sEmoji;
     // A. Check for exact base match of prefix
     const exact_match = findCaseInsensitiveEmojiRowMatch(enWordPrefix, cachedEmojisData);
-    if (exact_match) return exact_match.emoji; // + ` ${__sEmoji}`; // <- Decided not to add the emoji in this case, as at this point, it's likely that there's too many emojis (e.g. "mom's dad")
+    if (exact_match) { trace?.(enWord, enWordPrefix, exact_match, "affix"); return exact_match.emoji; } // Possessive suffix is intentionally not emitted.
   }
   // 2C. ["…SIDE"]
   if (enWord.toUpperCase().endsWith("SIDE")) {
     const enWordPrefix: string = enWord.toUpperCase().replace(/SIDE$/, "");
-    const _suffixEmoji: string =
-      findCaseInsensitiveEmojiRowMatch("-SIDE", cachedEmojisData)?.emoji ?? "";
+    const suffixRow = findCaseInsensitiveEmojiRowMatch("-SIDE", cachedEmojisData);
+    const _suffixEmoji = suffixRow?.emoji ?? "";
     // A. Check for exact match with split 'prefix -suffix'
     const exact_split_match = findCaseInsensitiveEmojiRowMatch(
       enWordPrefix + " -SIDE",
       cachedEmojisData,
     );
-    if (exact_split_match) return exact_split_match.emoji;
+    if (exact_split_match) { trace?.(enWord, enWordPrefix + " -SIDE", exact_split_match, "affix"); return exact_split_match.emoji; }
     // B. Search for exact prefix match
     const exact_prefix_match = findCaseInsensitiveEmojiRowMatch(
       enWordPrefix,
       cachedEmojisData,
     );
-    if (exact_prefix_match) return exact_prefix_match.emoji + _suffixEmoji;
+    if (exact_prefix_match) {
+      trace?.(enWord, enWordPrefix, exact_prefix_match, "affix");
+      if (suffixRow && _suffixEmoji) trace?.(enWord, "-SIDE", suffixRow, "affix");
+      return exact_prefix_match.emoji + _suffixEmoji;
+    }
   }
   // 2D. ["…?"]
   if (enWord.endsWith("?")) {
     const enWordPrefix: string = enWord.slice(0, -1); // Remove the "?"
-    const _suffixEmoji: string =
-      findCaseInsensitiveEmojiRowMatch("-?", cachedEmojisData)?.emoji ?? "";
+    const suffixRow = findCaseInsensitiveEmojiRowMatch("-?", cachedEmojisData);
+    const _suffixEmoji = suffixRow?.emoji ?? "";
     // A. Check for exact match with split 'prefix -suffix'
     const exact_split_match = findCaseInsensitiveEmojiRowMatch(
       enWordPrefix + " ?",
       cachedEmojisData,
     );
-    if (exact_split_match) return exact_split_match.emoji;
+    if (exact_split_match) { trace?.(enWord, enWordPrefix + " ?", exact_split_match, "affix"); return exact_split_match.emoji; }
     // B. Search for exact prefix match
     const exact_prefix_match = findCaseInsensitiveEmojiRowMatch(
       enWordPrefix,
       cachedEmojisData,
     );
-    if (exact_prefix_match) return exact_prefix_match.emoji + _suffixEmoji;
+    if (exact_prefix_match) {
+      trace?.(enWord, enWordPrefix, exact_prefix_match, "affix");
+      if (suffixRow && _suffixEmoji) trace?.(enWord, "-?", suffixRow, "affix");
+      return exact_prefix_match.emoji + _suffixEmoji;
+    }
   }
   // 2E. ["…LY"]
   if (enWord.toUpperCase().endsWith("LY")) {
@@ -988,21 +1125,21 @@ function generateEmoji_fromWord(
       enWordPrefix,
       cachedEmojisData,
     );
-    if (exact_prefix_match) return `【${exact_prefix_match.emoji}】`;
+    if (exact_prefix_match) { trace?.(enWord, enWordPrefix, exact_prefix_match, "affix"); return `【${exact_prefix_match.emoji}】`; }
   }
   // 2E. ["-…"] (e.g. ["fly","-over"])
   if (enWord.startsWith("-")) {
     const enWordMain: string = enWord.slice(1);
     // A. Check for exact base match
     const exact_match = findCaseInsensitiveEmojiRowMatch(enWordMain, cachedEmojisData);
-    if (exact_match) return exact_match.emoji;
+    if (exact_match) { trace?.(enWord, enWordMain, exact_match, "affix"); return exact_match.emoji; }
   }
   // 2F. ["(…)"]
   if (enWord.startsWith("(") && enWord.endsWith(")")) {
     const enWordMain: string = enWord.slice(1, -1);
     // A. Check for exact base match
     const exact_match = findCaseInsensitiveEmojiRowMatch(enWordMain, cachedEmojisData);
-    if (exact_match) return `(${exact_match.emoji})`;
+    if (exact_match) { trace?.(enWord, enWordMain, exact_match, "affix"); return `(${exact_match.emoji})`; }
   }
 
   // 3. Fallback on Matches on LEMMAS.
@@ -1028,7 +1165,7 @@ function generateEmoji_fromWord(
       lemma.toUpperCase(),
       cachedEmojisData,
     );
-    if (match) return match.emoji;
+    if (match) { trace?.(enWord, lemma.toUpperCase(), match, "lemma"); return match.emoji; }
   }
   return null;
 }

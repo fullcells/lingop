@@ -39,9 +39,11 @@ import {
 } from "./word-explicitations.js";
 import {
   generateEmoji,
+  traceEmoji,
   loadEmojiData,
   preloadEmojiData,
   type EmojiRow,
+  type EmojiTrace,
   type IsNotCoreWord,
 } from "./emojify.js";
 import {
@@ -143,6 +145,11 @@ export type LingoDataClientAuthState = {
   userEmail: string | null;
   signedInStatus: boolean | null;
   enabledSubProd: string | null | undefined;
+};
+
+export type EmojiTracingClient = {
+  /** Inspect contributing Supabase entries on demand; normal generation is unchanged. */
+  traceEmoji(en_gloss: string, study_word?: string, study_lang?: string): Promise<EmojiTrace>;
 };
 
 export type LingoDataClient = {
@@ -270,6 +277,8 @@ export type LingoDataClient = {
   generateEmojis(
     en_glosses: readonly string[],
   ): Promise<Record<string, string | null>>;
+  /** Optional for compatibility with consumer-provided client implementations. */
+  traceEmoji?: EmojiTracingClient["traceEmoji"];
   /** Checks whether a word should be treated as non-core using the shared SBWords cache. */
   isNotCoreWord(word_lang: string, word: string, gloss?: string): Promise<boolean>;
   /** Loads cached SBWords for a word/gloss language direction. */
@@ -520,7 +529,7 @@ export function createLingoDataClient({
   supabaseClient,
   backendTarget,
   useStagingBackend,
-}: CreateLingoDataClientOptions = {}): LingoDataClient {
+}: CreateLingoDataClientOptions = {}): LingoDataClient & EmojiTracingClient {
   const runtimeSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
   const emojiCacheKey = runtimeSupabaseClient
     ? getSupabaseClientCacheKey(runtimeSupabaseClient) ?? "default"
@@ -1262,6 +1271,18 @@ export function createLingoDataClient({
     });
   }
 
+  async function traceClientEmoji(
+    en_gloss: string,
+    study_word?: string,
+    study_lang?: string,
+  ): Promise<EmojiTrace> {
+    return traceEmoji(en_gloss, study_word, study_lang, {
+      ...(runtimeSupabaseClient ? { supabaseClient: runtimeSupabaseClient } : {}),
+      ...(emojiCoreWordResolver ? { isNotCoreWord: emojiCoreWordResolver } : {}),
+      cacheKey: emojiCacheKey,
+    });
+  }
+
   async function generateClientEmojis(
     enGlosses: readonly string[],
   ): Promise<Record<string, string | null>> {
@@ -1456,6 +1477,7 @@ export function createLingoDataClient({
       }),
     preloadEmojiData: preloadClientEmojiData,
     generateEmoji: generateClientEmoji,
+    traceEmoji: traceClientEmoji,
     generateEmojis: generateClientEmojis,
     isNotCoreWord: (word_lang, word, gloss) =>
       isNotCoreWord(word_lang, word, gloss, {
