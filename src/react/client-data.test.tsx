@@ -155,3 +155,17 @@ it("ignores a late initial auth lookup after a newer sign-in event", async () =>
   expect(state.supabaseUserID).toBe("current");
   expect(state.signedInStatus).toBe(true);
 });
+
+it("mounts on React Native where window exists without a browser location", async () => {
+  vi.stubGlobal("window", globalThis);
+  try {
+    await act(async () => {
+      tree = create(createElement(LingopClientDataProvider, {
+        children: createElement("native-consumer"),
+      }));
+    });
+    expect(tree!.toJSON()).toMatchObject({ type: "native-consumer" });
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});

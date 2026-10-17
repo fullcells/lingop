@@ -67,7 +67,7 @@ export function LingopClientDataProvider({
     [supabaseClient, backendTarget, useStagingBackend],
   );
   useEffect(() => {
-    if (typeof window === "undefined" || new URL(window.location.href).searchParams.get("billing") !== "return") return;
+    if (typeof window === "undefined" || !window.location?.href || new URL(window.location.href).searchParams.get("billing") !== "return") return;
     let canceled = false;
     async function reconcileReturn() {
       if (canceled || new URL(window.location.href).searchParams.get("billing") !== "return") return;
