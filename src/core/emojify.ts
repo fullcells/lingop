@@ -144,6 +144,22 @@ const emojiResultCaches = new WeakMap<
 >();
 const emojiTraceRowIndexes = new WeakMap<EmojiRow[], ReadonlyMap<EmojiRow, number>>();
 
+// Derivations aren't regular inflections: arbitrary -y/-en stripping would turn
+// many -> man, party -> part, etc. Keep these semantic families explicit.
+const emojiAdjectiveBases: Readonly<Record<string, string>> = {
+  CHEESY: "CHEESE", SAUCY: "SAUCE", SILKEN: "SILK", SILKY: "SILK",
+  CREAMY: "CREAM", MILKY: "MILK", BUTTERY: "BUTTER", OILY: "OIL",
+  SALTY: "SALT", SPICY: "SPICE", JUICY: "JUICE", MEATY: "MEAT",
+  FRUITY: "FRUIT", FISHY: "FISH", NUTTY: "NUT", GREASY: "GREASE",
+  SMOKY: "SMOKE", ICY: "ICE", WATERY: "WATER", SNOWY: "SNOW",
+  RAINY: "RAIN", WINDY: "WIND", CLOUDY: "CLOUD", FOGGY: "FOG",
+  MUDDY: "MUD", DUSTY: "DUST", WOODY: "WOOD", WOODEN: "WOOD",
+  WOOLLY: "WOOL", WOOLY: "WOOL", WOOLLEN: "WOOL", WOOLEN: "WOOL",
+  GOLDEN: "GOLD", EARTHEN: "EARTH", STONY: "STONE", BONY: "BONE",
+};
+
+type EmojiRowMatch = { row: EmojiRow; lookup: string; kind: EmojiMatchKind };
+
 async function defaultIsNotCoreWord(): Promise<boolean> {
   return false;
 }
@@ -909,17 +925,18 @@ async function generateEmoji_standard2(
    */
 
   // Exact-match (raw + "fancy delim" normalization)
-  const exactRow = (s: string): EmojiRow | undefined => {
+  const exactRow = (s: string): EmojiRowMatch | undefined => {
     const a = findCaseInsensitiveEmojiRowMatch(s, rows);
-    if (a) return a;
+    if (a) return { row: a, lookup: s, kind: "exact" };
 
     const norm = s.replace(/[\-:.+_]+/g, " ");
     const b = findCaseInsensitiveEmojiRowMatch(norm, rows);
-    return b;
+    if (b) return { row: b, lookup: norm, kind: "normalized" };
+    return findInflectedEmojiPhraseMatch(s, rows);
   };
 
   // We build "atoms" so we can do core-word logic after we know all leaf-words.
-  type Atom = { emoji?: string; word?: string; row?: EmojiRow; input?: string };
+  type Atom = { emoji?: string; word?: string; match?: EmojiRowMatch; input?: string };
 
   // Split order (spaces first, hyphen last)
   const splitters: RegExp[] = [/\s+/, /[.:+_;]+/, /-+/];
@@ -930,7 +947,7 @@ async function generateEmoji_standard2(
     if (!s) return [];
 
     const exactMatch = exactRow(s);
-    if (exactMatch?.emoji) return [{ emoji: exactMatch.emoji, ...(trace ? { row: exactMatch, input: s } : {}) }];
+    if (exactMatch?.row.emoji) return [{ emoji: exactMatch.row.emoji, ...(trace ? { match: exactMatch, input: s } : {}) }];
 
     for (const re of splitters) {
       if (!re.test(s)) continue; // Only try splitting if delimiter exists (avoids useless split to [s])
@@ -947,9 +964,9 @@ async function generateEmoji_standard2(
         let matchedEnd = start;
         for (let end = Math.min(parts.length, start + maxWords); end > start + 1; end -= 1) {
           const input = parts.slice(start, end).join(" ");
-          const row = exactRow(input);
-          if (!row?.emoji) continue;
-          atoms.push({ emoji: row.emoji, ...(trace ? { row, input } : {}) });
+          const match = exactRow(input);
+          if (!match?.row.emoji) continue;
+          atoms.push({ emoji: match.row.emoji, ...(trace ? { match, input } : {}) });
           matchedEnd = end;
           break;
         }
@@ -991,10 +1008,8 @@ async function generateEmoji_standard2(
       const atomTrace: EmojiTraceSink | undefined = trace
         ? (...match) => { atomMatches![index]!.push(match); } : undefined;
       if (a.emoji) {
-        if (a.row && a.input) {
-          const rawMatch = findCaseInsensitiveEmojiRowMatch(a.input, rows);
-          const lookup = rawMatch === a.row ? a.input : a.input.replace(/[\-:.+_]+/g, " ");
-          atomTrace?.(a.input, lookup, a.row, rawMatch === a.row ? "exact" : "normalized");
+        if (a.match && a.input) {
+          atomTrace?.(a.input, a.match.lookup, a.match.row, a.match.kind);
         }
         return a.emoji;
       }
@@ -1039,25 +1054,13 @@ function generateEmoji_fromWord(
     // B. Split up so we emojify {baseWord} + "-ing" separately.
     const hasDouble = /([A-Z])\1$/.test(enWordPrefix); // True for e.g. SWIMM, RUNN
     const dedup = hasDouble ? enWordPrefix.slice(0, -1) : ""; // SWIMM→SWIM, RUNN→RUN
-    let exact;
-    let plusOne;
-    let dedupMatch;
-    for (const row of cachedEmojisData) {
-      const gloss = (row.en_gloss || "").toUpperCase();
-      // exact: HIDING→HID, SWIMMING→SWIMM
-      if (!exact && gloss === enWordPrefix) exact = row;
-      // plus-one: HID→HIDE, SWIMM→SWIMME
-      if (!plusOne && gloss.startsWith(enWordPrefix) && gloss.length === enWordPrefix.length + 1) {
-        plusOne = row;
-      }
-      // dedup: SWIMM→SWIM, RUNN→RUN
-      if (hasDouble && !dedupMatch && gloss === dedup) {
-        dedupMatch = row;
-      }
-      if (exact || plusOne || dedupMatch) break; // This will return as soon as any match is found, rather than prioritizing exact > plusOne > dedupMatch. // If want to prioritize order, do something like: `if (exact && plusOne && (!hasDouble || dedupMatch)) break; // short-circuit if all found`
-    }
-    if (exact || plusOne || dedupMatch) {
-      const row = (exact || plusOne || dedupMatch)!;
+    const index = getEmojiRowIndex(cachedEmojisData);
+    const verb = getMorphemeStringsForEnWord(enWord.toLowerCase()).verb.toUpperCase();
+    // Known verbs handle short stems (going -> go). Don't guess thing -> the.
+    const row = verb !== enWord.toUpperCase() ? index.get(verb)
+      : enWordPrefix.length < 3 ? undefined
+      : index.get(enWordPrefix) ?? index.get(enWordPrefix + "E") ?? (hasDouble ? index.get(dedup) : undefined);
+    if (row) {
       trace?.(enWord, row.en_gloss, row, "affix");
       if (ingRow && _ingEmoji) trace?.(enWord, "-ING", ingRow, "affix");
       return row.emoji + _ingEmoji;
@@ -1167,7 +1170,31 @@ function generateEmoji_fromWord(
     );
     if (match) { trace?.(enWord, lemma.toUpperCase(), match, "lemma"); return match.emoji; }
   }
+  const base = emojiAdjectiveBases[enWord.toUpperCase()];
+  const derived = base ? getEmojiRowIndex(cachedEmojisData).get(base) : undefined;
+  if (derived) { trace?.(enWord, base!, derived, "lemma"); return derived.emoji; }
   return null;
+}
+
+/** Change only a phrase/compound's final word; never search substrings or
+ * expand combinations across all of its words. Exact spellings win above. */
+function findInflectedEmojiPhraseMatch(text: string, rows: EmojiRow[]): EmojiRowMatch | undefined {
+  const parts = text.match(/^(.*[\s\-:.+_])?([a-z]+)(['’]s|['’])?$/i);
+  if (!parts || !parts[1] && !parts[3]) return;
+  const prefix = parts[1] ?? "";
+  const word = parts[2]!.toLowerCase();
+  const lemmas = getMorphemeStringsForEnWord(word);
+  const candidates = new Set([
+    ...(parts[3] ? [word] : []),
+    ...Object.values(lemmas).filter(lemma => lemma !== word),
+  ]);
+  const index = getEmojiRowIndex(rows);
+  for (const candidate of candidates) {
+    const lookup = normalizeEmojiGloss(prefix + candidate);
+    const normalized = normalizeEmojiGloss(lookup.replace(/[\-:.+_]+/g, " "));
+    const row = index.get(lookup) ?? index.get(normalized);
+    if (row) return { row, lookup: index.has(lookup) ? lookup : normalized, kind: parts[3] ? "affix" : "lemma" };
+  }
 }
 
 function findCaseInsensitiveEmojiRowMatch(
@@ -1178,9 +1205,14 @@ function findCaseInsensitiveEmojiRowMatch(
   const normalizedGloss = normalizeEmojiGloss(enGlossText);
   // 1. Exact Match
   let match = index.get(normalizedGloss);
-  // 2. Attempt Match without trailing "s".
+  // 2. A dictionary-backed plural of the final word (dishES, ice creamS).
+  // Blindly dropping S also matches unrelated singulars such as bus -> bu.
   if (!match && normalizedGloss.endsWith("S")) {
-    match = index.get(normalizedGloss.slice(0, -1));
+    const word = normalizedGloss.match(/[A-Z]+$/)?.[0];
+    if (word) {
+      const noun = getMorphemeStringsForEnWord(word.toLowerCase()).noun.toUpperCase();
+      if (noun !== word) match = index.get(normalizedGloss.slice(0, -word.length) + noun);
+    }
   }
   return match;
 }
