@@ -1179,7 +1179,7 @@ function generateEmoji_fromWord(
 /** Change only a phrase/compound's final word; never search substrings or
  * expand combinations across all of its words. Exact spellings win above. */
 function findInflectedEmojiPhraseMatch(text: string, rows: EmojiRow[]): EmojiRowMatch | undefined {
-  const parts = text.match(/^(.*[\s\-:.+_])?([a-z]+)(['’]s|['’])?$/i);
+  const parts = text.match(/^(.*[\s\-:.+_])?([\p{L}\p{M}]+)(['’]s|['’])?$/iu);
   if (!parts || !parts[1] && !parts[3]) return;
   const prefix = parts[1] ?? "";
   const word = parts[2]!.toLowerCase();
@@ -1208,17 +1208,23 @@ function findCaseInsensitiveEmojiRowMatch(
   // 2. A dictionary-backed plural of the final word (dishES, ice creamS).
   // Blindly dropping S also matches unrelated singulars such as bus -> bu.
   if (!match && normalizedGloss.endsWith("S")) {
-    const word = normalizedGloss.match(/[A-Z]+$/)?.[0];
+    const word = normalizedGloss.match(/[\p{L}\p{M}]+$/u)?.[0];
     if (word) {
-      const noun = getMorphemeStringsForEnWord(word.toLowerCase()).noun.toUpperCase();
-      if (noun !== word) match = index.get(normalizedGloss.slice(0, -word.length) + noun);
+      // Wink's English dictionary doesn't recognize accented plurals. Use its
+      // plain spelling only to identify a suffix, then retain the original accent.
+      const plain = word.normalize("NFD").replace(/\p{M}/gu, "");
+      const noun = getMorphemeStringsForEnWord(plain.toLowerCase()).noun.toUpperCase();
+      if (noun !== plain && (word === plain || plain.startsWith(noun))) {
+        const singular = word === plain ? noun : word.slice(0, word.length - (plain.length - noun.length));
+        match = index.get(normalizedGloss.slice(0, -word.length) + singular);
+      }
     }
   }
   return match;
 }
 
 function normalizeEmojiGloss(gloss: string): string {
-  return gloss.trim().replace(/\s+/g, " ").toUpperCase();
+  return gloss.normalize("NFC").trim().replace(/\s+/g, " ").toUpperCase();
 }
 
 function getEmojiRowIndex(

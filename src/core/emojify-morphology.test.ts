@@ -15,6 +15,45 @@ const rows = [
 
 describe("conservative emoji word forms", () => {
   it.each([
+    ["HK Cafés", "HK Café"], ["HK CAFÉS", "HK Café"],
+    ["HK Cafe\u0301s", "HK Café"], ["HK Cafés", "HK Cafe\u0301"],
+    ["HK Cafes", "HK Cafe"], ["cafés", "café"], ["résumés", "résumé"],
+    ["HK Café’s", "HK Café"], ["HK Cafe\u0301’s", "HK Café"],
+  ])("matches accented plurals/possessives in %s against %s", async (input, stored) => {
+    const data = [{ en_gloss: stored, emoji: "🇭🇰☕️" }];
+    expect(await generateEmojiFromRows(input, data)).toBe("🇭🇰☕️");
+    const trace = await traceEmojiFromRows(input, data);
+    expect(trace.matches).toHaveLength(1);
+    expect(trace.matches[0]).toMatchObject({ input, rowIndex: 0, row: data[0] });
+  });
+
+  it("uses the complete HK Café phrase in the reported title, preserving source order", async () => {
+    const data = [
+      { id: 376, en_gloss: "breakfast", emoji: "🍛🕘🌅" },
+      { id: 3307, en_gloss: "&", emoji: "&" },
+      { id: 3164, en_gloss: "café", emoji: "📍☕️" },
+      { id: 3306, en_gloss: "HK Café", emoji: "🇭🇰☕️" },
+    ];
+    const trace = await traceEmojiFromRows("Breakfast & HK Cafés", data);
+    expect(trace.emoji).toBe("🍛🕘🌅 & 🇭🇰☕️");
+    expect(trace.matches.map(match => [match.input, match.row.id])).toEqual([
+      ["Breakfast", 376], ["&", 3307], ["HK Cafés", 3306],
+    ]);
+    expect(trace.matches[2]?.kind).toBe("plural");
+    expect(await generateEmojiFromRows("Breakfast & HK Cafés", data)).toBe(trace.emoji);
+  });
+
+  it("preserves accent distinctions and prefers explicit plural entries", async () => {
+    const data = [{ en_gloss: "cafe", emoji: "A" }, { en_gloss: "café", emoji: "B" }];
+    expect(await generateEmojiFromRows("cafes", data)).toBe("A");
+    expect(await generateEmojiFromRows("cafés", data)).toBe("B");
+    expect(await generateEmojiFromRows("CAFÉS", [...data, { en_gloss: "cafés", emoji: "C" }])).toBe("C");
+    expect(await generateEmojiFromRows("café", [data[0]!])).toBe("");
+    expect(await generateEmojiFromRows("resume", [{ en_gloss: "résumé", emoji: "❌" }])).toBe("");
+    expect(await generateEmojiFromRows("gás", [{ en_gloss: "gá", emoji: "❌" }])).toBe("");
+  });
+
+  it.each([
     ["dishes", "🍽️", "dishes", "dish"],
     ["slow-simmered", "♨️🫕", "slow-simmered", "slow-simmer"],
     ["cheesy", "🧀", "cheesy", "cheese"],
@@ -81,7 +120,7 @@ describe("conservative emoji word forms", () => {
 
   it("uses bounded index lookups after one dataset scan, including -ing forms", async () => {
     let rowReads = 0;
-    const data = new Proxy([...Array.from({ length: 10_000 }, (_, i) => ({ en_gloss: `unused ${i}`, emoji: "" })), ...rows, { en_gloss: "run", emoji: "🏃" }], {
+    const data = new Proxy([...Array.from({ length: 10_000 }, (_, i) => ({ en_gloss: `unused ${i}`, emoji: "" })), ...rows, { en_gloss: "run", emoji: "🏃" }, { en_gloss: "HK Café", emoji: "🇭🇰☕️" }], {
       get(target, key, receiver) {
         if (typeof key === "string" && /^\d+$/.test(key)) rowReads++;
         return Reflect.get(target, key, receiver);
@@ -91,6 +130,7 @@ describe("conservative emoji word forms", () => {
     expect(rowReads).toBe(data.length);
     rowReads = 0;
     for (const input of ["slow-simmered", "stir-fried", "cheesy", "blind man's biscuit", "running"]) await generateEmojiFromRows(input, data);
+    expect(await generateEmojiFromRows("HK Cafés", data)).toBe("🇭🇰☕️");
     expect(rowReads).toBe(0);
   });
 });
