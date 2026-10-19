@@ -744,6 +744,21 @@ await lingoData.loadWordListsV3("ja", { forceRefresh: true });
   cannot repopulate the new cache. Reads of the three tables are separate requests,
   not a transactional snapshot. Editor writes should complete before refreshing.
 
+`loadWordListSnapshotV3(focusLang, { supabaseClient, refreshIfMissing, ... })`
+is an opt-in standalone helper from `lingop/core`. It returns `{ metadata, lists }`
+using the **same** language cache as `loadWordListsV3`, keeping the metadata used
+for that language read alongside its words and edges. The caller's synchronous
+`refreshIfMissing(snapshot)` predicate checks whether its selection is unavailable
+within its chosen public root and gloss language. A miss can reload metadata and
+that language once; other languages stay warm. Concurrent misses share the read,
+and `refreshCooldownMs` (default 30 seconds) bounds fresh misses and failed
+refresh retries per client/language, regardless of selected IDs or gloss languages.
+Read failures reject; they are not evidence that a list is unpublished. Always
+check the returned snapshot against the same publication policy: a refresh may
+still leave the selection unavailable. No root IDs or publication policy are
+hardcoded in Lingop. Explicit `clearWordListsV3Cache` / `forceRefresh` also reset
+this refresh coordination. These reads are not a database transaction.
+
 The same v3 read functions are exported directly from `lingop/core` and accept
 `{ supabaseClient, forceRefresh?, maxAgeMs? }` as their last argument. The standalone
 `clearWordListsV3Cache(supabaseClient?)` clears one client's v3 cache, or all v3

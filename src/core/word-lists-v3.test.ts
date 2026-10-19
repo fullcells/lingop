@@ -7,6 +7,8 @@ import {
   getWordListL10nV3,
   loadWordListMetaDataV3,
   loadWordListsV3,
+  loadWordListSnapshotV3,
+  type WordListV3Snapshot,
   resolveWordListL10nV3,
   getWordListGlossTipLangsV3,
   type SBWordListV3Row,
@@ -347,5 +349,112 @@ describe("v3 word lists", () => {
     expect(client.loadSBCacheWordListsForLang).toBeTypeOf("function");
     expect(client.getDescendantL10nsOfWordLists).toBeTypeOf("function");
     expect(db.requests.every((r) => ["word_lists_v3", "word_list_words", "word_list_sublists"].includes(r.table))).toBe(true);
+  });
+});
+
+
+describe('shared V3 snapshot refresh', () => {
+  beforeEach(() => { clearWordListsV3Cache(); vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(0); });
+  afterEach(() => vi.useRealTimers());
+  function fixture() {
+    const tables = {
+      word_lists_v3: [list(1, 'ja'), list(2, 'ja'), list(3, 'en'), list(99, 'ja')],
+      word_list_words: [word(1, 1, 'rice', 1), word(2, 2, 'bento', 1)],
+      word_list_sublists: [] as ReturnType<typeof edge>[],
+    };
+    return { ...database(tables), tables };
+  }
+  const missingChild = ({ lists }: WordListV3Snapshot) =>
+    !lists.find(row => row.id === 1)?.sublists.some(row => row.child_list_id === 2);
+
+  it('shares the ordinary cache and refreshes new metadata, words and edges together', async () => {
+    const db = fixture();
+    await loadWordListsV3('ja', db);
+    await loadWordListSnapshotV3('ja', { ...db, refreshIfMissing: missingChild });
+    expect(db.requests).toHaveLength(3);
+    db.tables.word_lists_v3.push(list(4, 'ja'));
+    db.tables.word_list_words.push(word(4, 4, 'new', 1));
+    db.tables.word_list_sublists.push(edge(1, 2, 1), edge(2, 4, 1));
+    vi.setSystemTime(30_000);
+    const snapshot = await loadWordListSnapshotV3('ja', { ...db, refreshIfMissing: missingChild });
+    expect(missingChild(snapshot)).toBe(false);
+    expect(snapshot.metadata.some(row => row.id === 4)).toBe(true);
+    expect(snapshot.lists.find(row => row.id === 4)?.words[0]?.text).toBe('new');
+    expect(db.requests).toHaveLength(6);
+    expect(await loadWordListsV3('ja', db)).toEqual(snapshot.lists);
+    expect(await loadWordListMetaDataV3(db)).toEqual(snapshot.metadata);
+    expect(db.requests).toHaveLength(6);
+  });
+
+  it('shares cooldown across missing IDs without publishing them', async () => {
+    const db = fixture();
+    await loadWordListSnapshotV3('ja', db); vi.setSystemTime(30_000);
+    for (const id of [2, 99, 500, 501]) {
+      const snapshot = await loadWordListSnapshotV3('ja', { ...db,
+        refreshIfMissing: ({ lists }) => !lists.find(row => row.id === 1)?.sublists.some(row => row.child_list_id === id),
+      });
+      expect(snapshot.lists.find(row => row.id === 1)?.sublists).toEqual([]);
+    }
+    expect(db.requests).toHaveLength(6);
+    db.tables.word_list_sublists.push(edge(1, 2, 1)); vi.setSystemTime(60_000);
+    expect(missingChild(await loadWordListSnapshotV3('ja', { ...db, refreshIfMissing: missingChild }))).toBe(false);
+    expect(db.requests).toHaveLength(9);
+  });
+
+  it('shares slow concurrent refreshes without looping on a still-missing selection', async () => {
+    const db = fixture();
+    await loadWordListsV3('ja', db); vi.setSystemTime(30_000);
+    let finish!: () => void;
+    db.pause(new Promise<void>(resolve => { finish = resolve; }));
+    const requests = Array.from({ length: 20 }, () => loadWordListSnapshotV3('ja', { ...db, refreshIfMissing: missingChild }));
+    await vi.waitFor(() => expect(db.requests).toHaveLength(4));
+    vi.setSystemTime(90_000);
+    requests.push(loadWordListSnapshotV3('ja', { ...db, refreshIfMissing: missingChild }));
+    finish();
+    expect((await Promise.all(requests)).every(missingChild)).toBe(true);
+    expect(db.requests).toHaveLength(6);
+  });
+
+  it('keeps other languages warm with their original matching metadata', async () => {
+    const db = fixture();
+    const english = await loadWordListSnapshotV3('en', db);
+    await loadWordListsV3('ja', db);
+    expect(db.requests).toHaveLength(5);
+    db.tables.word_lists_v3.push(list(4, 'ja')); vi.setSystemTime(30_000);
+    const japanese = await loadWordListSnapshotV3('ja', { ...db, refreshIfMissing: missingChild });
+    expect(japanese.metadata.some(row => row.id === 4)).toBe(true);
+    expect(await loadWordListSnapshotV3('en', db)).toEqual(english);
+    expect(db.requests).toHaveLength(8);
+  });
+
+  it('propagates failures, throttles retries, and resets on explicit invalidation', async () => {
+    const db = fixture();
+    await loadWordListsV3('ja', db); vi.setSystemTime(30_000);
+    db.failWith(table => table === 'word_lists_v3');
+    await expect(loadWordListSnapshotV3('ja', { ...db, refreshIfMissing: missingChild })).rejects.toThrow('Failed to load');
+    const count = db.requests.length;
+    await expect(loadWordListSnapshotV3('ja', { ...db, refreshIfMissing: missingChild })).rejects.toThrow('Failed to load');
+    expect(db.requests).toHaveLength(count);
+    db.failWith(); vi.setSystemTime(60_000);
+    await loadWordListSnapshotV3('ja', { ...db, refreshIfMissing: missingChild });
+    expect(db.requests).toHaveLength(count + 3);
+    db.tables.word_list_sublists.push(edge(1, 2, 1)); clearWordListsV3Cache(db.supabaseClient);
+    expect(missingChild(await loadWordListSnapshotV3('ja', { ...db, refreshIfMissing: missingChild }))).toBe(false);
+    expect(db.requests).toHaveLength(count + 6);
+  });
+
+  it('protects shared data from predicate/caller mutations and validates cooldowns', async () => {
+    const db = fixture();
+    for (const cooldown of [-1, NaN, Infinity]) {
+      await expect(loadWordListSnapshotV3('ja', { ...db, refreshCooldownMs: cooldown })).rejects.toThrow('cooldown');
+    }
+    const original = await loadWordListSnapshotV3('ja', db);
+    const changed = await loadWordListSnapshotV3('ja', { ...db, refreshIfMissing: snapshot => {
+      snapshot.metadata[0]!.title = 'edited'; snapshot.lists[0]!.words[0]!.text = 'edited'; return false;
+    } });
+    changed.lists[0]!.sublists.push(edge(1, 99, 1));
+    expect(await loadWordListSnapshotV3('ja', db)).toEqual(original);
+    expect(await loadWordListsV3('ja', db)).toEqual(original.lists);
+    expect(db.requests).toHaveLength(3);
   });
 });

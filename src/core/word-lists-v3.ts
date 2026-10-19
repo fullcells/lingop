@@ -51,16 +51,30 @@ export type WordListsV3Options = WordListsV3ReadOptions & {
   supabaseClient?: SupabaseClientLike;
 };
 
+/** Metadata and one language's lists from the same cached language read. */
+export type WordListV3Snapshot = { metadata: SBWordListV3Row[]; lists: WordListV3[] };
+
+export type WordListV3SnapshotOptions = WordListsV3Options & {
+  /** Return true for a missing selection. Publication/root/language policy stays with the caller.
+   * Called on a defensive copy. The returned snapshot must still be checked after a refresh.
+   */
+  refreshIfMissing?: (snapshot: WordListV3Snapshot) => boolean;
+  /** Minimum time between miss-triggered reads per client/language; defaults to 30 seconds. */
+  refreshCooldownMs?: number;
+};
+
 export type WordListsV3TraversalOptions = {
   /** Cycles are skipped by default; shared children are valid. */
   throwOnCycle?: boolean;
 };
 
 export const WORD_LISTS_V3_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
+export const WORD_LISTS_V3_MISSING_REFRESH_COOLDOWN_MS = 30_000;
 const PAGE_SIZE = 1000;
 const ID_BATCH_SIZE = 250;
 type CacheEntry = { promise: Promise<unknown>; completedAt?: number };
-type Cache = Map<string, CacheEntry>;
+type RefreshEntry = { promise: Promise<WordListV3Snapshot>; completedAt?: number; failed: boolean };
+type Cache = { entries: Map<string, CacheEntry>; refreshes: Map<string, RefreshEntry> };
 let caches = new WeakMap<SupabaseRuntimeClient, Cache>();
 
 /** Call after editing any of the three v3 tables. Omit the client to clear all v3 caches. */
@@ -84,7 +98,7 @@ function context(options: WordListsV3Options) {
   if (options.forceRefresh) caches.delete(client);
   let cache = caches.get(client);
   if (!cache) {
-    cache = new Map();
+    cache = { entries: new Map(), refreshes: new Map() };
     caches.set(client, cache);
   }
   return { client, cache, maxAgeMs };
@@ -93,7 +107,7 @@ function context(options: WordListsV3Options) {
 type Context = ReturnType<typeof context>;
 
 function cached<T>(ctx: Context, key: string, read: () => Promise<T>): Promise<T> {
-  const existing = ctx.cache.get(key);
+  const existing = ctx.cache.entries.get(key);
   if (existing && (existing.completedAt === undefined ||
     Date.now() - existing.completedAt < ctx.maxAgeMs)) {
     return existing.promise as Promise<T>;
@@ -103,11 +117,11 @@ function cached<T>(ctx: Context, key: string, read: () => Promise<T>): Promise<T
       entry.completedAt = Date.now();
       return data;
     }).catch((error: unknown) => {
-      if (ctx.cache.get(key) === entry) ctx.cache.delete(key);
+      if (ctx.cache.entries.get(key) === entry) ctx.cache.entries.delete(key);
       throw error;
     }),
   };
-  ctx.cache.set(key, entry);
+  ctx.cache.entries.set(key, entry);
   return entry.promise as Promise<T>;
 }
 
@@ -192,10 +206,11 @@ async function children<T>(
   return result;
 }
 
-function listsForLang(ctx: Context, lang: string): Promise<WordListV3[]> {
+function snapshotForLang(ctx: Context, lang: string): Promise<WordListV3Snapshot> {
   if (!isText(lang)) throw new Error("A non-empty word-list language is required.");
   return cached(ctx, `lang:${lang}`, async () => {
-    const rows = (await metadata(ctx)).filter((row) => row.lang === lang);
+    const allRows = await metadata(ctx);
+    const rows = allRows.filter((row) => row.lang === lang);
     const ids = rows.map((row) => row.id);
     const [words, sublists] = await Promise.all([
       children(ctx, ids, "word_list_words", "id,list_id,text,position", "list_id", ["id"], isWord),
@@ -210,8 +225,16 @@ function listsForLang(ctx: Context, lang: string): Promise<WordListV3[]> {
         (a.position ?? Infinity) - (b.position ?? Infinity) || a.id - b.id);
       list.sublists.sort((a, b) => a.position - b.position || a.child_list_id - b.child_list_id);
     }
-    return [...lists.values()];
+    return { metadata: allRows, lists: [...lists.values()] };
   });
+}
+
+async function listsForLang(ctx: Context, lang: string): Promise<WordListV3[]> {
+  return (await snapshotForLang(ctx, lang)).lists;
+}
+
+function cloneSnapshot(snapshot: WordListV3Snapshot): WordListV3Snapshot {
+  return { metadata: snapshot.metadata.map(row => ({ ...row })), lists: snapshot.lists.map(cloneList) };
 }
 
 function cloneList(list: WordListV3): WordListV3 {
@@ -226,6 +249,49 @@ export async function loadWordListMetaDataV3(options: WordListsV3Options = {}): 
 /** Loads one language's lists with their own ordered word rows and child edges. */
 export async function loadWordListsV3(lang: string, options: WordListsV3Options = {}): Promise<WordListV3[]> {
   return (await listsForLang(context(options), lang)).map(cloneList);
+}
+
+/** Reuses the ordinary V3 cache; optionally refreshes a missing selection once.
+ * Fresh misses, concurrent requests, and failed refreshes share a per-language
+ * cooldown. This does not publish lists or authorize access to a selected ID.
+ */
+export async function loadWordListSnapshotV3(
+  lang: string, options: WordListV3SnapshotOptions = {},
+): Promise<WordListV3Snapshot> {
+  const cooldown = options.refreshCooldownMs ?? WORD_LISTS_V3_MISSING_REFRESH_COOLDOWN_MS;
+  if (!Number.isFinite(cooldown) || cooldown < 0) throw new Error("Word-list refresh cooldown must be finite and non-negative.");
+  const ctx = context(options);
+  const recent = (entry: RefreshEntry) => entry.completedAt === undefined || Date.now() - entry.completedAt < cooldown;
+  const pending = ctx.cache.refreshes.get(lang);
+  if (pending && recent(pending) && (pending.completedAt === undefined || pending.failed)) {
+    return cloneSnapshot(await pending.promise);
+  }
+
+  const initialRead = snapshotForLang(ctx, lang);
+  const snapshot = cloneSnapshot(await initialRead);
+  if (!options.refreshIfMissing?.(snapshot)) return snapshot;
+
+  const refresh = ctx.cache.refreshes.get(lang);
+  if (refresh && recent(refresh)) return cloneSnapshot(await refresh.promise);
+  const current = ctx.cache.entries.get(`lang:${lang}`);
+  // Another caller may have replaced the read we checked, including a refresh
+  // which finished while this request was waiting. Never start a second refresh.
+  if (current?.promise !== initialRead) return cloneSnapshot(await snapshotForLang(ctx, lang));
+  if (current.completedAt !== undefined && Date.now() - current.completedAt < cooldown) return snapshot;
+
+  const entry: RefreshEntry = { failed: false, promise: Promise.resolve().then(() => {
+    // Keep other languages warm. Reuse any already-running metadata read, and
+    // replace only settled metadata plus this language's words and edges.
+    const meta = ctx.cache.entries.get("metadata");
+    if (meta?.completedAt !== undefined) ctx.cache.entries.delete("metadata");
+    ctx.cache.entries.delete(`lang:${lang}`);
+    return snapshotForLang(ctx, lang);
+  }).catch((error: unknown) => {
+    entry.failed = true;
+    throw error;
+  }).finally(() => { entry.completedAt = Date.now(); }) };
+  ctx.cache.refreshes.set(lang, entry);
+  return cloneSnapshot(await entry.promise);
 }
 
 /** Index a metadata snapshot once for repeated direct-family lookups. */
