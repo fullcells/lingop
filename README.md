@@ -1789,3 +1789,13 @@ Word Lists V2 data APIs and the preparation CLI remain available. Adopting
 Word Lists V3 requires numeric IDs and language-owned word/child data; old string
 list keys and aligned Word Lists V2 caches are not interchangeable. No database
 migration or automatic consumer data switch occurs when installing this release.
+
+## Contextual Japanese pronunciation
+
+Use `getAnnotatedSpelling(annotation, spellingSystem)` from `lingop/core/language` for a complete annotation. It returns `text` plus per-token parts containing `chars`, `spelling`, `sourcePartIndices` and `unresolved`. Source annotations, glosses and word boundaries are never rewritten. WanaKana performs kana/romaji conversion; the shared adapter carries neighbouring kana context and retains alignment for doubled consonants, contracted kana, n separators and long vowels. An indivisible multi-character source reading remains indivisible. Missing kanji readings remain unresolved, while kana can read themselves.
+
+Pass the result as `preparedSpelling` to the Next or React Native `AnnotatedTextView` for build-time/SSR formatting. Both also accept an explicit `spellingSystem`; the Next view otherwise uses existing preferences. The Phaser view accepts the same prepared model as its final constructor or `setAnnotatedText` argument. Live Next rendering, `getSpelling()`, HTML-table exports and prepared renderers share the same conversion. Duplicate ruby is hidden only in the display layer; the full pronunciation remains available for copy/export and spelling-only views.
+
+`getSpellingContent` remains compatible for standalone parts, but cannot infer neighbours that were not passed to it. Sequence consumers should migrate to `getAnnotatedSpelling`; do not concatenate or overwrite their original `phoneticToken` to work around Japanese context.
+
+Word-reading selection (e.g. the reading of 太 in 太巻き) remains the annotation producer's responsibility. Lingop converts the supplied reading; it does not embed vocabulary-specific corrections.

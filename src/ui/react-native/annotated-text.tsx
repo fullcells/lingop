@@ -1,6 +1,6 @@
 import type { SpeechController, SpeechRequest } from "../../speech/controller.js";
 import { SpeechControls } from "./speech-controls.js";
-import { useEffect, useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -19,6 +19,8 @@ import type {
   ATokenSubMorphemes,
 } from "../../core/annotation/types.js";
 import { phoneticPartToSpelling } from "../annotated-text-utils.js";
+import { getAnnotatedSpelling, getSpellingPartDisplay, type AnnotatedSpelling } from "../../core/language/annotation-spelling.js";
+import type { SpellingSystem } from "../../core/language/spelling-systems.js";
 import type { TripleDisplayState } from "../types.js";
 import { prepareAnnotatedText } from "./annotated-text-model.js";
 import { useGlossEmojis, type AnnotatedTextEmojiClient } from "./use-gloss-emojis.js";
@@ -76,6 +78,8 @@ export type AnnotatedTextTokenContext = {
 export type AnnotatedTextViewProps = Omit<ViewProps, "children"> & {
   /** Null displays an accessible loading indicator. */
   annotatedText: AnnotatedText | null;
+  spellingSystem?: SpellingSystem | null;
+  preparedSpelling?: AnnotatedSpelling;
   showSpelling?: TripleDisplayState;
   showMainText?: boolean;
   showGlossText?: TripleDisplayState;
@@ -114,6 +118,8 @@ const isVisible = (state: TripleDisplayState, hinted: boolean) =>
 /** Native renderer with optional app-owned Lingop speech controller. */
 export function AnnotatedTextView({
   annotatedText,
+  spellingSystem,
+  preparedSpelling,
   showSpelling = "ALWAYS",
   showMainText = true,
   showGlossText = "ALWAYS",
@@ -145,6 +151,21 @@ export function AnnotatedTextView({
     () => annotatedText ? prepareAnnotatedText(annotatedText) : null,
     [annotatedText],
   );
+  const selectedSystem = spellingSystem !== undefined ? spellingSystem : preparedSpelling?.spellingSystem ?? null;
+  const [converted, setConverted] = useState<{ model: typeof model; system: SpellingSystem | null; value: AnnotatedSpelling } | null>(null);
+  const prepared = preparedSpelling && model && annotatedText && preparedSpelling.lang === annotatedText.lang &&
+    preparedSpelling.spellingSystem === selectedSystem && preparedSpelling.tokens.length === model.tokens.length &&
+    preparedSpelling.tokens.every((parts, i) => parts.map(p => p.chars).join("") === model.tokens[i]?.text)
+      ? preparedSpelling : undefined;
+  useEffect(() => {
+    if (!model || !annotatedText || prepared || spellingSystem === undefined) return;
+    let cancelled = false;
+    void getAnnotatedSpelling({lang: annotatedText.lang, tokens: model.tokens}, selectedSystem).then(value => {
+      if (!cancelled) setConverted({model, system: selectedSystem, value});
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [model, annotatedText, prepared, selectedSystem, spellingSystem]);
+  const formatted = prepared ?? (converted?.model === model && converted.system === selectedSystem ? converted.value : undefined);
   const resolved = { ...DEFAULT_ANNOTATED_TEXT_STYLE, ...astyle };
 
   const contexts = model && annotatedText ? model.tokens.map((token, index) => {
@@ -260,8 +281,9 @@ export function AnnotatedTextView({
             {groups.map((group, groupIndex) => (
               <View key={groupIndex} style={[styles.group, layoutDirection]}>
                 {group.map(({ token, index, context, spellingVisible, gloss, emoji, emojiLoading }, tokenIndex) => {
-                  const parts = reserveSpelling && token.isWord === 1 && token.phoneticToken?.length
-                    ? token.phoneticToken : [[token.text] as [string]];
+                  const formattedParts = formatted?.tokens[index];
+                  const parts = formattedParts?.map(p => [p.chars, p.spelling] as [string,string]) ?? (reserveSpelling && token.isWord === 1 && token.phoneticToken?.length
+                    ? token.phoneticToken : [[token.text] as [string]]);
                   const showBase = showMainText || (showSpelling !== "NEVER" && !reserveSpelling);
                   const glossRows = (hasGloss || hasEmoji) ? (
                     <View style={[styles.gloss, {
@@ -288,7 +310,7 @@ export function AnnotatedTextView({
                         const spelling = !showMainText && token.isWord !== 1
                           ? token.text
                           : spellingVisible && (hasReading || !showMainText)
-                            ? phoneticPartToSpelling(part, annotatedText.lang, showMainText)
+                            ? formattedParts?.[partIndex] ? getSpellingPartDisplay(formattedParts[partIndex]!, annotatedText.lang, showMainText) : phoneticPartToSpelling(part, annotatedText.lang, showMainText)
                             : EMPTY;
                         return (
                           <View key={partIndex} style={[styles.part, {

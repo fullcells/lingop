@@ -56,26 +56,13 @@ export async function getSpellingContent(
     }
   }
 
-  // JA:
+  // Single-part compatibility API. Sequence callers must use getAnnotatedSpelling
+  // so neighbouring kana and source alignment are available together.
   if (ilike("ja", lang)) {
-    // Backend default is Hiragana.
-    if (
-      spellingSystem === SpellingSystem.JA_HIRAGANA &&
-      phoneticPartSpelling === phoneticPartChars &&
-      phoneticPartChars !== "ー" && // Reflect Katakana "ー" in Hiragana too.
-      showMainText // Only dedupe when main text is visible.
-    ) {
-      phoneticPartSpelling = EMPTY_SPACE;
-    }
-    if (spellingSystem === SpellingSystem.JA_ROMAJI) {
-      const { toRomaji } = await import("wanakana");
-      phoneticPartSpelling = toRomaji(phoneticPartSpelling);
-      if (!phoneticPartSpelling) phoneticPartSpelling = "–";
-    }
-    if (spellingSystem === SpellingSystem.JA_KATAKANA) {
-      const { toKatakana } = await import("wanakana");
-      phoneticPartSpelling = toKatakana(phoneticPartSpelling);
-    }
+    const { formatJapaneseSpellings } = await import("./japanese-spelling.js");
+    const { getSpellingPartDisplay } = await import("./annotation-spelling.js");
+    const part = formatJapaneseSpellings([{ text: phoneticPartChars, isWord: 1, phoneticToken: [phoneticPart] }], spellingSystem)[0]![0]!;
+    return getSpellingPartDisplay(part, lang, showMainText);
   }
 
   // HAK

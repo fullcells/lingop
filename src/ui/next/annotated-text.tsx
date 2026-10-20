@@ -41,6 +41,10 @@ import {
   getLangScript,
   getMainScriptReadingGuideToken,
   getSpellingContent,
+  getAnnotatedSpelling,
+  getSpellingPartDisplay,
+  type AnnotatedSpelling,
+  type SpellingPart,
   getWordExplanationsForWord,
   isLangWordSpaced,
   SpellingSystemsByLang,
@@ -177,6 +181,10 @@ function resolveAnnotatedTextStyle(
 export type AnnotatedTextViewProps = {
   /** A null annotation renders Lingop's loading-annotations indicator. */
   annotatedText: AnnotatedText | null;
+  /** Explicit selection wins over preferences; null uses backend spelling. */
+  spellingSystem?: SpellingSystem | null;
+  /** Build-time formatting from getAnnotatedSpelling; keeps original annotation intact. */
+  preparedSpelling?: AnnotatedSpelling;
   showSpelling?: TripleDisplayState;
   showMainText?: boolean;
   showGlossText?: TripleDisplayState;
@@ -262,14 +270,15 @@ function escapeHTML(value: string): string {
 /** Build the spreadsheet-friendly three-row table retained from OmniAccess. */
 export function getAnnotatedTextHTMLTableExport(
   annotatedText: AnnotatedText,
+  formatted?: AnnotatedSpelling,
 ): string {
   // [Post MVB] Future: Do line-breaking when too wide / too many chars.
   let spellingRow = "";
   let baseTextRow = "";
   let glossRow = "";
 
-  for (const token of annotatedText.tokens) {
-    const phoneticToken = token.phoneticToken ?? null;
+  for (const [index, token] of annotatedText.tokens.entries()) {
+    const phoneticToken = formatted?.tokens[index]?.map(part => [part.chars, part.spelling] as [string, string]) ?? token.phoneticToken ?? null;
     if (phoneticToken) {
       spellingRow += phoneticToken
         .map(([chars, spelling]) =>
@@ -340,6 +349,7 @@ type TokenSpellingAndMainViewProps = {
   showMainTextReadingGuide: boolean;
   spellingSystem: SpellingSystem | null | undefined;
   token: AnnotatedToken;
+  formattedParts?: SpellingPart[] | undefined;
   tokenCoreWordOrUnknownStatus: boolean | null;
 };
 
@@ -354,6 +364,7 @@ function TokenSpellingAndMainView({
   showMainTextReadingGuide,
   spellingSystem,
   token,
+  formattedParts,
   tokenCoreWordOrUnknownStatus,
 }: TokenSpellingAndMainViewProps): ReactNode {
   const userWordStreaksData = useOptionalUserWordStreaksData();
@@ -476,11 +487,11 @@ function TokenSpellingAndMainView({
     );
   }
 
-  const phoneticParts: (PhoneticPart | null)[] = token.phoneticToken?.length
+  const phoneticParts: (PhoneticPart | null)[] = formattedParts?.map(part => [part.chars, part.spelling] as PhoneticPart) ?? (token.phoneticToken?.length
     ? token.phoneticToken
     : localMainScriptReadingGuideToken?.length
       ? localMainScriptReadingGuideToken
-      : [null];
+      : [null]);
 
   return (
     <span
@@ -499,6 +510,7 @@ function TokenSpellingAndMainView({
           astyle={astyle}
           lang={annotatedText.lang}
           part={part}
+          formattedPart={formattedParts?.[partIndex]}
           shouldShowSpelling={
             (_showSpelling === "ALWAYS" &&
               (tokenCoreWordOrUnknownStatus !== false ||
@@ -521,6 +533,7 @@ function TokenPhoneticPartView({
   astyle,
   lang,
   part,
+  formattedPart,
   shouldShowSpelling,
   showMainText,
   spellingSystem,
@@ -530,6 +543,7 @@ function TokenPhoneticPartView({
   astyle: ResolvedAnnotatedTextStyle;
   lang: string;
   part: PhoneticPart | null;
+  formattedPart?: SpellingPart | undefined;
   shouldShowSpelling: boolean;
   showMainText: boolean;
   /** `undefined` means no preferences provider is present. */
@@ -560,7 +574,7 @@ function TokenPhoneticPartView({
   useEffect(() => {
     // Script word separators must survive spelling-system conversion too,
     // especially when the spelling row is the only visible text.
-    if (spellingSystem === undefined || isWordSpace) return;
+    if (formattedPart || lang.toLowerCase() === "ja" || spellingSystem === undefined || isWordSpace) return;
     let cancelled = false;
     const currentPart: PhoneticPart | null = part
       ? backendSpelling === undefined
@@ -600,6 +614,7 @@ function TokenPhoneticPartView({
   }, [
     backendSpelling,
     chars,
+    formattedPart,
     formatSignature,
     isWordSpace,
     lang,
@@ -610,8 +625,9 @@ function TokenPhoneticPartView({
     tokenText,
   ]);
 
-  const formattedSpelling =
-    formatResult?.signature === formatSignature
+  const formattedSpelling = formattedPart
+    ? getSpellingPartDisplay(formattedPart, lang, showMainText)
+    : formatResult?.signature === formatSignature
       ? formatResult.value
       : standaloneSpelling;
 
@@ -1132,6 +1148,8 @@ type LoadedAnnotatedTextViewProps = Omit<
 
 function LoadedAnnotatedTextViewComponent({
   annotatedText,
+  spellingSystem: explicitSpellingSystem,
+  preparedSpelling,
   showSpelling,
   showMainText,
   showGlossText,
@@ -1202,7 +1220,9 @@ function LoadedAnnotatedTextViewComponent({
   // `undefined` deliberately means that no provider exists, preserving the
   // component's standalone/backend-spelling behavior. Within the provider, a
   // language's first configured spelling system remains its default.
-  const spellingSystem: SpellingSystem | null | undefined = userLingoPrefsData
+  const spellingSystem: SpellingSystem | null | undefined = explicitSpellingSystem !== undefined
+    ? explicitSpellingSystem
+    : preparedSpelling ? preparedSpelling.spellingSystem : userLingoPrefsData
     ? (userLingoPrefsData.userPreferredSpellingSystems[
         linearizedAText.lang
       ] ??
@@ -1287,7 +1307,7 @@ function LoadedAnnotatedTextViewComponent({
     useState<{
       annotatedText: AnnotatedText;
       signature: string;
-      parts: string[][];
+      value: AnnotatedSpelling;
     } | null>(null);
 
   // Resolve one deduplicated emoji batch per view. TokenGlossView receives the
@@ -1326,83 +1346,30 @@ function LoadedAnnotatedTextViewComponent({
     onEmojiLoadStateChange?.(isLoadingEmojis);
   }, [isLoadingEmojis, onEmojiLoadStateChange]);
 
-  // SPELLING-CONTENT: Pre-format the full annotation for getSpelling(). Token
-  // rendering remains local so async conversion cannot delay the whole ATV.
+  // One contextual conversion supplies both visible ruby and exports.
+  const validPreparedSpelling = preparedSpelling?.lang === linearizedAText.lang &&
+    preparedSpelling.spellingSystem === (spellingSystem ?? null) &&
+    preparedSpelling.tokens.length === linearizedAText.tokens.length &&
+    preparedSpelling.tokens.every((parts, i) => parts.map(p => p.chars).join("") === linearizedAText.tokens[i]?.text)
+      ? preparedSpelling : undefined;
   useEffect(() => {
+    if (validPreparedSpelling || !linearizedAText.containsPhonetics) return;
     let cancelled = false;
-    setFormattedPhoneticPartsResult(null);
-
-    if (!linearizedAText.containsPhonetics) return;
-
-    void Promise.all(
-      linearizedAText.tokens.map((token) =>
-        Promise.all(
-          (token.phoneticToken ?? []).map((phoneticPart) =>
-            getSpellingContent(
-              linearizedAText.lang,
-              phoneticPart,
-              spellingSystem ?? null,
-              resolvedShowMainText,
-            ),
-          ),
-        ),
-      ),
-    )
-      .then((parts) => {
-        if (!cancelled) {
-          setFormattedPhoneticPartsResult({
-            annotatedText: linearizedAText,
-            signature: spellingFormatSignature,
-            parts,
-          });
-        }
+    void getAnnotatedSpelling(linearizedAText, spellingSystem ?? null)
+      .then(value => {
+        if (!cancelled) setFormattedPhoneticPartsResult({ annotatedText: linearizedAText, signature: spellingFormatSignature, value });
       })
-      .catch(() => {
-        // A failed optional converter leaves getSpelling unavailable while the
-        // rendered ATV retains each backend spelling as its fallback.
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    linearizedAText,
-    resolvedShowMainText,
-    spellingFormatSignature,
-    spellingSystem,
-  ]);
-
-  const getSpelling = useCallback((): string | null => {
-    const formattedResult = formattedPhoneticPartsResult;
-    if (
-      !formattedResult ||
-      formattedResult.annotatedText !== linearizedAText ||
-      formattedResult.signature !== spellingFormatSignature ||
-      !linearizedAText.containsPhonetics
-    ) {
-      return null;
-    }
-
-    const tokenSpellings: string[] = [];
-    for (const [index, token] of linearizedAText.tokens.entries()) {
-      const tokenFormattedParts = formattedResult.parts[index] ?? [];
-      tokenSpellings.push(
-        tokenFormattedParts.length
-          ? tokenFormattedParts.join(" ")
-          : token.text,
-      );
-    }
-    return tokenSpellings.join(" ");
-  }, [
-    formattedPhoneticPartsResult,
-    linearizedAText,
-    spellingFormatSignature,
-  ]);
-
-  const requestHTMLTableExport = useCallback(
-    async () => getAnnotatedTextHTMLTableExport(linearizedAText),
-    [linearizedAText],
-  );
+      .catch(() => { /* Optional conversion failure retains source ruby. */ });
+    return () => { cancelled = true; };
+  }, [linearizedAText, spellingSystem, spellingFormatSignature, validPreparedSpelling]);
+  const formattedSpelling = validPreparedSpelling ?? (
+    formattedPhoneticPartsResult?.annotatedText === linearizedAText &&
+    formattedPhoneticPartsResult.signature === spellingFormatSignature
+      ? formattedPhoneticPartsResult.value : undefined);
+  const getSpelling = useCallback(() => linearizedAText.containsPhonetics ? formattedSpelling?.text ?? null : null, [linearizedAText, formattedSpelling]);
+  const requestHTMLTableExport = useCallback(async () =>
+    getAnnotatedTextHTMLTableExport(linearizedAText, formattedSpelling ?? await getAnnotatedSpelling(linearizedAText, spellingSystem ?? null)),
+    [linearizedAText, formattedSpelling, spellingSystem]);
 
   const getResolvableActiveSpeechVoice = useCallback(async () => {
     const voice = await speechSynthTTS.getActiveVoiceForLang(
@@ -1854,6 +1821,7 @@ function LoadedAnnotatedTextViewComponent({
                         }
                         spellingSystem={spellingSystem}
                         token={token}
+                        formattedParts={linearizedAText.lang.toLowerCase() === "ja" || validPreparedSpelling ? formattedSpelling?.tokens[index] : undefined}
                         tokenCoreWordOrUnknownStatus={
                           tokensCoreWordOrUnknownStatus?.[index] ?? null
                         }

@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { getSpellingPartDisplay, type AnnotatedSpelling } from "../../core/language/annotation-spelling.js";
 
 import type { AnnotatedText, AnnotatedToken } from "../../core/annotation/types.js";
 
@@ -66,6 +67,7 @@ export class PhaserAnnotatedText extends Phaser.GameObjects.Container {
   private annotatedText: AnnotatedText;
   private styleConfig: PhaserAnnotatedTextStyle;
   private mainLineCenterOffset = 0;
+  private preparedSpelling: AnnotatedSpelling | undefined;
 
   constructor(
     scene: Phaser.Scene,
@@ -73,9 +75,11 @@ export class PhaserAnnotatedText extends Phaser.GameObjects.Container {
     y: number,
     annotatedText: AnnotatedText,
     style: Partial<PhaserAnnotatedTextStyle> = {},
+    preparedSpelling?: AnnotatedSpelling,
   ) {
     super(scene, x, y);
     this.annotatedText = annotatedText;
+    this.preparedSpelling = preparedSpelling;
     this.styleConfig = { ...defaultPhaserAnnotatedTextStyle(), ...style };
     scene.add.existing(this);
     this.rebuild();
@@ -87,8 +91,9 @@ export class PhaserAnnotatedText extends Phaser.GameObjects.Container {
     }
   }
 
-  setAnnotatedText(annotatedText: AnnotatedText): this {
+  setAnnotatedText(annotatedText: AnnotatedText, preparedSpelling?: AnnotatedSpelling): this {
     this.annotatedText = annotatedText;
+    this.preparedSpelling = preparedSpelling;
     this.rebuild();
     return this;
   }
@@ -107,7 +112,11 @@ export class PhaserAnnotatedText extends Phaser.GameObjects.Container {
   private rebuild(): void {
     this.removeAll(true);
     const style = this.styleConfig;
-    const columns = this.annotatedText.tokens.flatMap(tokenParts).map((part) => {
+    const columns = this.annotatedText.tokens.flatMap((token, index) => {
+      const prepared = this.preparedSpelling?.lang === this.annotatedText.lang ? this.preparedSpelling.tokens[index] : undefined;
+      if (!prepared || prepared.map(p => p.chars).join("") !== token.text) return tokenParts(token);
+      return prepared.map((part, i) => ({main: part.chars.replaceAll("‿", ""), spelling: getSpellingPartDisplay(part, this.annotatedText.lang, true).trim() || null, tokenEnd: i === prepared.length - 1}));
+    }).map((part) => {
       const main = this.scene.add.text(0, 0, part.main, {
         fontFamily: style.fontFamily,
         fontSize: `${style.mainFontSize}px`,

@@ -14,3 +14,4 @@ export * from "./spelling-systems.js";
 export * from "./types.js";
 export * from "./utils.js";
 export * from "./word-and-ipa-to-cl-diacritics.js";
+export * from "./annotation-spelling.js";

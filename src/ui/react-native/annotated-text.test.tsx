@@ -208,3 +208,12 @@ describe("native annotation preparation", () => {
     expect(data).toEqual(before);
   });
 });
+
+it('renders the shared contextual Japanese model without flattening character associations', async () => {
+  const {getAnnotatedSpelling} = await import('../../core/language/annotation-spelling.js');
+  const {SpellingSystem} = await import('../../core/language/spelling-systems.js');
+  const annotatedText = annotation([{text:'かっぱ',isWord:1,phoneticToken:[['か','か'],['っ','っ'],['ぱ','ぱ']]}]);
+  const preparedSpelling=await getAnnotatedSpelling(annotatedText,SpellingSystem.JA_ROMAJI);
+  render({annotatedText,preparedSpelling,showGlossText:'NEVER',showGlossEmoji:'NEVER'});
+  expect(texts()).toEqual(['ka','か','p','っ','pa','ぱ']);
+});
