@@ -1,6 +1,6 @@
 {
   "name": "lingop",
-  "version": "0.7.974",
+  "version": "0.7.975",
   "description": "Shared TypeScript code for Lingo web and native apps.",
   "type": "module",
   "exports": {
@@ -152,6 +152,10 @@
     "./images": {
       "types": "./dist/core/images.d.ts",
       "default": "./dist/core/images.js"
+    },
+    "./speech/browser-voices": {
+      "types": "./dist/speech/browser-voices.d.ts",
+      "default": "./dist/speech/browser-voices.js"
     }
   },
   "files": [

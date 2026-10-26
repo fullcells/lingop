@@ -1207,6 +1207,21 @@ preferences, and anchored HTML popovers are not used. Native character-tab
 selection lasts for the mounted word detail. `L10nWordDetailContent` can be
 embedded in an app-owned screen instead of the supplied modal.
 
+### Shared browser voice ranking
+
+`lingop/speech/browser-voices` exposes `rankBrowserVoices`, the same curated defaults, quality ordering, stable deduplication and macOS novelty filtering used by Lingop’s browser speech UI. This entry point is pure: it does not inspect browser globals, enumerate voices, persist preferences, fetch audio or start playback.
+
+```ts
+import { rankBrowserVoices } from "lingop/speech/browser-voices";
+
+const voices = rankBrowserVoices(
+  speechSynthesis.getVoices().filter(voice => voice.localService),
+  { isMacOS: true, preferredVoices: [{ voiceURI: savedVoiceId, lang: savedVoiceLocale }] },
+);
+```
+
+Offline consumers must filter `localService` before ranking, so an online voice cannot displace the last offline option for a locale. `isMacOS` enables the existing conservative novelty filter. `preferredVoices` keeps explicit choices selectable even when that filter would normally hide them; the speech controller still owns explicit selection. The helper returns original voice objects in a new array. `BROWSER_VOICES_DEFAULTS` and `filterLowQualityMacVoices` remain re-exported from the original browser UI module for existing consumers.
+
 ### Shared native speech
 
 Create one `createSpeechController` from `lingop/speech` per app. Native device

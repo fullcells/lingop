@@ -32,3 +32,6 @@ export type {
 
 export { segmentSpeechText } from "./speech/text-segments.js";
 export type { SpeechTextSegment } from "./speech/text-segments.js";
+
+export { rankBrowserVoices, filterLowQualityMacVoices, BROWSER_VOICES_DEFAULTS } from "./speech/browser-voices.js";
+export type { BrowserSpeechVoice, BrowserVoiceRankingOptions } from "./speech/browser-voices.js";
