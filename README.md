@@ -164,6 +164,14 @@ import { cefrConcepts } from "lingop/content/cl-learn-cefr";
 
 `lingop/content` also exposes the datasets as the non-colliding `lingoDex` and `clLearnCEFR` namespaces. Runtime-neutral string helpers such as `ilike` and `toCleanFilename` are available from `lingop/utils/string` without importing the broader core or UI surfaces.
 
+Starting in 0.7.976, each nonempty LingoDex image slot (`i1` through `i5`)
+contains a serialized `image_sets.ref`, such as
+`{"type":"lingodex","key":"cheap house"}`. Resolve the complete ref in Supabase,
+select an active `image_files` row for the set, and pass it to `getImageFileURL`
+from `lingop/images`. An empty variant slot can use `i1`. Consumers upgrading
+from 0.7.975 or earlier must replace filename-based URL construction.
+The `LingoDexImgFolderURL` export was removed in 0.7.976.
+
 ## OAT: Build-Time UI Localization
 
 OAT is separate from `LingoDataClient` and has a different lifecycle:
