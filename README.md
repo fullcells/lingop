@@ -143,12 +143,16 @@ The build-time source priority is:
 - Japanese Kana: AnimCJK.
 - Traditional Chinese: Make Me a Hanzi / Hanzi Writer Data, then AnimCJK.
 - Cantonese (`yue` and `zh-HK`): the Traditional Chinese sources above, then
-  a bundled CNS11643/Rime-ordered GlyphWiki/KAGE supplement for common gaps.
+  a bundled GlyphWiki/KAGE supplement for common gaps. Its writing order is
+  derived component by component from AnimCJK zh-Hant / Make Me a Hanzi
+  reference order and checked against CNS11643/Rime stroke-type sequences.
 
 Run `npm run generate:stroke-data` after changing source package versions.
 Maintainers can refresh the pinned Cantonese supplement with
 `npm run update:stroke-data:cantonese`; this networked conversion is not part
-of normal builds or runtime loading.
+of normal builds or runtime loading. It keeps the GlyphWiki versions recorded in
+the committed data unless `LINGOP_STROKE_GLYPHS=latest` is set. The order
+derivation is tested offline with `npm run test:stroke-data:cantonese`.
 Generated TypeScript is intentionally ignored by Git and recreated before
 build, typecheck, and test. See `THIRD_PARTY_NOTICES.md` and `licenses/` for
 the required source attribution and redistribution terms.

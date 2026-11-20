@@ -4,6 +4,11 @@ import { fileURLToPath } from "node:url";
 
 import { Kage } from "@kurgm/kage-engine";
 
+import {
+  createReferenceLoader,
+  deriveStrokeOrder,
+} from "./cantonese-stroke-order.mjs";
+
 const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
@@ -112,6 +117,14 @@ async function fetchGlyphRecord(name) {
   return glyphRecordCache.get(name);
 }
 
+// Re-running the update keeps the GlyphWiki versions recorded in the committed
+// data, so only intentional changes alter the geometry. Set
+// LINGOP_STROKE_GLYPHS=latest to move to the current GlyphWiki revisions.
+function pinnedName(name, pins) {
+  if (name.includes("@") || !pins?.[name]) return name;
+  return `${name}@${pins[name]}`;
+}
+
 function referencedGlyphNames(data) {
   const names = [];
   for (const stroke of data.split("$")) {
@@ -121,12 +134,12 @@ function referencedGlyphNames(data) {
   return names;
 }
 
-async function loadGlyphTree(rootNames) {
+async function loadGlyphTree(rootNames, pins) {
   const records = new Map();
 
   async function visit(name) {
     if (records.has(name)) return records.get(name);
-    const record = await fetchGlyphRecord(name);
+    const record = await fetchGlyphRecord(pinnedName(name, pins));
     if (!record) throw new Error(`GlyphWiki has no KAGE data for ${name}.`);
     records.set(name, record);
     records.set(record.name, record);
@@ -139,7 +152,7 @@ async function loadGlyphTree(rootNames) {
   let rootName = null;
   let rootRecord = null;
   for (const candidate of rootNames) {
-    const record = await fetchGlyphRecord(candidate);
+    const record = await fetchGlyphRecord(pinnedName(candidate, pins));
     if (!record) continue;
     rootName = candidate;
     rootRecord = record;
@@ -156,79 +169,6 @@ async function loadGlyphTree(rootNames) {
   return { rootName, rootRecord, records };
 }
 
-function strokeFragmentsFromGlyphTree(tree) {
-  const kage = new Kage();
-  for (const [name, record] of tree.records) {
-    kage.kBuhin.push(name, record.data);
-  }
-  const primitives = kage.getEachStrokes(tree.rootRecord.data);
-  if (process.env.LINGOP_DEBUG_PRIMITIVES) console.dir(primitives, { depth: null });
-  const renderedStrokes = kage.makeGlyph3(tree.rootRecord.data);
-  const paths = renderedStrokes.map((polygons, index) => {
-    polygons.normalizeWinding();
-    const svg = polygons.generateSVG(true);
-    const paths = [...svg.matchAll(/<path\b[^>]*\bd="([^"]+)"[^>]*>/gu)].map(
-      (match) => match[1],
-    );
-    if (paths.length === 0) {
-      throw new Error(`KAGE produced an empty path for stroke ${index + 1}.`);
-    }
-    return paths.join(" ");
-  });
-  return { paths, primitives };
-}
-
-function primitiveEnd(primitive) {
-  for (const suffix of ["4", "3", "2"]) {
-    const x = primitive[`x${suffix}`];
-    const y = primitive[`y${suffix}`];
-    if (Number.isFinite(x) && Number.isFinite(y)) return { x, y };
-  }
-  throw new Error("KAGE primitive has no finite endpoint.");
-}
-
-function mergeStrokeFragments(fragments, strokeCount) {
-  const { paths, primitives } = fragments;
-  const mergesNeeded = paths.length - strokeCount;
-  if (mergesNeeded < 0) return null;
-
-  // KAGE sometimes splits a single pen stroke at a corner or intersection so
-  // the typeface engine can shape each segment independently. Those fragments
-  // remain next to each other and either meet or leave a small design gap.
-  // Rejoin only as many boundaries as the Rime/CNS sequence requires.
-  const gaps = primitives.slice(0, -1).map((primitive, index) => {
-    const end = primitiveEnd(primitive);
-    return Math.hypot(
-      end.x - primitives[index + 1].x1,
-      end.y - primitives[index + 1].y1,
-    );
-  });
-  if (process.env.LINGOP_DEBUG_KAGE) {
-    console.log("fragment gaps", gaps);
-  }
-  const joinIndexes = gaps
-    .map((gap, index) => ({ gap, index }))
-    // Some KAGE strokes are split around an intersection and leave a small
-    // font-design gap. Larger gaps represent a real pen lift.
-    .filter(({ gap }) => gap < 24)
-    .sort((left, right) => left.gap - right.gap)
-    .map(({ index }) => index);
-  if (joinIndexes.length < mergesNeeded) return null;
-  const selectedJoins = new Set(joinIndexes.slice(0, mergesNeeded));
-
-  const merged = [];
-  let current = paths[0] ?? "";
-  for (let index = 0; index < paths.length - 1; index += 1) {
-    if (selectedJoins.has(index)) current += ` ${paths[index + 1]}`;
-    else {
-      merged.push(current);
-      current = paths[index + 1];
-    }
-  }
-  if (current) merged.push(current);
-  return merged.length === strokeCount ? merged : null;
-}
-
 function cnsOrder(order) {
   const strokeNumbers = { h: "1", s: "2", p: "3", n: "4", z: "5" };
   return [...order].map((stroke) => strokeNumbers[stroke]).join("");
@@ -242,62 +182,64 @@ async function isCnsValidated(character, order) {
   return page.includes(`[${character}]`) || page.includes(`>${character}<`);
 }
 
-async function chooseStrokeOrder(character, candidates, fragments) {
-  const compatible = candidates
-    .map((order) => ({
-      order,
-      strokes: mergeStrokeFragments(fragments, order.length),
-    }))
-    .filter(({ strokes }) => strokes !== null);
-  if (compatible.length === 0) {
-    throw new Error(
-      `${character}: could not align ${fragments.paths.length} KAGE fragments with ${candidates.join(", ")}.`,
-    );
-  }
-  for (const candidate of compatible) {
-    const { order, strokes } = candidate;
-    if (await isCnsValidated(character, order)) {
-      return { order, source: "CNS11643", strokes };
-    }
-  }
-  return { ...compatible[0], source: "RIME" };
-}
-
 const rimeOrders = parseRimeStrokeOrders(await fetchText(rimeStrokeUrl));
-let entries = {};
-if (process.env.LINGOP_MERGE_STROKE_DATA) {
-  try {
-    const existing = JSON.parse(await readFile(outputPath, "utf8"));
-    entries = existing.entries ?? {};
-  } catch (error) {
-    if (error?.code !== "ENOENT") throw error;
-  }
+const references = createReferenceLoader(repositoryRoot);
+let existingEntries = {};
+try {
+  existingEntries =
+    JSON.parse(await readFile(outputPath, "utf8")).entries ?? {};
+} catch (error) {
+  if (error?.code !== "ENOENT") throw error;
 }
+const useLatestGlyphs = process.env.LINGOP_STROKE_GLYPHS === "latest";
+const entries = process.env.LINGOP_MERGE_STROKE_DATA
+  ? { ...existingEntries }
+  : {};
 
 async function buildEntry(character) {
   const orderCandidates = rimeOrders.get(character) ?? [];
   if (orderCandidates.length === 0) {
     throw new Error(`Rime has no stroke-order entry for ${character}.`);
   }
-  const tree = await loadGlyphTree(glyphNames(character));
-  const fragments = strokeFragmentsFromGlyphTree(tree);
-  const strokeOrder = await chooseStrokeOrder(
+  const previous = useLatestGlyphs ? undefined : existingEntries[character];
+  const rootNames = previous?.glyph
+    ? [previous.glyph, ...glyphNames(character)]
+    : glyphNames(character);
+  const tree = await loadGlyphTree(rootNames, previous?.glyphWikiVersions);
+  const derived = deriveStrokeOrder({
     character,
-    orderCandidates,
-    fragments,
-  );
+    rootName: tree.rootName,
+    records: Object.fromEntries(
+      [...tree.records].map(([name, record]) => [name, record.data]),
+    ),
+    sequences: orderCandidates,
+    references,
+    Kage,
+  });
+  const orderSource = (await isCnsValidated(character, derived.strokeOrder))
+    ? "CNS11643"
+    : "RIME";
   const componentVersions = Object.fromEntries(
     [...tree.records]
       .filter(([name, record]) => name === record.name)
-      .map(([name, record]) => [name, record.version]),
+      .map(([name, record]) => [name, Number(record.version)]),
   );
   process.stdout.write(
-    `${character}: ${strokeOrder.strokes.length} strokes (${strokeOrder.source}, ${tree.rootName})\n`,
+    `${character}: ${derived.strokes.length} strokes (${orderSource}, ${tree.rootName}; ${Object.entries(
+      derived.references,
+    )
+      .map(([part, source]) => `${part} ${source}`)
+      .join(", ")})${
+      derived.typeMismatches
+        ? `; ${derived.typeMismatches} stroke type(s) differ from ${derived.strokeOrder}: ${derived.derivedTypes}`
+        : ""
+    }\n`,
   );
   return {
-    strokes: strokeOrder.strokes,
-    strokeOrder: strokeOrder.order,
-    orderSource: strokeOrder.source,
+    strokes: derived.strokes,
+    strokeOrder: derived.strokeOrder,
+    orderSource,
+    orderReferences: derived.references,
     glyph: tree.rootName,
     glyphWikiVersions: componentVersions,
   };

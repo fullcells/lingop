@@ -145,7 +145,7 @@ describe("stroke-data provider", () => {
       嚟: 18,
       㗎: 12,
       嗰: 13,
-      喺: 14,
+      喺: 12, // 口 (3) + 係 (9)
     })) {
       const data = await localStrokeDataProvider.get(character, "yue");
       expect(data).toMatchObject({ source: "CANTONESE_GLYPHWIKI" });

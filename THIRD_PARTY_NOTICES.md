@@ -47,8 +47,13 @@ are not redistributed by lingop.
 
 - Scope: a curated supplement of common colloquial Cantonese characters that
   are absent from the primary Traditional Chinese datasets.
-- Stroke order: pinned `rime/rime-stroke` data (LGPL v3), with exact sequences
-  validated against the CNS11643 Full Character Library where available.
+- Stroke order: derived per component by matching KAGE strokes against the
+  reference order of AnimCJK zh-Hant, Make Me a Hanzi, and (for a few
+  components) AnimCJK zh-Hans/ja from `hanzi-writer-data-acjk@1.0.0`. These
+  references are read at maintenance time only; their medians are not
+  redistributed. The result is checked against pinned `rime/rime-stroke` data
+  (LGPL v3), with exact sequences validated against the CNS11643 Full Character
+  Library where available.
 - Geometry: Hong Kong or Traditional KAGE glyph records from GlyphWiki. The
   committed source snapshot records every GlyphWiki component version used.
 - Conversion: `@kurgm/kage-engine@0.7.0` (GPL v3) is a maintenance-time tool
@@ -60,7 +65,9 @@ are not redistributed by lingop.
   used as a validation source under the Taiwan Government Open Data License
   v1.0. No CNS font files are redistributed.
 
-The update script joins adjacent KAGE font fragments into the logical pen
-strokes required by the validated Rime/CNS sequence and commits only the final
-path data. Normal builds and consumer devices perform no KAGE conversion and
+The update script joins KAGE font fragments into logical pen strokes, orders
+them as described above, and commits only the final path data, the matching
+Rime/CNS sequence, and the names of the references used. A small fixture of
+pinned GlyphWiki records (`scripts/fixtures/cantonese-stroke-order-kage.json`)
+lets the derivation be tested offline. Normal builds and consumer devices perform no KAGE conversion and
 make no network requests.

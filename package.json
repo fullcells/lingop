@@ -188,6 +188,7 @@
     "generate:oat-source-data": "node scripts/generate-oat-source-data.mjs",
     "generate:stroke-data": "node scripts/generate-stroke-data.mjs",
     "update:stroke-data:cantonese": "node scripts/update-cantonese-stroke-data.mjs",
+    "test:stroke-data:cantonese": "node --test scripts/test-cantonese-stroke-order.mjs",
     "build": "npm run clean && npm run generate:oat-source-data && npm run generate:stroke-data && tsc -p tsconfig.json",
     "prepare": "npm run build",
     "pretypecheck": "npm run generate:stroke-data",
