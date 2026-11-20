@@ -82,7 +82,7 @@
 .lingop-word-detail__stroke-views { align-self: flex-start; overflow-x: auto; scrollbar-width: none; }
 .lingop-word-detail__stroke-views::-webkit-scrollbar { display: none; }
 .lingop-word-detail__stroke-figure-wrap { display: flex; flex-direction: column; align-items: flex-start; gap: 0.35rem; }
-.lingop-word-detail__stroke-figure { display: block; width: min(100%, 13rem); aspect-ratio: 1; border: 1px solid rgb(17 24 39 / 16%); border-radius: 0.5rem; background: rgb(255 255 255 / 68%); }
+.lingop-word-detail__stroke-figure { display: block; width: min(100%, 15rem); aspect-ratio: 1; border: 1px solid rgb(17 24 39 / 16%); border-radius: 0.5rem; background: rgb(255 255 255 / 68%); }
 .lingop-word-detail__stroke-figure .lingop-stroke-frame rect { fill: rgb(17 24 39 / 3%); }
 .lingop-word-detail__stroke-figure .lingop-stroke-frame line { stroke: rgb(17 24 39 / 9%); }
 .lingop-word-detail__stroke-figure[data-path-kind="outline"] .lingop-stroke-shape { fill: #1f2937; }

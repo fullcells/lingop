@@ -40,7 +40,7 @@ const AnimatedG = Animated.createAnimatedComponent(G);
 export function StrokeCharacterFigure({
   data,
   view,
-  size = 208,
+  size = 240,
   translate = defaultTranslate,
 }: {
   data: StrokeCharacterData;

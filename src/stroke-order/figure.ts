@@ -406,7 +406,7 @@ const FIGURE_CACHE_LIMIT = 64;
  */
 export function getStrokeFigure(
   data: StrokeCharacterData,
-  { sizePx = 208, labelRadiusPx = sizePx < 150 ? 6.5 : 8 }: StrokeFigureOptions = {},
+  { sizePx = 240, labelRadiusPx = Math.max(6.5, sizePx / 24) }: StrokeFigureOptions = {},
 ): StrokeFigure | null {
   const centrelines = data.centrelines;
   if (!centrelines || centrelines.length !== data.strokes.length) return null;
