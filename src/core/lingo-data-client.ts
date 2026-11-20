@@ -525,11 +525,18 @@ function isTranslationRowArray(data: unknown): data is TranslationRow[] {
   return Array.isArray(data) && data.every(isTranslationRow);
 }
 
-export function createLingoDataClient({
+export function createLingoDataClient(options: CreateLingoDataClientOptions = {}): LingoDataClient & EmojiTracingClient {
+  const client = createManagedLingoDataClient(options);
+  client.startAuth();
+  return client;
+}
+
+/** @internal React starts auth only after a render commits. */
+export function createManagedLingoDataClient({
   supabaseClient,
   backendTarget,
   useStagingBackend,
-}: CreateLingoDataClientOptions = {}): LingoDataClient & EmojiTracingClient {
+}: CreateLingoDataClientOptions = {}): LingoDataClient & EmojiTracingClient & { startAuth(): () => void } {
   const runtimeSupabaseClient = asSupabaseRuntimeClient(supabaseClient);
   const emojiCacheKey = runtimeSupabaseClient
     ? getSupabaseClientCacheKey(runtimeSupabaseClient) ?? "default"
@@ -633,30 +640,46 @@ export function createLingoDataClient({
     return () => authStateListeners.delete(listener);
   }
 
-  async function loadAuthState(): Promise<void> {
+  const auth = runtimeSupabaseClient?.auth;
+  async function readUser() {
+    return (await auth?.getUser?.())?.data.user ?? null;
+  }
+  let pendingUser: ReturnType<typeof readUser> | undefined;
+
+  function startAuth(): () => void {
+    let active = true;
+    let receivedEvent = false;
     if (!runtimeSupabaseClient) {
       setAuthUser(null);
-      return;
+      return () => {};
     }
 
-    try {
-      const result = await runtimeSupabaseClient.auth?.getUser?.();
-      setAuthUser(result?.data.user ?? null);
-      if (authState.signedInStatus) await refreshEnabledSubProd({ allowRecentCache: true });
-    } catch (error) {
+    const request = pendingUser ??= readUser();
+    void request.then(async user => {
+      if (!active || receivedEvent) return;
+      setAuthUser(user);
+      if (user) await refreshEnabledSubProd({ allowRecentCache: true });
+    }).catch(error => {
+      if (!active || receivedEvent) return;
       console.error("Error getting Supabase user:", error);
       setAuthUser(null);
-    }
+    }).finally(() => {
+      if (pendingUser === request) pendingUser = undefined;
+    });
+
+    const registration = auth?.onAuthStateChange?.((_event, session) => {
+      if (!active) return;
+      receivedEvent = true;
+      pendingUser = undefined;
+      setAuthUser(session?.user ?? null);
+      if (session?.user) void refreshEnabledSubProd({ allowRecentCache: true });
+    });
+    return () => {
+      active = false;
+      const subscription = registration?.data?.subscription ?? registration?.subscription;
+      subscription?.unsubscribe?.();
+    };
   }
-
-  void loadAuthState();
-
-  runtimeSupabaseClient?.auth?.onAuthStateChange?.((_event, session) => {
-    setAuthUser(session?.user ?? null);
-    if (authState.signedInStatus) {
-      void refreshEnabledSubProd({ allowRecentCache: true });
-    }
-  });
 
   function getSourceContentKey(sourceContent: SourceContent): string {
     const { owner_id, lang, text, ref } = sourceContent;
@@ -1378,6 +1401,7 @@ export function createLingoDataClient({
   }
 
   return {
+    startAuth,
     get supabaseUserID() {
       return authState.supabaseUserID;
     },

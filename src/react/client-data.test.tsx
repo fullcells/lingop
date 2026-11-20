@@ -1,4 +1,5 @@
-import { createElement } from "react";
+import { createElement, StrictMode } from "react";
+import { renderToString } from "react-dom/server";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
@@ -168,4 +169,34 @@ it("mounts on React Native where window exists without a browser location", asyn
   } finally {
     vi.unstubAllGlobals();
   }
+});
+
+it.each(["provider", "standalone"])("owns one live auth subscription across Strict Mode replay (%s)", async mode => {
+  const sb = makeSupabase();
+  function Standalone() {
+    useLingopClientDataOrCreate({ supabaseClient: sb.client });
+    return null;
+  }
+  const child = mode === "provider"
+    ? createElement(LingopClientDataProvider, { supabaseClient: sb.client, children: null })
+    : createElement(Standalone);
+  await act(async () => { tree = create(createElement(StrictMode, null, child)); });
+  expect(sb.client.auth.getUser).toHaveBeenCalledTimes(1);
+  expect(sb.listeners.size).toBe(1);
+  await act(async () => tree!.unmount());
+  tree = undefined;
+  expect(sb.listeners.size).toBe(0);
+});
+
+it("renders the provider and explicit-client fallback on the server without starting auth", () => {
+  const sb = makeSupabase();
+  function Consumer() {
+    useLingopClientDataOrCreate({ supabaseClient: sb.client });
+    return null;
+  }
+  renderToString(createElement(LingopClientDataProvider, {
+    supabaseClient: sb.client, children: createElement(Consumer),
+  }));
+  expect(sb.client.auth.getUser).toHaveBeenCalledTimes(0);
+  expect(sb.client.auth.onAuthStateChange).toHaveBeenCalledTimes(0);
 });

@@ -11,7 +11,7 @@ import {
 import { asSupabaseRuntimeClient } from "../core/supabase.js";
 import { requestCampLingoBilling } from "../core/camp-lingo-billing.js";
 import {
-  createLingoDataClient,
+  createManagedLingoDataClient,
   type CreateLingoDataClientOptions,
   type LingoDataClient,
   type SupabaseLingoDataClient,
@@ -59,13 +59,14 @@ export function LingopClientDataProvider({
   useStagingBackend = false,
 }: LingopClientDataProviderProps) {
   const lingopClient = useMemo(
-    () => createLingoDataClient({
+    () => createManagedLingoDataClient({
       ...(supabaseClient ? { supabaseClient } : {}),
       backendTarget,
       useStagingBackend,
     }),
     [supabaseClient, backendTarget, useStagingBackend],
   );
+  useEffect(() => lingopClient.startAuth(), [lingopClient]);
   useEffect(() => {
     if (typeof window === "undefined" || !window.location?.href || new URL(window.location.href).searchParams.get("billing") !== "return") return;
     let canceled = false;
@@ -133,7 +134,7 @@ export function useLingopClientDataOrCreate({
   const standaloneClient = useMemo(
     () =>
       hasExplicitConfiguration || !providedClientData
-        ? createLingoDataClient({
+        ? createManagedLingoDataClient({
             ...(supabaseClient ? { supabaseClient } : {}),
             ...(backendTarget !== undefined ? { backendTarget } : {}),
             ...(useStagingBackend !== undefined ? { useStagingBackend } : {}),
@@ -147,6 +148,8 @@ export function useLingopClientDataOrCreate({
       useStagingBackend,
     ],
   );
+
+  useEffect(() => standaloneClient?.startAuth(), [standaloneClient]);
 
   if (!hasExplicitConfiguration && providedClientData) {
     return providedClientData.lingopClient;
