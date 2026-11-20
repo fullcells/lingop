@@ -1,7 +1,11 @@
-import { GENERATED_STROKE_BUCKET_LOADERS } from "./generated-loaders.js";
+import {
+  GENERATED_STROKE_BUCKET_LOADERS,
+  GENERATED_STROKE_CONTINUATIONS,
+} from "./generated-loaders.js";
 import type {
   StrokeBucketLoader,
   StrokeCharacterData,
+  StrokeContinuations,
   StrokeDataProvider,
   StrokeDataSource,
 } from "./types.js";
@@ -119,11 +123,29 @@ function bucketForCharacter(character: string): string | null {
     : Math.floor(codePoint / 256).toString(16).padStart(2, "0");
 }
 
+/**
+ * Groups stroke indexes into pen strokes: one group per stroke the learner
+ * writes, with any continuation shapes joined to the stroke they continue.
+ */
+export function getPenStrokes(
+  data: Pick<StrokeCharacterData, "strokes" | "continuations">,
+): number[][] {
+  const continued = new Set(data.continuations ?? []);
+  const penStrokes: number[][] = [];
+  data.strokes.forEach((_, index) => {
+    const previous = penStrokes[penStrokes.length - 1];
+    if (previous && continued.has(index)) previous.push(index);
+    else penStrokes.push([index]);
+  });
+  return penStrokes;
+}
+
 export function createStrokeDataProvider(
   loaders: Record<
     StrokeDataSource,
     Readonly<Record<string, StrokeBucketLoader>>
   > = GENERATED_STROKE_BUCKET_LOADERS,
+  continuations: StrokeContinuations = GENERATED_STROKE_CONTINUATIONS,
 ): StrokeDataProvider {
   return {
     async get(character, lang) {
@@ -136,6 +158,9 @@ export function createStrokeDataProvider(
         const paths = (await loader()).default[character];
         if (!paths?.length) continue;
         const presentation = SOURCE_PRESENTATION[source];
+        const continued = continuations[source]?.[character]?.filter(
+          (index) => index > 0 && index < paths.length,
+        );
         return {
           character,
           source,
@@ -145,6 +170,7 @@ export function createStrokeDataProvider(
           ...(presentation.transform
             ? { transform: presentation.transform }
             : {}),
+          ...(continued?.length ? { continuations: continued } : {}),
         };
       }
       return null;

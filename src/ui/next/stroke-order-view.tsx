@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 
 import { useOAT } from "../../oat/react/index.js";
 import {
+  getPenStrokes,
   localStrokeDataProvider,
   STROKE_SOURCE_LABELS,
   type StrokeCharacterData,
@@ -137,6 +138,7 @@ export function StrokeCharacterDiagram({
 }) {
   const { OAT } = useOAT();
   const sourceLabel = STROKE_SOURCE_LABELS[data.source];
+  const penStrokes = getPenStrokes(data);
   return (
     <section className="lingop-word-detail__stroke-character">
       <header className="lingop-word-detail__stroke-character-header">
@@ -144,7 +146,7 @@ export function StrokeCharacterDiagram({
           {data.character}
         </span>
         <span>
-          {data.strokes.length} {OAT("strokes")}
+          {penStrokes.length} {OAT("strokes")}
         </span>
         <span
           aria-label={`${OAT("Stroke source")}: ${sourceLabel}`}
@@ -159,7 +161,7 @@ export function StrokeCharacterDiagram({
         </span>
       </header>
       <ol className="lingop-word-detail__stroke-steps">
-        {data.strokes.map((_, activeStroke) => (
+        {penStrokes.map((activeShapes, activeStroke) => (
           <li key={activeStroke}>
             <svg
               viewBox={data.viewBox}
@@ -172,13 +174,16 @@ export function StrokeCharacterDiagram({
                 {`${data.character}: ${OAT("step")} ${activeStroke + 1}`}
               </title>
               <g {...(data.transform ? { transform: data.transform } : {})}>
-                {data.strokes.slice(0, activeStroke + 1).map((path, index) => (
-                  <path
-                    d={path}
-                    data-active={index === activeStroke || undefined}
-                    key={index}
-                  />
-                ))}
+                {penStrokes
+                  .slice(0, activeStroke + 1)
+                  .flat()
+                  .map((index) => (
+                    <path
+                      d={data.strokes[index]}
+                      data-active={activeShapes.includes(index) || undefined}
+                      key={index}
+                    />
+                  ))}
               </g>
             </svg>
             <span aria-hidden>{activeStroke + 1}</span>

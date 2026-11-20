@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createStrokeDataProvider,
+  getPenStrokes,
   getStrokeCharacters,
   localStrokeDataProvider,
   supportsStrokeOrder,
@@ -151,5 +152,49 @@ describe("stroke-data provider", () => {
       expect(data).toMatchObject({ source: "CANTONESE_GLYPHWIKI" });
       expect(data?.strokes).toHaveLength(strokeCount);
     }
+  });
+
+  it("groups continuation shapes into the pen stroke they continue", () => {
+    expect(getPenStrokes({ strokes: ["a", "b", "c", "d"] })).toEqual([
+      [0],
+      [1],
+      [2],
+      [3],
+    ]);
+    expect(
+      getPenStrokes({ strokes: ["a", "b", "c", "d", "e"], continuations: [2, 3] }),
+    ).toEqual([[0], [1, 2, 3], [4]]);
+  });
+
+  it("attaches continuation indexes for the source that served the character", async () => {
+    const { loaders } = stubLoaders({
+      KANJIVG: { 字: ["k1", "k2"] },
+      ANIMCJK_JA: { あ: ["a1", "a2", "a3", "a4"], 字: ["j1", "j2"] },
+    });
+    const provider = createStrokeDataProvider(loaders, {
+      ANIMCJK_JA: { あ: [3, 9], 字: [1] },
+    });
+    await expect(provider.get("あ", "ja")).resolves.toMatchObject({
+      continuations: [3],
+    });
+    const kanji = await provider.get("字", "ja");
+    expect(kanji).toMatchObject({ source: "KANJIVG" });
+    expect(kanji).not.toHaveProperty("continuations");
+  });
+
+  it("marks AnimCJK's hidden kana continuation shapes in generated data", async () => {
+    for (const [character, penStrokes] of Object.entries({
+      あ: 3,
+      ぬ: 2,
+      ね: 2,
+      の: 1,
+      る: 1,
+    })) {
+      const data = await localStrokeDataProvider.get(character, "ja");
+      expect(data).toMatchObject({ source: "ANIMCJK_JA" });
+      expect(getPenStrokes(data!), character).toHaveLength(penStrokes);
+    }
+    const plain = await localStrokeDataProvider.get("い", "ja");
+    expect(plain).not.toHaveProperty("continuations");
   });
 });

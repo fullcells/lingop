@@ -323,6 +323,27 @@ it("renders cumulative stroke paths and preserves source transforms", async () =
   expect(tree!.root.findAllByType("path")[2]!.props.fill).toBe("#dc493a");
 });
 
+it("shows a stroke and its continuation shapes as one native step", async () => {
+  await act(() => {
+    tree = create(
+      <StrokeCharacterDiagram
+        data={{
+          character: "の",
+          source: "ANIMCJK_JA",
+          viewBox: "0 0 1024 1024",
+          pathKind: "OUTLINE",
+          strokes: ["M1 1L5 1", "M5 1L1 5"],
+          continuations: [1],
+        }}
+      />,
+    );
+  });
+  expect(tree!.root.findAllByType("svg")).toHaveLength(1);
+  const paths = tree!.root.findAllByType("path");
+  expect(paths).toHaveLength(2);
+  expect(paths.every((path) => path.props.fill === "#dc493a")).toBe(true);
+});
+
 it("native sentence and details share speech controls; word API refs are WORDS, not the sentence ref", async () => {
   const { createSpeechController } = await import("../../speech/controller.js");
   const { AnnotatedTextView } = await import("./annotated-text.js");

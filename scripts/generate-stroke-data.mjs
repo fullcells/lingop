@@ -94,13 +94,14 @@ async function readSourceEntries(source) {
       }
       entries.push([character, entry.strokes]);
     }
-    return entries;
+    return { entries, continuations: [] };
   }
 
   const filenames = (await readdir(source.directory)).sort((a, b) =>
     a.localeCompare(b, "en"),
   );
   const entries = [];
+  const continuations = [];
 
   for (const filename of filenames) {
     if (source.kind === "kanjivg") {
@@ -136,10 +137,35 @@ async function readSourceEntries(source) {
       parsed.strokes.every((stroke) => typeof stroke === "string")
     ) {
       entries.push([character, parsed.strokes]);
+      const indexes = continuationIndexes(parsed.medians);
+      if (indexes.length > 0) continuations.push([character, indexes]);
     }
   }
 
-  return entries;
+  return { entries, continuations };
+}
+
+const pointKey = ([x, y]) => `${x},${y}`;
+
+// AnimCJK splits some looped kana strokes (あ, ぬ, ね, の, る…) into two shapes so
+// the overlapping parts can be animated in order. The second shape reuses most
+// of the previous stroke's median and often starts off-canvas. It is one pen
+// stroke with the previous one, so renderers should show them as one step.
+// (Identical consecutive medians, as in 隗 and 霆, are separate strokes.)
+function continuationIndexes(medians) {
+  if (!Array.isArray(medians)) return [];
+  const indexes = [];
+  medians.forEach((median, index) => {
+    if (index === 0 || !Array.isArray(median) || median.length === 0) return;
+    const [x, y] = median[0];
+    const offCanvas = x < -50 || x > 1074 || y < -174 || y > 1074;
+    const previous = medians[index - 1];
+    const previousPoints = new Set(previous.map(pointKey));
+    const shared = median.filter((point) => previousPoints.has(pointKey(point))).length;
+    const identical = shared === median.length && median.length === previous.length;
+    if (offCanvas || (shared >= 4 && !identical)) indexes.push(index);
+  });
+  return indexes;
 }
 
 function sourceDirectoryName(sourceId) {
@@ -200,6 +226,20 @@ function loaderSource(generatedSources) {
     lines.push("  },");
   }
 
+  lines.push(
+    "};",
+    "",
+    "// Strokes that continue the previous pen stroke, by source and character.",
+    "export const GENERATED_STROKE_CONTINUATIONS: Partial<",
+    "  Record<StrokeDataSource, Readonly<Record<string, readonly number[]>>>",
+    "> = {",
+  );
+  for (const { source, continuations } of generatedSources) {
+    if (continuations.length === 0) continue;
+    lines.push(
+      `  ${source.id}: ${JSON.stringify(Object.fromEntries(continuations))},`,
+    );
+  }
   lines.push("};", "");
   return lines.join("\n");
 }
@@ -209,11 +249,13 @@ await mkdir(outputRoot, { recursive: true });
 
 const generatedSources = [];
 for (const source of sources) {
-  const entries = await readSourceEntries(source);
+  const { entries, continuations } = await readSourceEntries(source);
   const buckets = await writeSource(source, entries);
-  generatedSources.push({ source, buckets });
+  generatedSources.push({ source, buckets, continuations });
   process.stdout.write(
-    `${source.id}: ${entries.length.toLocaleString("en")} characters in ${buckets.length} buckets\n`,
+    `${source.id}: ${entries.length.toLocaleString("en")} characters in ${buckets.length} buckets${
+      continuations.length ? `, ${continuations.length} with continuation strokes` : ""
+    }\n`,
   );
 }
 

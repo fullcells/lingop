@@ -147,6 +147,12 @@ The build-time source priority is:
   derived component by component from AnimCJK zh-Hant / Make Me a Hanzi
   reference order and checked against CNS11643/Rime stroke-type sequences.
 
+AnimCJK draws some looped kana strokes (あ, ぬ, ね, の, る…) as two or three
+shapes so overlapping parts can be layered in order. The data keeps every
+shape; `StrokeCharacterData.continuations` marks the shapes that continue the
+previous stroke, and `getPenStrokes(data)` groups them into the strokes a
+learner writes. Both WordDetails renderers show one step per pen stroke.
+
 Run `npm run generate:stroke-data` after changing source package versions.
 Maintainers can refresh the pinned Cantonese supplement with
 `npm run update:stroke-data:cantonese`; this networked conversion is not part
