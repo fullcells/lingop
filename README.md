@@ -134,7 +134,7 @@ language, so consumers should add it as a product-specific search option.
 
 `lingop/stroke-order` exposes a unified provider for Japanese Kanji and Kana
 and Traditional Chinese characters. WordDetails uses the same provider for its
-progressive **Strokes** tab. All data is bundled locally in lazy code-point
+**Strokes** tab. All data is bundled locally in lazy code-point
 buckets; there is no runtime server or network dependency.
 
 The build-time source priority is:
@@ -153,12 +153,37 @@ shape; `StrokeCharacterData.continuations` marks the shapes that continue the
 previous stroke, and `getPenStrokes(data)` groups them into the strokes a
 learner writes. Both WordDetails renderers show one step per pen stroke.
 
+### Stroke views
+
+`StrokeOrderView` (web and React Native) offers five views of each character,
+chosen with a picker above the characters:
+
+- **Steps** (default): one image per stroke, as before.
+- **Numbers**: the whole character with a numbered badge at each stroke start.
+- **Arrows**: a faded character with a smooth arrow along each stroke.
+- **Colors**: strokes and badges coloured from blue (first) to red (last).
+- **Animated**: the character draws itself stroke by stroke, with Replay. It
+  honours `prefers-reduced-motion` on the web and Reduce Motion on native.
+
+Pass `view`/`onViewChange` to control it, `defaultView` to set the initial
+view, or `views` to limit what the picker offers (a single view hides the
+picker). The web view remembers the user's choice in browser storage.
+
+Single-image views draw from stroke centrelines, which load lazily in separate
+buckets only when such a view is selected:
+`provider.get(character, lang, { centrelines: true })`. Label placement,
+arrows, colours and animation timing come from the platform-neutral
+`getStrokeFigure(data)`, which is cached per character and size, so both
+renderers draw the same layout. Labels stay a fixed on-screen size and may sit
+in a margin around the character with a leader line to the stroke start.
+
 Run `npm run generate:stroke-data` after changing source package versions.
 Maintainers can refresh the pinned Cantonese supplement with
 `npm run update:stroke-data:cantonese`; this networked conversion is not part
 of normal builds or runtime loading. It keeps the GlyphWiki versions recorded in
 the committed data unless `LINGOP_STROKE_GLYPHS=latest` is set. The order
-derivation is tested offline with `npm run test:stroke-data:cantonese`.
+derivation is tested offline with `npm run test:stroke-data:cantonese`, and the
+centreline helpers with `npm run test:stroke-data:centrelines`.
 Generated TypeScript is intentionally ignored by Git and recreated before
 build, typecheck, and test. See `THIRD_PARTY_NOTICES.md` and `licenses/` for
 the required source attribution and redistribution terms.

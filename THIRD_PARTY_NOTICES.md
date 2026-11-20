@@ -1,6 +1,6 @@
 # Third-party stroke-order data
 
-Lingop's build creates path-only, lazily loaded stroke-data buckets from the
+Lingop's build creates lazily loaded stroke-data buckets from the
 following pinned development packages. The generated data is included in the
 published package; these source packages are not runtime dependencies.
 
@@ -39,9 +39,11 @@ published package; these source packages are not runtime dependencies.
 - License: Arphic Public License. See
   `licenses/ARPHIC-PUBLIC-LICENSE.txt`.
 
-Only path geometry needed for progressive display is copied into generated
-buckets. Medians, dictionaries, source SVG metadata, and unsupported scripts
-are not redistributed by lingop.
+Generated buckets contain stroke paths and, in separate lazily loaded
+buckets, simplified stroke centrelines derived from the same sources (Hanzi
+Writer medians, KanjiVG stroke paths, and GlyphWiki/KAGE stroke geometry). They
+are covered by the same licenses as the paths they accompany. Dictionaries,
+source SVG metadata, and unsupported scripts are not redistributed by lingop.
 
 ## Cantonese fallback: CNS11643, Rime Stroke, and GlyphWiki/KAGE
 
@@ -50,8 +52,8 @@ are not redistributed by lingop.
 - Stroke order: derived per component by matching KAGE strokes against the
   reference order of AnimCJK zh-Hant, Make Me a Hanzi, and (for a few
   components) AnimCJK zh-Hans/ja from `hanzi-writer-data-acjk@1.0.0`. These
-  references are read at maintenance time only; their medians are not
-  redistributed. The result is checked against pinned `rime/rime-stroke` data
+  references are read at maintenance time only; their medians are not copied
+  into the Cantonese data. The result is checked against pinned `rime/rime-stroke` data
   (LGPL v3), with exact sequences validated against the CNS11643 Full Character
   Library where available.
 - Geometry: Hong Kong or Traditional KAGE glyph records from GlyphWiki. The

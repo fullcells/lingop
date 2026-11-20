@@ -20,6 +20,19 @@ export type StrokeCharacterData = {
    * `getPenStrokes`.
    */
   continuations?: readonly number[];
+  /**
+   * The pen path through each stroke, in viewBox coordinates (after
+   * `transform`). Present only when requested with `{ centrelines: true }`.
+   */
+  centrelines?: readonly StrokeCentreline[];
+};
+
+export type StrokePoint = readonly [x: number, y: number];
+export type StrokeCentreline = readonly StrokePoint[];
+
+export type StrokeDataRequestOptions = {
+  /** Also load stroke centrelines (needed by numbered, arrow, coloured and animated views). */
+  centrelines?: boolean;
 };
 
 export type StrokeContinuations = Partial<
@@ -27,10 +40,23 @@ export type StrokeContinuations = Partial<
 >;
 
 export type StrokeDataProvider = {
-  get(character: string, lang: string): Promise<StrokeCharacterData | null>;
+  get(
+    character: string,
+    lang: string,
+    options?: StrokeDataRequestOptions,
+  ): Promise<StrokeCharacterData | null>;
 };
 
 export type StrokePathBucket = Readonly<Record<string, readonly string[]>>;
+
+/** Per character: one SVG polyline point list ("x,y x,y") per stroke. */
+export type StrokeCentrelineBucket = Readonly<Record<string, readonly string[]>>;
+
+export type StrokeCentrelineBucketModule = {
+  default: StrokeCentrelineBucket;
+};
+
+export type StrokeCentrelineBucketLoader = () => Promise<StrokeCentrelineBucketModule>;
 
 export type StrokeBucketModule = {
   default: StrokePathBucket;

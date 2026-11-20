@@ -79,6 +79,33 @@
 .lingop-word-detail__stroke-steps > li > span { position: absolute; right: 0.18rem; bottom: 0.08rem; display: inline-flex; align-items: center; justify-content: center; min-width: 1rem; height: 1rem; padding-inline: 0.2rem; border-radius: 999px; background: rgb(255 255 255 / 88%); color: #1d4ed8; font-size: 0.6rem; font-weight: 700; line-height: 1; }
 .lingop-word-detail__stroke-message { margin: 0; color: rgb(17 24 39 / 65%); font-size: 0.75rem; }
 .lingop-word-detail__stroke-error { margin: 0; color: #b91c1c; font-size: 0.75rem; }
+.lingop-word-detail__stroke-views { align-self: flex-start; overflow-x: auto; scrollbar-width: none; }
+.lingop-word-detail__stroke-views::-webkit-scrollbar { display: none; }
+.lingop-word-detail__stroke-figure-wrap { display: flex; flex-direction: column; align-items: flex-start; gap: 0.35rem; }
+.lingop-word-detail__stroke-figure { display: block; width: min(100%, 13rem); aspect-ratio: 1; border: 1px solid rgb(17 24 39 / 16%); border-radius: 0.5rem; background: rgb(255 255 255 / 68%); }
+.lingop-word-detail__stroke-figure .lingop-stroke-frame rect { fill: rgb(17 24 39 / 3%); }
+.lingop-word-detail__stroke-figure .lingop-stroke-frame line { stroke: rgb(17 24 39 / 9%); }
+.lingop-word-detail__stroke-figure[data-path-kind="outline"] .lingop-stroke-shape { fill: #1f2937; }
+.lingop-word-detail__stroke-figure[data-path-kind="outline"] .lingop-stroke-shape[data-tone="ghost"] { fill: #d5d9df; }
+.lingop-word-detail__stroke-figure[data-path-kind="stroke"] .lingop-stroke-shape { fill: none; stroke: #1f2937; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.lingop-word-detail__stroke-figure[data-path-kind="stroke"] .lingop-stroke-shape[data-tone="ghost"] { stroke: #d5d9df; }
+.lingop-word-detail__stroke-figure .lingop-stroke-arrows path { fill: none; stroke: #2563eb; stroke-linecap: round; stroke-linejoin: round; }
+.lingop-word-detail__stroke-figure .lingop-stroke-arrows path + path { fill: #2563eb; stroke: none; }
+.lingop-word-detail__stroke-figure .lingop-stroke-label line { stroke: #2563eb; }
+.lingop-word-detail__stroke-figure .lingop-stroke-label-dot { fill: #2563eb; stroke: #ffffff; }
+.lingop-word-detail__stroke-figure .lingop-stroke-label-badge { fill: #2563eb; stroke: #ffffff; }
+.lingop-word-detail__stroke-figure .lingop-stroke-label text { fill: #ffffff; font-family: system-ui, -apple-system, sans-serif; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+.lingop-word-detail__stroke-figure .lingop-stroke-brush { fill: none; stroke: #1f2937; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: var(--lingop-stroke-dash) var(--lingop-stroke-gap); animation: lingop-stroke-draw var(--lingop-stroke-duration) linear var(--lingop-stroke-delay) both, lingop-stroke-settle var(--lingop-stroke-settle) step-end var(--lingop-stroke-delay) both; }
+.lingop-word-detail__stroke-figure[data-view="animated"] .lingop-stroke-label { animation: lingop-stroke-label 160ms ease-out var(--lingop-stroke-delay) both; }
+.lingop-word-detail__stroke-replay { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.55rem; border: 1px solid rgb(17 24 39 / 18%); border-radius: 999px; background: rgb(255 255 255 / 70%); color: rgb(17 24 39 / 78%); cursor: pointer; font: inherit; font-size: 0.75rem; }
+.lingop-word-detail__stroke-replay svg { width: 0.85rem; height: 0.85rem; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.lingop-word-detail__stroke-replay:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; }
+@keyframes lingop-stroke-draw { from { stroke-dashoffset: var(--lingop-stroke-start); } to { stroke-dashoffset: 0; } }
+@keyframes lingop-stroke-settle { from { stroke: #2563eb; } to { stroke: #1f2937; } }
+@keyframes lingop-stroke-label { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .lingop-word-detail__stroke-figure .lingop-stroke-brush, .lingop-word-detail__stroke-figure[data-view="animated"] .lingop-stroke-label { animation: none; }
+}
 .lingop-word-detail__alternate-script { display: flex; align-items: flex-start; gap: 0.25rem; width: 100%; padding-block: 0.5rem; border-top: 1px solid rgb(0 0 0 / 18%); font-size: 0.875rem; }
 .lingop-word-detail__alternate-script-text { font-size: 1.25rem; line-height: 1.25; }
 .lingop-word-detail__alternate-script-text[data-same] { color: rgb(17 24 39 / 42%); }

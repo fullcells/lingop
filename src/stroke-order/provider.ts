@@ -1,9 +1,12 @@
 import {
   GENERATED_STROKE_BUCKET_LOADERS,
+  GENERATED_STROKE_CENTRELINE_LOADERS,
   GENERATED_STROKE_CONTINUATIONS,
 } from "./generated-loaders.js";
 import type {
   StrokeBucketLoader,
+  StrokeCentreline,
+  StrokeCentrelineBucketLoader,
   StrokeCharacterData,
   StrokeContinuations,
   StrokeDataProvider,
@@ -140,27 +143,59 @@ export function getPenStrokes(
   return penStrokes;
 }
 
+/** Parses "x,y x,y" polyline points. */
+export function parseStrokeCentreline(points: string): StrokeCentreline {
+  const out: [number, number][] = [];
+  for (const pair of points.trim().split(/\s+/u)) {
+    const [x, y] = pair.split(",").map(Number);
+    if (Number.isFinite(x) && Number.isFinite(y)) out.push([x!, y!]);
+  }
+  return out;
+}
+
+export type StrokeDataProviderOptions = {
+  /** Shapes that continue the previous pen stroke, by source and character. */
+  continuations?: StrokeContinuations;
+  /** Lazily loaded centreline buckets, by source and code-point bucket. */
+  centrelineLoaders?: Partial<
+    Record<StrokeDataSource, Readonly<Record<string, StrokeCentrelineBucketLoader>>>
+  >;
+};
+
 export function createStrokeDataProvider(
   loaders: Record<
     StrokeDataSource,
     Readonly<Record<string, StrokeBucketLoader>>
   > = GENERATED_STROKE_BUCKET_LOADERS,
-  continuations: StrokeContinuations = GENERATED_STROKE_CONTINUATIONS,
+  {
+    continuations = GENERATED_STROKE_CONTINUATIONS,
+    centrelineLoaders = GENERATED_STROKE_CENTRELINE_LOADERS,
+  }: StrokeDataProviderOptions = {},
 ): StrokeDataProvider {
   return {
-    async get(character, lang) {
+    async get(character, lang, options) {
       const bucket = bucketForCharacter(character);
       if (!bucket) return null;
 
       for (const source of sourceOrder(character, lang)) {
         const loader = loaders[source][bucket];
         if (!loader) continue;
-        const paths = (await loader()).default[character];
+        const centrelineLoader = options?.centrelines
+          ? centrelineLoaders[source]?.[bucket]
+          : undefined;
+        // Load both buckets together; centrelines are only requested by views
+        // that need them.
+        const [pathModule, centrelineModule] = await Promise.all([
+          loader(),
+          centrelineLoader?.(),
+        ]);
+        const paths = pathModule.default[character];
         if (!paths?.length) continue;
         const presentation = SOURCE_PRESENTATION[source];
         const continued = continuations[source]?.[character]?.filter(
           (index) => index > 0 && index < paths.length,
         );
+        const centrelines = centrelineModule?.default[character];
         return {
           character,
           source,
@@ -171,6 +206,9 @@ export function createStrokeDataProvider(
             ? { transform: presentation.transform }
             : {}),
           ...(continued?.length ? { continuations: continued } : {}),
+          ...(centrelines?.length === paths.length
+            ? { centrelines: centrelines.map(parseStrokeCentreline) }
+            : {}),
         };
       }
       return null;

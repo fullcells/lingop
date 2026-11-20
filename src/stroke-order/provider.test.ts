@@ -4,6 +4,7 @@ import {
   createStrokeDataProvider,
   getPenStrokes,
   getStrokeCharacters,
+  parseStrokeCentreline,
   localStrokeDataProvider,
   supportsStrokeOrder,
 } from "./provider.js";
@@ -172,7 +173,7 @@ describe("stroke-data provider", () => {
       ANIMCJK_JA: { あ: ["a1", "a2", "a3", "a4"], 字: ["j1", "j2"] },
     });
     const provider = createStrokeDataProvider(loaders, {
-      ANIMCJK_JA: { あ: [3, 9], 字: [1] },
+      continuations: { ANIMCJK_JA: { あ: [3, 9], 字: [1] } },
     });
     await expect(provider.get("あ", "ja")).resolves.toMatchObject({
       continuations: [3],
@@ -196,5 +197,61 @@ describe("stroke-data provider", () => {
     }
     const plain = await localStrokeDataProvider.get("い", "ja");
     expect(plain).not.toHaveProperty("continuations");
+  });
+
+  it("loads centrelines only when a view asks for them", async () => {
+    const { loaders } = stubLoaders({ KANJIVG: { 字: ["k1", "k2"] } });
+    const centrelineCalls: string[] = [];
+    const provider = createStrokeDataProvider(loaders, {
+      centrelineLoaders: {
+        KANJIVG: {
+          "5b": async () => {
+            centrelineCalls.push("5b");
+            return { default: { 字: ["1,2 3,4", "5,6 7,8.5"] } };
+          },
+        },
+      },
+    });
+    const plain = await provider.get("字", "ja");
+    expect(plain).not.toHaveProperty("centrelines");
+    expect(centrelineCalls).toEqual([]);
+    await expect(
+      provider.get("字", "ja", { centrelines: true }),
+    ).resolves.toMatchObject({
+      centrelines: [
+        [
+          [1, 2],
+          [3, 4],
+        ],
+        [
+          [5, 6],
+          [7, 8.5],
+        ],
+      ],
+    });
+    expect(centrelineCalls).toEqual(["5b"]);
+  });
+
+  it("parses polyline points and skips malformed pairs", () => {
+    expect(parseStrokeCentreline(" 1,2  3.5,-4 x,y ")).toEqual([
+      [1, 2],
+      [3.5, -4],
+    ]);
+  });
+
+  it("generates one centreline per stroke for every source", async () => {
+    for (const [character, lang] of [
+      ["字", "ja"],
+      ["あ", "ja"],
+      ["我", "cmn-hant"],
+      ["喫", "cmn-hant"],
+      ["嚟", "yue"],
+    ] as const) {
+      const data = await localStrokeDataProvider.get(character, lang, {
+        centrelines: true,
+      });
+      expect(data?.centrelines, character).toHaveLength(data!.strokes.length);
+      expect(data!.centrelines!.every((line) => line.length >= 1)).toBe(true);
+    }
   });
 });

@@ -3,6 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { tify } from "chinese-conv";
 
+import { flattenSvgPath, formatCentreline } from "./stroke-centrelines.mjs";
+
 const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
@@ -78,6 +80,13 @@ function pathsFromKanjiVG(svg) {
   return paths;
 }
 
+// Hanzi Writer data is Y-up; centrelines are stored in display coordinates
+// (after the "translate(0 900) scale(1 -1)" presentation transform).
+const hanziWriterCentrelines = (medians) =>
+  medians.map((median) =>
+    formatCentreline(median.map(([x, y]) => [x, 900 - y]), 1024),
+  );
+
 async function readSourceEntries(source) {
   if (source.kind === "prebuilt-json") {
     const parsed = JSON.parse(await readFile(source.file, "utf8"));
@@ -88,11 +97,14 @@ async function readSourceEntries(source) {
         !Array.isArray(entry.strokes) ||
         entry.strokes.length === 0 ||
         entry.strokeOrder?.length !== entry.strokes.length ||
-        !entry.strokes.every((stroke) => typeof stroke === "string")
+        entry.centrelines?.length !== entry.strokes.length ||
+        ![...entry.strokes, ...entry.centrelines].every(
+          (value) => typeof value === "string",
+        )
       ) {
         throw new Error(`Invalid prebuilt stroke data for ${character}.`);
       }
-      entries.push([character, entry.strokes]);
+      entries.push([character, entry.strokes, entry.centrelines]);
     }
     return { entries, continuations: [] };
   }
@@ -115,7 +127,13 @@ async function readSourceEntries(source) {
       }
       const svg = await readFile(path.join(source.directory, filename), "utf8");
       const strokes = pathsFromKanjiVG(svg);
-      if (strokes.length > 0) entries.push([character, strokes]);
+      if (strokes.length > 0) {
+        // KanjiVG paths are centrelines already (drawn with a stroke width).
+        const centrelines = strokes.map((d) =>
+          formatCentreline(flattenSvgPath(d), 109),
+        );
+        entries.push([character, strokes, centrelines]);
+      }
       continue;
     }
 
@@ -136,7 +154,13 @@ async function readSourceEntries(source) {
       parsed.strokes.length > 0 &&
       parsed.strokes.every((stroke) => typeof stroke === "string")
     ) {
-      entries.push([character, parsed.strokes]);
+      // Without one median per stroke, views needing centrelines fall back
+      // to the step-by-step diagram.
+      const centrelines =
+        parsed.medians?.length === parsed.strokes.length
+          ? hanziWriterCentrelines(parsed.medians)
+          : [];
+      entries.push([character, parsed.strokes, centrelines]);
       const indexes = continuationIndexes(parsed.medians);
       if (indexes.length > 0) continuations.push([character, indexes]);
     }
@@ -172,41 +196,61 @@ function sourceDirectoryName(sourceId) {
   return sourceId.toLowerCase().replaceAll("_", "-");
 }
 
-async function writeSource(source, entries) {
-  const buckets = new Map();
-  for (const [character, strokes] of entries) {
-    const bucket = bucketForCharacter(character);
-    const bucketEntries = buckets.get(bucket) ?? [];
-    bucketEntries.push([character, strokes]);
-    buckets.set(bucket, bucketEntries);
-  }
-
-  const directoryName = sourceDirectoryName(source.id);
-  const directory = path.join(outputRoot, directoryName);
+async function writeBuckets(directory, buckets, column, typeName) {
   await mkdir(directory, { recursive: true });
-
-  for (const [bucket, bucketEntries] of [...buckets].sort()) {
-    bucketEntries.sort(([left], [right]) => left.localeCompare(right, "en"));
-    const record = Object.fromEntries(bucketEntries);
+  for (const [bucket, bucketEntries] of buckets) {
+    const record = Object.fromEntries(
+      bucketEntries.map((entry) => [entry[0], entry[column]]),
+    );
     await writeFile(
       path.join(directory, `${bucket}.ts`),
       [
-        'import type { StrokePathBucket } from "../../types.js";',
+        `import type { ${typeName} } from "../../types.js";`,
         "",
-        `const data: StrokePathBucket = ${JSON.stringify(record)};`,
+        `const data: ${typeName} = ${JSON.stringify(record)};`,
         "",
         "export default data;",
         "",
       ].join("\n"),
     );
   }
+}
 
-  return [...buckets.keys()].sort();
+// Outline paths and centrelines share bucket keys but load separately, so the
+// default step-by-step view never downloads centrelines.
+async function writeSource(source, entries) {
+  const buckets = new Map();
+  for (const entry of entries) {
+    const bucket = bucketForCharacter(entry[0]);
+    const bucketEntries = buckets.get(bucket) ?? [];
+    bucketEntries.push(entry);
+    buckets.set(bucket, bucketEntries);
+  }
+  const sorted = [...buckets]
+    .sort(([left], [right]) => left.localeCompare(right, "en"))
+    .map(([bucket, bucketEntries]) => [
+      bucket,
+      bucketEntries.sort(([left], [right]) => left.localeCompare(right, "en")),
+    ]);
+
+  const directoryName = sourceDirectoryName(source.id);
+  await writeBuckets(path.join(outputRoot, directoryName), sorted, 1, "StrokePathBucket");
+  await writeBuckets(
+    path.join(outputRoot, `${directoryName}-centrelines`),
+    sorted,
+    2,
+    "StrokeCentrelineBucket",
+  );
+  return sorted.map(([bucket]) => bucket);
 }
 
 function loaderSource(generatedSources) {
   const lines = [
-    'import type { StrokeBucketLoader, StrokeDataSource } from "./types.js";',
+    "import type {",
+    "  StrokeBucketLoader,",
+    "  StrokeCentrelineBucketLoader,",
+    "  StrokeDataSource,",
+    '} from "./types.js";',
     "",
     "// Generated by scripts/generate-stroke-data.mjs. Do not edit.",
     "export const GENERATED_STROKE_BUCKET_LOADERS: Record<",
@@ -215,17 +259,29 @@ function loaderSource(generatedSources) {
     "> = {",
   ];
 
-  for (const { source, buckets } of generatedSources) {
-    const directoryName = sourceDirectoryName(source.id);
-    lines.push(`  ${source.id}: {`);
-    for (const bucket of buckets) {
-      lines.push(
-        `    ${JSON.stringify(bucket)}: () => import("./generated/${directoryName}/${bucket}.js"),`,
-      );
+  const loaderMap = (suffix) => {
+    for (const { source, buckets } of generatedSources) {
+      const directoryName = `${sourceDirectoryName(source.id)}${suffix}`;
+      lines.push(`  ${source.id}: {`);
+      for (const bucket of buckets) {
+        lines.push(
+          `    ${JSON.stringify(bucket)}: () => import("./generated/${directoryName}/${bucket}.js"),`,
+        );
+      }
+      lines.push("  },");
     }
-    lines.push("  },");
-  }
-
+  };
+  loaderMap("");
+  lines.push(
+    "};",
+    "",
+    "// Pen-path centrelines (SVG polyline points in viewBox coordinates).",
+    "export const GENERATED_STROKE_CENTRELINE_LOADERS: Record<",
+    "  StrokeDataSource,",
+    "  Readonly<Record<string, StrokeCentrelineBucketLoader>>",
+    "> = {",
+  );
+  loaderMap("-centrelines");
   lines.push(
     "};",
     "",

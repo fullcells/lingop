@@ -8,6 +8,7 @@ import {
   createReferenceLoader,
   deriveStrokeOrder,
 } from "./cantonese-stroke-order.mjs";
+import { formatCentreline } from "./stroke-centrelines.mjs";
 
 const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -237,6 +238,7 @@ async function buildEntry(character) {
   );
   return {
     strokes: derived.strokes,
+    centrelines: derived.centrelines.map((line) => formatCentreline(line, 200)),
     strokeOrder: derived.strokeOrder,
     orderSource,
     orderReferences: derived.references,

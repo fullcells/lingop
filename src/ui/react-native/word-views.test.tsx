@@ -18,13 +18,38 @@ vi.mock("react-native", async () => {
       props.visible ? createElement("modal", props, props.children) : null,
     ActivityIndicator: c("activity"),
     StyleSheet: { create: (s: unknown) => s, absoluteFill: {} },
+    AccessibilityInfo: { isReduceMotionEnabled: async () => false },
+    Easing: { linear: (t: number) => t },
+    Animated: {
+      Value: class {
+        constructor(public value: number) {}
+        setValue(value: number) {
+          this.value = value;
+        }
+        interpolate(config: unknown) {
+          return { interpolation: config };
+        }
+      },
+      timing: vi.fn(() => ({ start: vi.fn(), stop: vi.fn() })),
+      createAnimatedComponent: (component: unknown) => component,
+    },
   };
 });
 vi.mock("react-native-svg", async () => {
   const { createElement } = await import("react");
   const c = (name: string) => (props: any) =>
     createElement(name, props, props.children);
-  return { Svg: c("svg"), G: c("g"), Path: c("path") };
+  return {
+    Svg: c("svg"),
+    G: c("g"),
+    Path: c("path"),
+    Circle: c("circle"),
+    Line: c("line"),
+    Rect: c("rect"),
+    Text: c("svgtext"),
+    Defs: c("defs"),
+    ClipPath: c("clippath"),
+  };
 });
 import {
   WordChipsArrayView,
@@ -32,7 +57,12 @@ import {
   L10nWordDetailModal,
   useL10nWordDetailModal,
 } from "./index.js";
-import { StrokeCharacterDiagram } from "./stroke-order-view.js";
+import { StrokeCharacterDiagram, StrokeOrderView } from "./stroke-order-view.js";
+import { StrokeCharacterFigure } from "./stroke-order-figure.js";
+import type {
+  StrokeCharacterData,
+  StrokeDataProvider,
+} from "../../stroke-order/index.js";
 import { WORD_STREAKS_MASTERY_THRESHOLD } from "../../core/word-lists.js";
 let tree: ReactTestRenderer | undefined;
 const a = (word: string, lang = "ja"): AnnotatedText => ({
@@ -342,6 +372,71 @@ it("shows a stroke and its continuation shapes as one native step", async () => 
   const paths = tree!.root.findAllByType("path");
   expect(paths).toHaveLength(2);
   expect(paths.every((path) => path.props.fill === "#dc493a")).toBe(true);
+});
+
+const twoStrokes: StrokeCharacterData = {
+  character: "二",
+  source: "MAKEMEAHANZI",
+  viewBox: "0 0 100 100",
+  pathKind: "OUTLINE",
+  strokes: ["M10 10L90 10L90 20Z", "M5 80L95 80L95 90Z"],
+  centrelines: [
+    [
+      [10, 15],
+      [90, 15],
+    ],
+    [
+      [5, 85],
+      [95, 85],
+    ],
+  ],
+};
+
+it("draws numbered, arrow, coloured and animated native figures", async () => {
+  for (const view of ["NUMBERS", "ARROWS", "COLORS"] as const) {
+    await act(() => {
+      tree = create(<StrokeCharacterFigure data={twoStrokes} view={view} />);
+    });
+    const texts = tree!.root.findAllByType("svgtext" as never);
+    expect(texts.map((text) => text.props.children)).toEqual(["1", "2"]);
+  }
+  expect(
+    tree!.root.findAllByType("path").map((path) => path.props.fill),
+  ).toEqual(["#2563eb", "#b91c1c"]);
+
+  await act(() => {
+    tree = create(<StrokeCharacterFigure data={twoStrokes} view="ANIMATED" />);
+  });
+  expect(tree!.root.findAllByType("clippath" as never)).toHaveLength(2);
+  const brushes = tree!.root
+    .findAllByType("path")
+    .filter((path) => path.props.clipPath);
+  expect(brushes).toHaveLength(2);
+  expect(brushes[1]!.props.strokeDashoffset.interpolation.inputRange[0]).toBeGreaterThan(0);
+  expect(tree!.root.findAllByProps({ accessibilityLabel: "Replay" })).not.toHaveLength(0);
+});
+
+it("switches native stroke views and loads centrelines only when needed", async () => {
+  const requests: unknown[] = [];
+  const provider: StrokeDataProvider = {
+    get: vi.fn(async (_character, _lang, options) => {
+      requests.push(options);
+      return options?.centrelines ? twoStrokes : { ...twoStrokes, centrelines: undefined as never };
+    }),
+  };
+  await act(async () => {
+    tree = create(<StrokeOrderView characters={["二"]} lang="cmn-hant" provider={provider} />);
+  });
+  expect(requests).toEqual([undefined]);
+  const radios = tree!.root
+    .findAllByType("pressable" as never)
+    .filter((node) => node.props.accessibilityRole === "radio");
+  expect(radios).toHaveLength(5);
+  await act(async () => {
+    radios[1]!.props.onPress();
+  });
+  expect(requests).toEqual([undefined, { centrelines: true }]);
+  expect(tree!.root.findAllByType("svgtext" as never)).toHaveLength(2);
 });
 
 it("native sentence and details share speech controls; word API refs are WORDS, not the sentence ref", async () => {
