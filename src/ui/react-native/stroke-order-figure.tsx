@@ -187,7 +187,7 @@ function Label({
         y={center[1] + figure.labelFontSize * 0.36}
         fill="#ffffff"
         fontSize={figure.labelFontSize * (number > 9 ? 0.85 : 1)}
-        fontWeight="700"
+        fontWeight="600"
         textAnchor="middle"
       >
         {String(number)}

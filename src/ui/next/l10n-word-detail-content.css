@@ -94,7 +94,7 @@
 .lingop-word-detail__stroke-figure .lingop-stroke-label line { stroke: #2563eb; }
 .lingop-word-detail__stroke-figure .lingop-stroke-label-dot { fill: #2563eb; stroke: #ffffff; }
 .lingop-word-detail__stroke-figure .lingop-stroke-label-badge { fill: #2563eb; stroke: #ffffff; }
-.lingop-word-detail__stroke-figure .lingop-stroke-label text { fill: #ffffff; font-family: system-ui, -apple-system, sans-serif; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+.lingop-word-detail__stroke-figure .lingop-stroke-label text { fill: #ffffff; text-anchor: middle; dominant-baseline: central; }
 .lingop-word-detail__stroke-figure .lingop-stroke-brush { fill: none; stroke: #1f2937; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: var(--lingop-stroke-dash) var(--lingop-stroke-gap); animation: lingop-stroke-draw var(--lingop-stroke-duration) linear var(--lingop-stroke-delay) both, lingop-stroke-settle var(--lingop-stroke-settle) step-end var(--lingop-stroke-delay) both; }
 .lingop-word-detail__stroke-figure[data-view="animated"] .lingop-stroke-label { animation: lingop-stroke-label 160ms ease-out var(--lingop-stroke-delay) both; }
 .lingop-word-detail__stroke-replay { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.55rem; border: 1px solid rgb(17 24 39 / 18%); border-radius: 999px; background: rgb(255 255 255 / 70%); color: rgb(17 24 39 / 78%); cursor: pointer; font: inherit; font-size: 0.75rem; }

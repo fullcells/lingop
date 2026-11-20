@@ -11,21 +11,23 @@ import {
   processableTexts as lingoDexProcessableTexts,
 } from "./lingodex.js";
 
+// Structural checks only: the datasets are edited regularly, so exact counts
+// or specific entries would fail builds for intended content changes.
 describe("shared learning content", () => {
-  it("exports the complete CL Learn CEFR dataset", () => {
-    expect(cefrConcepts).toHaveLength(898);
-    expect(cefrTopicEntries).toHaveLength(996);
-    expect(clLearnCEFRProcessableTexts).toHaveLength(3838);
-    expect(clLearnCEFRProcessableTexts).toContain("Nice to meet you");
+  it("exports the CL Learn CEFR dataset", () => {
+    expect(cefrConcepts.length).toBeGreaterThan(0);
+    expect(cefrTopicEntries.length).toBeGreaterThan(0);
+    expect(clLearnCEFRProcessableTexts.length).toBeGreaterThan(0);
+    expect(clLearnCEFRProcessableTexts.every((text) => typeof text === "string" && text.length > 0)).toBe(true);
   });
 
-  it("exports the complete LingoDex dataset and derived indexes", () => {
-    // The October 3 dataset revision retired #00001 and revised its texts.
-    expect(LingoDexData).toHaveLength(1196);
-    expect(lingoDexProcessableTexts).toHaveLength(4067);
-    expect(LingoDexData[0]?.devref).toBe("#00002");
-    expect(LingoDexData.at(-1)?.devref).toBe("#01095");
-    expect(lingoDexEntryByDevRef["#00001"]).toBeUndefined();
-    expect(lingoDexEntryByDevRef["#00002"]).toBe(LingoDexData[0]);
+  it("exports the LingoDex dataset with a consistent dev-ref index", () => {
+    expect(LingoDexData.length).toBeGreaterThan(0);
+    expect(lingoDexProcessableTexts.length).toBeGreaterThan(0);
+    const devrefs = LingoDexData.map((entry) => entry.devref);
+    expect(new Set(devrefs).size).toBe(devrefs.length);
+    for (const entry of LingoDexData) {
+      expect(lingoDexEntryByDevRef[entry.devref]).toBe(entry);
+    }
   });
 });

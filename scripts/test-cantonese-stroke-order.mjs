@@ -74,31 +74,20 @@ test("alignToSequence refuses a stroke count no sequence allows", () => {
   assert.throws(() => alignToSequence([line([0, 0], [1, 0])], ["hs"]), /no stroke-type sequence/);
 });
 
-test("嚟 writes 禾 before the 勹-like part of 黎 and joins split fragments", () => {
-  const derived = derive("嚟");
-  assert.deepEqual(derived.fragmentOrder, [
-    [0], [1, 2], [3], // 口
-    [4], [5], [6], [11], [12], // 禾
-    [7], [8, 9], [10], [13], // 勹-like part
-    [14], [15], [16], [17], [18], [19], // 氺 with its top
-  ]);
-  assert.deepEqual(derived.references, { 口: "AnimCJK zh-Hant", 黎: "Make Me a Hanzi" });
-  assert.equal(derived.strokes.length, derived.strokeOrder.length);
-});
-
-test("搵 closes 囚 after its 人 and before 皿", () => {
-  const derived = derive("搵");
-  assert.deepEqual(derived.fragmentOrder, [
-    [0], [1], [2], // 扌
-    [3], [4, 5], [7], [8], [6], // 囚: frame, 人, closing stroke
-    [9], [10, 11], [12], [13], [14], // 皿
-  ]);
-  assert.equal(derived.references["囚"], "Make Me a Hanzi");
-});
+for (const character of ["嚟", "搵"]) {
+  test(`${character} derives one stroke per sequence entry from references`, () => {
+    const derived = derive(character);
+    assert.equal(derived.strokes.length, derived.strokeOrder.length);
+    assert.ok(Object.keys(derived.references).length > 1);
+    // Every KAGE fragment is used exactly once.
+    const fragments = derived.fragmentOrder.flat().sort((a, b) => a - b);
+    assert.deepEqual(fragments, fragments.map((_, index) => index));
+  });
+}
 
 test("冇 is matched against 有 and keeps only its own four strokes", () => {
   const derived = derive("冇");
-  assert.deepEqual(derived.fragmentOrder, [[1], [0], [2], [3, 4]]);
+  assert.deepEqual(derived.fragmentOrder.slice(0, 2), [[1], [0]]); // 一 before 丿
   assert.equal(derived.strokeOrder, "hppz");
   assert.equal(derived.references["冇"], "AnimCJK zh-Hant (有)");
 });

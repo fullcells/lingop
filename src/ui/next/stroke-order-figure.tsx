@@ -170,10 +170,17 @@ function Label({
       )}
       <circle className="lingop-stroke-label-dot" cx={anchor[0]} cy={anchor[1]} r={r * 0.3} strokeWidth={r * 0.1} style={color ? { fill: color } : undefined} />
       <circle className="lingop-stroke-label-badge" cx={center[0]} cy={center[1]} r={r} strokeWidth={r * 0.14} style={paint} />
+      {/* Inline typography: host apps often reset `font` on every element,
+          which would override SVG font attributes. */}
       <text
         x={center[0]}
         y={center[1] + r * 0.04}
-        fontSize={figure.labelFontSize * (number > 9 ? 0.85 : 1)}
+        style={{
+          fontSize: figure.labelFontSize * (number > 9 ? 0.85 : 1),
+          fontWeight: 600,
+          fontFamily: "system-ui, -apple-system, sans-serif",
+          lineHeight: 1,
+        }}
       >
         {number}
       </text>
