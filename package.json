@@ -186,6 +186,12 @@
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
     "generate:oat-source-data": "node scripts/generate-oat-source-data.mjs",
+    "generate:lingodex-image-names": "node scripts/propose-lingodex-image-names.mjs",
+    "check:lingodex-image-names": "node scripts/propose-lingodex-image-names.mjs --check",
+    "test:lingodex-image-names": "node --test scripts/propose-lingodex-image-names.test.mjs",
+    "preview:lingodex-image-names": "node scripts/preview-lingodex-image-names.mjs",
+    "check:lingodex-image-names-preview": "node scripts/preview-lingodex-image-names.mjs --check",
+    "test:lingodex-image-names-preview": "node --test scripts/preview-lingodex-image-names.test.mjs",
     "generate:stroke-data": "node scripts/generate-stroke-data.mjs",
     "update:stroke-data:cantonese": "node scripts/update-cantonese-stroke-data.mjs",
     "test:stroke-data:cantonese": "node --test scripts/test-cantonese-stroke-order.mjs",

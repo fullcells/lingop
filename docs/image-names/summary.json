@@ -1,0 +1,14 @@
+{
+  "algorithm_version": 1,
+  "source": "src/content/lingodex.ts",
+  "source_sha256": "ccf5e4d9f54e92397a1132a815c0bd7e21169bee744cc09257eef4a488635bd5",
+  "entries": 1196,
+  "unique_images": 3339,
+  "display_variants": 4104,
+  "variants_with_images": 4071,
+  "filename_names": 214,
+  "question_answer_names": 3125,
+  "suffixed_names": 102,
+  "keyword_fallback_names": 0,
+  "names_over_ten_words": 0
+}

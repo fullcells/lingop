@@ -1,0 +1,19 @@
+{
+  "algorithm_version": 2,
+  "context_policy": "main subjects and distinctive context",
+  "number_format": "digits",
+  "total": 3339,
+  "changed_names": 615,
+  "shorter_names": 104,
+  "longer_names": 357,
+  "restored_subjects": 171,
+  "restored_object_attributes": 42,
+  "with_source_additions": 313,
+  "current_average_words": 3.76,
+  "proposed_average_words": 3.83,
+  "current_max_words": 10,
+  "proposed_max_words": 9,
+  "longest_50_current_average_words": 8.52,
+  "longest_50_proposed_average_words": 6.58,
+  "suffixed_names": 88
+}
