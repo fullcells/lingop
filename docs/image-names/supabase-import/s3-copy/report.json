@@ -1,0 +1,28 @@
+{
+  "started_at": "2026-11-16T09:05:14.758Z",
+  "completed_at": "2026-11-16T09:13:07.765Z",
+  "status": "verified",
+  "scope": "complete-import",
+  "files": 3534,
+  "copied_this_run": 3095,
+  "reused_this_run": 439,
+  "bytes": 300914594,
+  "artists": {
+    "original": 3339,
+    "default-photographic": 39,
+    "minhs-palette": 101,
+    "beast-city": 55
+  },
+  "source_objects_unchanged": 3534,
+  "pre_existing_destination_objects_unchanged": 1070,
+  "native_sha256_verified": 3534,
+  "matching_source_etags_and_sizes": 3534,
+  "public_head_200": 3534,
+  "destination_pattern": "s3://omnilingual-access/images/camplingo/<image_file_id>/original.jpg",
+  "review_sha256": "4311ff71de62d2fddcdd5bcf6915d98e9bb42594aebfabe8f4ca4d7a9de0c20a",
+  "jobs_sha256": "8b2e8ded75d635142d60d66dcd6d68647aac6f4bd21030aee7d625d0891a7235",
+  "supabase_import_digests_verified_before_copy": {
+    "sets": "8e53d9c4fa3b17a5430c3b9f4927c187",
+    "files": "f01c67071cda5e187916375f8d63a92e"
+  }
+}

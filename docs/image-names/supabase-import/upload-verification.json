@@ -1,0 +1,24 @@
+{
+  "project_id": "nhveqhrjqgpibkesqsti",
+  "verified_at_utc": "2026-11-16 08:06:26 UTC",
+  "method": "Read-only row counts and ordered payload digests compared with the final CSVs; server-generated timestamps checked for presence.",
+  "matches_final_csvs": true,
+  "expected": {
+    "image_sets": 3339,
+    "image_files": 3534,
+    "sets_digest": "8e53d9c4fa3b17a5430c3b9f4927c187",
+    "files_digest": "f01c67071cda5e187916375f8d63a92e"
+  },
+  "actual": {
+    "image_sets": 3339,
+    "human_files": 12,
+    "image_files": 3534,
+    "sets_digest": "8e53d9c4fa3b17a5430c3b9f4927c187",
+    "files_digest": "f01c67071cda5e187916375f8d63a92e",
+    "archived_files": 0,
+    "ai_empty_objects": 2225,
+    "missing_created_at": 0,
+    "missing_updated_at": 0,
+    "non_null_priorities": 0
+  }
+}

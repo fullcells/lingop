@@ -1,0 +1,25 @@
+{
+  "checked_at": "2026-11-16T09:14:00.072966+00:00",
+  "status": "verified",
+  "new_image_objects": 3534,
+  "files_with_complete_matching_receipts": 3534,
+  "bytes": 300914594,
+  "artists": {
+    "original": 3339,
+    "default-photographic": 39,
+    "minhs-palette": 101,
+    "beast-city": 55
+  },
+  "public_urls_verified": 3534,
+  "native_sha256_checksums_verified": 3534,
+  "source_images_preserved": 3534,
+  "pre_existing_destination_images_preserved": 1069,
+  "pre_existing_destination_directory_markers_preserved": 1,
+  "image_file_ids_and_filenames_match_final_csv": true,
+  "artifact_sha256": {
+    "plan.json": "bdfe90b57bcdd0cc85fbb7e36f55f245ef363ddbf07aaebf935bcd0b4235725c",
+    "receipts.jsonl": "e4d124a44176ada347735b837c488e5b9c350c2bc5f8a4a04dbca95dcdddabf2",
+    "report.json": "a6e793a621a099032470f126bb992a51f7893f0645ebbe578bde8bda03af877a",
+    "destination-baseline.json": "7f55cfb3dd20a3e79af4ae55fdb62d0351dd49ed002d32427c8674a18a8565eb"
+  }
+}

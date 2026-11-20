@@ -1,0 +1,22 @@
+{
+  "checked_at": "2026-11-16T09:05:14.756Z",
+  "files": 3534,
+  "bytes": 300914594,
+  "source_objects_unchanged": 3534,
+  "planned_destinations_present": 439,
+  "existing_destination_objects": 1508,
+  "ownership": {
+    "Rules": [
+      {
+        "ObjectOwnership": "BucketOwnerPreferred"
+      }
+    ]
+  },
+  "public_access_block": {
+    "BlockPublicAcls": false,
+    "IgnorePublicAcls": false,
+    "BlockPublicPolicy": false,
+    "RestrictPublicBuckets": false
+  },
+  "copy_acl": "public-read"
+}

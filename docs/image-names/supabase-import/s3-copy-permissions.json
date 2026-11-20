@@ -1,0 +1,52 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListLegacyImagePrefixes",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::designjams",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": [
+            "lingoframe-20240718/lingoframe-compressed-jpgs-v3/",
+            "lingoframe-20240718/lingoframe-compressed-jpgs-v3/*",
+            "lingoframe-20240718/compressed-jpgs/",
+            "lingoframe-20240718/compressed-jpgs/*"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "ReadLegacyImagesAndTags",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:GetObjectTagging"],
+      "Resource": [
+        "arn:aws:s3:::designjams/lingoframe-20240718/lingoframe-compressed-jpgs-v3/*",
+        "arn:aws:s3:::designjams/lingoframe-20240718/compressed-jpgs/*"
+      ]
+    },
+    {
+      "Sid": "ListDestinationImagePrefix",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::omnilingual-access",
+      "Condition": {
+        "StringLike": {"s3:prefix": ["images/camplingo/", "images/camplingo/*"]}
+      }
+    },
+    {
+      "Sid": "CopyAndVerifyJpegImages",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:GetObjectAcl",
+        "s3:GetObjectTagging",
+        "s3:PutObject",
+        "s3:PutObjectAcl",
+        "s3:PutObjectTagging"
+      ],
+      "Resource": "arn:aws:s3:::omnilingual-access/images/camplingo/*/original.jpg"
+    }
+  ]
+}

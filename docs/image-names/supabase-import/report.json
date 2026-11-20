@@ -1,0 +1,51 @@
+{
+  "project_id": "nhveqhrjqgpibkesqsti",
+  "name_map": "old-to-new.v2.tsv",
+  "name_map_sha256": "e40b239fdf89a2696412771a3a0935ce3685ebe88d10eca9edf049bbd05f1cb8",
+  "uuid_namespace": "0df21eb4-7e1e-4022-83fd-ae8d666170da",
+  "image_sets": 3339,
+  "image_files": 3534,
+  "source_artist_counts": {
+    "original": 3339,
+    "default-photographic": 39,
+    "minhs-palette": 101,
+    "beast-city": 55
+  },
+  "human_files": 12,
+  "ai_files": 3522,
+  "prompt_scopes": {
+    "legacy_filename_description": 1140,
+    "saved_variant_override_or_reconstruction": 59,
+    "reconstructed_base_plus_shared_artist_template": 70,
+    "reinterpreted_base_only": 27,
+    "reconstructed_base_plus_artist_augmentation": 1
+  },
+  "files_with_ai_meta": 3522,
+  "files_with_prompt": 1297,
+  "ai_files_with_empty_ai_meta": 2225,
+  "variant_files_with_empty_ai_meta": 38,
+  "human_files_with_null_ai_meta": 12,
+  "prompt_sheet_aliases": [
+    {
+      "sheet_legacy_name": "m1-act2-DALL·E 2024-07-12 12.07.56 - A young girl with her back turned, playing a video game. She is sitting on a couch in a modern living room, holding a game controller. The television ",
+      "current_legacy_name": "girl-playing-video-game",
+      "match_basis": "original_object_md5_etag_and_byte_size",
+      "etag": "\"46d0143d7c9c921c2d72ce73a8a33ca1\"",
+      "bytes": 66858
+    },
+    {
+      "sheet_legacy_name": "m1-act2-DALL·E 2024-07-12 12.09.28 - An older adult woman with long hair, back turned, playing a video game. She is sitting on a couch in a modern living room, holding a game controller. ",
+      "current_legacy_name": "woman-playing-video-game",
+      "match_basis": "original_object_md5_etag_and_byte_size",
+      "etag": "\"5c3d20e9517d6467d76a778d69493c69\"",
+      "bytes": 77894
+    }
+  ],
+  "legacy_unknown_artist": 3276,
+  "checked_existing_image_sets": 471,
+  "checked_existing_image_files": 1068,
+  "uuid_conflicts": 0,
+  "unused_originals": 312,
+  "unused_variants": 5,
+  "archive_image_bytes": 27280909
+}
