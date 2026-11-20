@@ -22,13 +22,6 @@ export type StrokeOrderViewProps = {
   lang: string;
   provider?: StrokeDataProvider;
   translate?: NativeTranslate;
-  /** Controlled view. Omit to let the user choose. */
-  view?: StrokeView;
-  /** Initial view when uncontrolled. */
-  defaultView?: StrokeView;
-  onViewChange?: (view: StrokeView) => void;
-  /** Views offered in the picker; the picker is hidden when only one is offered. */
-  views?: readonly StrokeView[];
 };
 
 type StrokeLoadResult = {
@@ -42,16 +35,9 @@ export function StrokeOrderView({
   lang,
   provider = localStrokeDataProvider,
   translate = defaultTranslate,
-  view,
-  defaultView = DEFAULT_STROKE_VIEW,
-  onViewChange,
-  views = STROKE_VIEWS,
 }: StrokeOrderViewProps) {
-  const [chosenView, setChosenView] = useState<StrokeView>(defaultView);
-  const requestedView = view ?? chosenView;
-  const selectedView = views.includes(requestedView)
-    ? requestedView
-    : (views[0] ?? DEFAULT_STROKE_VIEW);
+  const [selectedView, setSelectedView] =
+    useState<StrokeView>(DEFAULT_STROKE_VIEW);
   // Once a view has needed centrelines, keep them so switching views does not
   // reload anything.
   const [withCentrelines, setWithCentrelines] = useState(false);
@@ -106,29 +92,24 @@ export function StrokeOrderView({
     );
   return (
     <View style={s.section}>
-      {views.length > 1 && (
-        <View accessibilityRole="radiogroup" style={s.row}>
-          {views.map((option) => (
-            <Pressable
-              key={option}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: option === selectedView }}
-              onPress={() => {
-                onViewChange?.(option);
-                if (view === undefined) setChosenView(option);
-              }}
-              style={[
-                s.button,
-                option === selectedView && { backgroundColor: "#c9dfbd" },
-              ]}
-            >
-              <Text style={s.buttonText}>
-                {translate(STROKE_VIEW_LABELS[option])}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
+      <View accessibilityRole="radiogroup" style={s.row}>
+        {STROKE_VIEWS.map((option) => (
+          <Pressable
+            key={option}
+            accessibilityRole="radio"
+            accessibilityState={{ checked: option === selectedView }}
+            onPress={() => setSelectedView(option)}
+            style={[
+              s.button,
+              option === selectedView && { backgroundColor: "#c9dfbd" },
+            ]}
+          >
+            <Text style={s.buttonText}>
+              {translate(STROKE_VIEW_LABELS[option])}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
       {value?.map(({ character, data, failed }) =>
         data ? (
           <StrokeCharacter

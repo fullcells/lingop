@@ -165,9 +165,7 @@ chosen with a picker above the characters:
 - **Animated**: the character draws itself stroke by stroke, with Replay. It
   honours `prefers-reduced-motion` on the web and Reduce Motion on native.
 
-Pass `view`/`onViewChange` to control it, `defaultView` to set the initial
-view, or `views` to limit what the picker offers (a single view hides the
-picker). The web view remembers the user's choice in browser storage.
+The web view remembers the user's choice in browser storage.
 
 Single-image views draw from stroke centrelines, which load lazily in separate
 buckets only when such a view is selected:

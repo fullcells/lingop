@@ -30,45 +30,24 @@ export type StrokeOrderViewProps = {
   characters: string[];
   lang: string;
   provider?: StrokeDataProvider;
-  /** Controlled view. Omit to let the user choose (remembered in browser storage). */
-  view?: StrokeView;
-  /** Initial view when uncontrolled; skips the remembered choice. */
-  defaultView?: StrokeView;
-  onViewChange?: (view: StrokeView) => void;
-  /** Views offered in the picker; the picker is hidden when only one is offered. */
-  views?: readonly StrokeView[];
 };
 
 export function StrokeOrderView({
   characters,
   lang,
   provider = localStrokeDataProvider,
-  view,
-  defaultView,
-  onViewChange,
-  views = STROKE_VIEWS,
 }: StrokeOrderViewProps) {
   const { OAT } = useOAT();
   const [results, setResults] = useState<StrokeLoadResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const [chosenView, setChosenView] = useState<StrokeView>(
-    defaultView ?? DEFAULT_STROKE_VIEW,
-  );
+  const [selectedView, setSelectedView] =
+    useState<StrokeView>(DEFAULT_STROKE_VIEW);
   const characterKey = characters.join("");
 
   // Read the remembered view after mount so server and client markup match.
   useEffect(() => {
-    if (view === undefined && defaultView === undefined) {
-      setChosenView(readWordDetailStrokeView());
-    }
-    // Only on mount: later choices are already in state.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setSelectedView(readWordDetailStrokeView());
   }, []);
-
-  const requestedView = view ?? chosenView;
-  const selectedView = views.includes(requestedView)
-    ? requestedView
-    : (views[0] ?? DEFAULT_STROKE_VIEW);
   // Once a view has needed centrelines, keep them so switching back and forth
   // does not reload anything.
   const [withCentrelines, setWithCentrelines] = useState(false);
@@ -79,11 +58,8 @@ export function StrokeOrderView({
   }, [needsCentrelines]);
 
   const selectView = (next: StrokeView) => {
-    onViewChange?.(next);
-    if (view === undefined) {
-      setChosenView(next);
-      writeWordDetailStrokeView(next);
-    }
+    setSelectedView(next);
+    writeWordDetailStrokeView(next);
   };
 
   // Clear results only when the characters change, not when centrelines are
@@ -147,26 +123,24 @@ export function StrokeOrderView({
 
   return (
     <div className="lingop-word-detail__stroke-results">
-      {views.length > 1 && (
-        <div
-          className="lingop-word-detail__segment lingop-word-detail__stroke-views"
-          role="radiogroup"
-          aria-label={OAT("Stroke view")}
-        >
-          {views.map((option) => (
-            <button
-              type="button"
-              role="radio"
-              aria-checked={option === selectedView}
-              data-selected={option === selectedView ? true : undefined}
-              onClick={() => selectView(option)}
-              key={option}
-            >
-              <StrokeViewLabel view={option} />
-            </button>
-          ))}
-        </div>
-      )}
+      <div
+        className="lingop-word-detail__segment lingop-word-detail__stroke-views"
+        role="radiogroup"
+        aria-label={OAT("Stroke view")}
+      >
+        {STROKE_VIEWS.map((option) => (
+          <button
+            type="button"
+            role="radio"
+            aria-checked={option === selectedView}
+            data-selected={option === selectedView ? true : undefined}
+            onClick={() => selectView(option)}
+            key={option}
+          >
+            <StrokeViewLabel view={option} />
+          </button>
+        ))}
+      </div>
       {results.map((result) =>
         result.data ? (
           <StrokeCharacter

@@ -151,17 +151,9 @@ describe("StrokeCharacterDiagram", () => {
   it("offers every view in a picker, starting on steps", () => {
     const html = render(<StrokeOrderView characters={[]} lang="ja" />);
     expect(html).toContain("No characters with stroke-order data were found.");
-    const offered = render(
-      <StrokeOrderView characters={["二"]} lang="cmn-hant" views={["STEPS", "ANIMATED"]} />,
-    );
+    const offered = render(<StrokeOrderView characters={["二"]} lang="cmn-hant" />);
     expect(offered).toContain('role="radiogroup" aria-label="Stroke view"');
-    expect(offered.match(/role="radio"/g)).toHaveLength(2);
+    expect(offered.match(/role="radio"/g)).toHaveLength(5);
     expect(offered).toContain('aria-checked="true" data-selected="true">Steps');
-    const all = render(<StrokeOrderView characters={["二"]} lang="cmn-hant" />);
-    expect(all.match(/role="radio"/g)).toHaveLength(5);
-    const single = render(
-      <StrokeOrderView characters={["二"]} lang="cmn-hant" views={["ARROWS"]} />,
-    );
-    expect(single).not.toContain("radiogroup");
   });
 });
