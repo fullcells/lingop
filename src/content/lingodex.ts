@@ -1,4 +1,4 @@
-export const LingoDexData_lastUpdated:string = "2026-11-19"
+export const LingoDexData_lastUpdated:string = "2026-11-22"
 export const LingoDexData_ownerSbId:string = "87a351b1-2321-4ff3-acd1-debe08e2d093";
 
 const LINGODEX_VARIANT_NUMBERS = [1, 2, 3, 4, 5] as const;
@@ -202,7 +202,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "a5": "",
    "i1": "{\"type\":\"lingodex\",\"key\":\"man\"}",
    "i2": "{\"type\":\"lingodex\",\"key\":\"woman\"}",
-   "i3": "{\"type\":\"lingodex\",\"key\":\"cats 4 legs\"}",
+   "i3": "{\"type\":\"lingodex\",\"key\":\"dog 2\"}",
    "i4": "",
    "i5": ""
  },
@@ -277,7 +277,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "a4": "",
    "a5": "",
    "i1": "{\"type\":\"lingodex\",\"key\":\"man\"}",
-   "i2": "{\"type\":\"lingodex\",\"key\":\"cats 4 legs\"}",
+   "i2": "{\"type\":\"lingodex\",\"key\":\"dog 2\"}",
    "i3": "{\"type\":\"lingodex\",\"key\":\"cat\"}",
    "i4": "",
    "i5": ""
@@ -1910,7 +1910,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "a3": "blue",
    "a4": "",
    "a5": "",
-   "i1": "{\"type\":\"lingodex\",\"key\":\"flowers red\"}",
+   "i1": "{\"type\":\"lingodex\",\"key\":\"flowers red, yellow shirt\"}",
    "i2": "",
    "i3": "",
    "i4": "",
@@ -2006,7 +2006,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "a4": "",
    "a5": "",
    "i1": "{\"type\":\"lingodex\",\"key\":\"girl dress red\"}",
-   "i2": "{\"type\":\"lingodex\",\"key\":\"girl wearing blue shoes\"}",
+   "i2": "{\"type\":\"lingodex\",\"key\":\"girl yellow dress, blue shoes\"}",
    "i3": "{\"type\":\"lingodex\",\"key\":\"girl dress blue\"}",
    "i4": "",
    "i5": ""
@@ -3829,7 +3829,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "a3": "white",
    "a4": "black",
    "a5": "",
-   "i1": "{\"type\":\"lingodex\",\"key\":\"man has red dog\"}",
+   "i1": "{\"type\":\"lingodex\",\"key\":\"man blue pants, red dog\"}",
    "i2": "{\"type\":\"lingodex\",\"key\":\"ball yellow #2\"}",
    "i3": "{\"type\":\"lingodex\",\"key\":\"book white\"}",
    "i4": "{\"type\":\"lingodex\",\"key\":\"boy has black shirt yellow jacket\"}",
@@ -3851,7 +3851,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "i1": "{\"type\":\"lingodex\",\"key\":\"girl has black dog\"}",
    "i2": "{\"type\":\"lingodex\",\"key\":\"ball blue #2\"}",
    "i3": "{\"type\":\"lingodex\",\"key\":\"girl wearing blue dress yellow book\"}",
-   "i4": "{\"type\":\"lingodex\",\"key\":\"girl has red pants\"}",
+   "i4": "{\"type\":\"lingodex\",\"key\":\"girl red pants, white shirt\"}",
    "i5": ""
  },
  {
@@ -3867,9 +3867,9 @@ export const LingoDexData:LingoDexEntry[] = [
    "a3": "red",
    "a4": "orange color",
    "a5": "",
-   "i1": "{\"type\":\"lingodex\",\"key\":\"man has red dog\"}",
+   "i1": "{\"type\":\"lingodex\",\"key\":\"man blue pants, red dog\"}",
    "i2": "{\"type\":\"lingodex\",\"key\":\"man has green jacket\"}",
-   "i3": "{\"type\":\"lingodex\",\"key\":\"girl has red pants\"}",
+   "i3": "{\"type\":\"lingodex\",\"key\":\"girl red pants, white shirt\"}",
    "i4": "{\"type\":\"lingodex\",\"key\":\"woman has orange jacket white shirt\"}",
    "i5": ""
  },
@@ -3886,7 +3886,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "a3": "His jacket is green.",
    "a4": "",
    "a5": "",
-   "i1": "{\"type\":\"lingodex\",\"key\":\"man has red dog\"}",
+   "i1": "{\"type\":\"lingodex\",\"key\":\"man blue pants, red dog\"}",
    "i2": "{\"type\":\"lingodex\",\"key\":\"girl has black dog\"}",
    "i3": "{\"type\":\"lingodex\",\"key\":\"man has green jacket\"}",
    "i4": "",
@@ -4000,7 +4000,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "a3": "He has a green jacket.",
    "a4": "",
    "a5": "",
-   "i1": "{\"type\":\"lingodex\",\"key\":\"man has red dog\"}",
+   "i1": "{\"type\":\"lingodex\",\"key\":\"man blue pants, red dog\"}",
    "i2": "{\"type\":\"lingodex\",\"key\":\"girl has black dog\"}",
    "i3": "{\"type\":\"lingodex\",\"key\":\"man has green jacket\"}",
    "i4": "",
@@ -4021,7 +4021,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "a5": "",
    "i1": "{\"type\":\"lingodex\",\"key\":\"woman has orange jacket white shirt\"}",
    "i2": "{\"type\":\"lingodex\",\"key\":\"boy has black shirt yellow jacket\"}",
-   "i3": "{\"type\":\"lingodex\",\"key\":\"girl has red pants\"}",
+   "i3": "{\"type\":\"lingodex\",\"key\":\"girl red pants, white shirt\"}",
    "i4": "",
    "i5": ""
  },
@@ -5333,7 +5333,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "i1": "{\"type\":\"lingodex\",\"key\":\"people went for walk in park\"}",
    "i2": "{\"type\":\"lingodex\",\"key\":\"woman likes walking in morning\"}",
    "i3": "{\"type\":\"lingodex\",\"key\":\"people walked on beach\"}",
-   "i4": "{\"type\":\"lingodex\",\"key\":\"man has red dog\"}",
+   "i4": "{\"type\":\"lingodex\",\"key\":\"man blue pants, red dog\"}",
    "i5": "{\"type\":\"lingodex\",\"key\":\"friends walked around city\"}"
  },
  {
@@ -6757,7 +6757,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "a5": "",
    "i1": "{\"type\":\"lingodex\",\"key\":\"spider 8 legs\"}",
    "i2": "{\"type\":\"lingodex\",\"key\":\"ant 6 legs\"}",
-   "i3": "{\"type\":\"lingodex\",\"key\":\"cats 4 legs\"}",
+   "i3": "{\"type\":\"lingodex\",\"key\":\"cat\"}",
    "i4": "{\"type\":\"lingodex\",\"key\":\"man pants blue\"}",
    "i5": ""
  },
@@ -8316,7 +8316,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "i1": "{\"type\":\"lingodex\",\"key\":\"man helping carrying groceries with\"}",
    "i2": "{\"type\":\"lingodex\",\"key\":\"man helping giving directions with map\"}",
    "i3": "{\"type\":\"lingodex\",\"key\":\"man helping fixing bike with\"}",
-   "i4": "{\"type\":\"lingodex\",\"key\":\"man helping homework with\"}",
+   "i4": "{\"type\":\"lingodex\",\"key\":\"man helping girl with homework\"}",
    "i5": ""
  },
  {
@@ -10386,7 +10386,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "a5": "",
    "i1": "{\"type\":\"lingodex\",\"key\":\"person tied shoes\"}",
    "i2": "{\"type\":\"lingodex\",\"key\":\"person found missing shoe\"}",
-   "i3": "{\"type\":\"lingodex\",\"key\":\"woman shoes yellow\"}",
+   "i3": "{\"type\":\"lingodex\",\"key\":\"woman yellow shoes, green skirt\"}",
    "i4": "{\"type\":\"lingodex\",\"key\":\"person punching at gym\"}",
    "i5": ""
  },
@@ -10404,7 +10404,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "a4": "The men are not wearing shoes.",
    "a5": "The baby is wearing white shoes.",
    "i1": "{\"type\":\"lingodex\",\"key\":\"person wearing red shoes\"}",
-   "i2": "{\"type\":\"lingodex\",\"key\":\"girl wearing blue shoes\"}",
+   "i2": "{\"type\":\"lingodex\",\"key\":\"girl yellow dress, blue shoes\"}",
    "i3": "{\"type\":\"lingodex\",\"key\":\"woman not wearing shoes\"}",
    "i4": "{\"type\":\"lingodex\",\"key\":\"2 men had fighting match\"}",
    "i5": "{\"type\":\"lingodex\",\"key\":\"baby has little shoes\"}"
@@ -10422,7 +10422,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "a3": "green",
    "a4": "white",
    "a5": "",
-   "i1": "{\"type\":\"lingodex\",\"key\":\"shirt red\"}",
+   "i1": "{\"type\":\"lingodex\",\"key\":\"underwear black, shirt red\"}",
    "i2": "",
    "i3": "",
    "i4": "",
@@ -10463,7 +10463,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "i1": "{\"type\":\"lingodex\",\"key\":\"skirt pink\"}",
    "i2": "{\"type\":\"lingodex\",\"key\":\"skirt black\"}",
    "i3": "{\"type\":\"lingodex\",\"key\":\"skirt yellow\"}",
-   "i4": "{\"type\":\"lingodex\",\"key\":\"woman shoes yellow\"}",
+   "i4": "{\"type\":\"lingodex\",\"key\":\"woman yellow shoes, green skirt\"}",
    "i5": ""
  },
  {
@@ -10860,9 +10860,9 @@ export const LingoDexData:LingoDexEntry[] = [
    "a4": "The blue team won.",
    "a5": "The basketball team won.",
    "i1": "{\"type\":\"lingodex\",\"key\":\"person won race\"}",
-   "i2": "{\"type\":\"lingodex\",\"key\":\"blue team lost\"}",
+   "i2": "{\"type\":\"lingodex\",\"key\":\"blue team lost, red team won\"}",
    "i3": "{\"type\":\"lingodex\",\"key\":\"woman won\"}",
-   "i4": "{\"type\":\"lingodex\",\"key\":\"blue team won\"}",
+   "i4": "{\"type\":\"lingodex\",\"key\":\"blue team won, red team lost\"}",
    "i5": "{\"type\":\"lingodex\",\"key\":\"basketball team won\"}"
  },
  {
@@ -10879,8 +10879,8 @@ export const LingoDexData:LingoDexEntry[] = [
    "a4": "The basketball team lost.",
    "a5": "They lost the soccer match.",
    "i1": "{\"type\":\"lingodex\",\"key\":\"person lost race\"}",
-   "i2": "{\"type\":\"lingodex\",\"key\":\"blue team lost\"}",
-   "i3": "{\"type\":\"lingodex\",\"key\":\"blue team won\"}",
+   "i2": "{\"type\":\"lingodex\",\"key\":\"blue team lost, red team won\"}",
+   "i3": "{\"type\":\"lingodex\",\"key\":\"blue team won, red team lost\"}",
    "i4": "{\"type\":\"lingodex\",\"key\":\"basketball team lost\"}",
    "i5": "{\"type\":\"lingodex\",\"key\":\"people lost soccer match\"}"
  },
@@ -15780,7 +15780,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "a3": "Spring",
    "a4": "Summer",
    "a5": "",
-   "i1": "{\"type\":\"lingodex\",\"key\":\"australia winter june july august\"}",
+   "i1": "{\"type\":\"lingodex\",\"key\":\"winter\"}",
    "i2": "",
    "i3": "",
    "i4": "",
@@ -20588,7 +20588,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "a4": "December, January, February",
    "a5": "",
    "i1": "{\"type\":\"lingodex\",\"key\":\"once autumn starts tree loses leaves\"}",
-   "i2": "{\"type\":\"lingodex\",\"key\":\"australia winter june july august\"}",
+   "i2": "{\"type\":\"lingodex\",\"key\":\"winter\"}",
    "i3": "{\"type\":\"lingodex\",\"key\":\"america spring march april may\"}",
    "i4": "{\"type\":\"lingodex\",\"key\":\"australia summer december january february\"}",
    "i5": ""
@@ -21311,7 +21311,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "a5": "",
    "i1": "{\"type\":\"lingodex\",\"key\":\"person own car\"}",
    "i2": "{\"type\":\"lingodex\",\"key\":\"person own house\"}",
-   "i3": "{\"type\":\"lingodex\",\"key\":\"man has red dog\"}",
+   "i3": "{\"type\":\"lingodex\",\"key\":\"man blue pants, red dog\"}",
    "i4": "{\"type\":\"lingodex\",\"key\":\"person own bicycle\"}",
    "i5": ""
  },
