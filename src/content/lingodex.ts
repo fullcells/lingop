@@ -1,4 +1,4 @@
-export const LingoDexData_lastUpdated:string = "2026-11-22"
+export const LingoDexData_lastUpdated:string = "2026-11-23"
 export const LingoDexData_ownerSbId:string = "87a351b1-2321-4ff3-acd1-debe08e2d093";
 
 const LINGODEX_VARIANT_NUMBERS = [1, 2, 3, 4, 5] as const;
@@ -17068,7 +17068,7 @@ export const LingoDexData:LingoDexEntry[] = [
    "q4": "",
    "q5": "",
    "a1": "playing the piano",
-   "a2": "magic",
+   "a2": "a magic trick",
    "a3": "soccer",
    "a4": "basketball",
    "a5": "",
