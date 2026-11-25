@@ -1626,18 +1626,17 @@ For `MEMBER_CONTENT`, pass the app's Supabase client: `speak({ ..., contentConte
 
 | Selection | Destination |
 | --- | --- |
-| `"production"` (default) | Existing production at `https://lingoprocessor.omnilingualaccess.com` |
+| `"production"` (default) | Cloud Run at `https://lingoprocessor-v20-mnykwbetrq-uc.a.run.app` |
 | `"staging"` | Existing Replit development URL (`BE_API_STAGING_URL`) |
-| `"gcloud-run"` | `https://lingoprocessor-v20-mnykwbetrq-uc.a.run.app` |
+| `"gcloud-run"` | Same Cloud Run service as `"production"` |
 
-Existing `useStagingBackend: true/false` calls retain their behavior. An explicit
+With no explicit target, `useStagingBackend: true` selects staging and `false` selects Cloud Run. An explicit
 `backendTarget` takes precedence over that legacy flag, including explicit
 `"production"` with `useStagingBackend: true`. Invalid target strings throw instead
 of silently selecting another backend.
 
 ```tsx
-// Opt in for one consumer when it is ready to migrate.
-<LingopClientDataProvider supabaseClient={supabaseClient} backendTarget="gcloud-run">
+<LingopClientDataProvider supabaseClient={supabaseClient}>
   <App />
 </LingopClientDataProvider>
 ```
@@ -1653,7 +1652,7 @@ const baseUrl = getBEApiBaseUrl({ backendTarget, useStagingBackend });
 ```
 
 Build CLIs accept `LINGOP_BACKEND_TARGET=gcloud-run`; it takes precedence over
-`LINGOP_USE_STAGING_BACKEND`. Leaving both unset preserves production defaults.
+`LINGOP_USE_STAGING_BACKEND`. Leaving both unset uses Cloud Run.
 `BE_API_GCLOUD_RUN_URL`, `BackendTarget`, and `parseBackendTarget` are exported
 from `lingop/core` for configuration integrations.
 
