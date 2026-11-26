@@ -29,7 +29,11 @@ describe("retired OpenAI generation and Sinhala fallback", () => {
     const voice = { service: "HKILANG", voice_id: "hkilang-hak-hk-male-v1", voice_lang: "hak-HK" } as const;
     const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, text: async () => "", json: async () => [voice] }));
     const catalog = await getAPIVoices({ fetchImpl });
-    expect(selectVoiceOptions("hak", "ONE_PER_LANG", catalog).available.defaultAPIVoice).toEqual(voice);
+    const recorded = { service: "RECORDING", voice_id: "taiwan-moe-sixian", voice_lang: "hak-TW" } as const;
+    const choices = selectVoiceOptions("hak", "ONE_PER_LANG", [...catalog, recorded]);
+    expect(choices.available.defaultAPIVoice).toEqual(voice);
+    expect(choices.available.voices).toEqual([voice, recorded]);
+    expect(selectVoiceOptions("hak", "NONE", [...catalog, recorded]).available.voices).toEqual([]);
     expect(selectVoiceOptions("yue", "ALL", catalog).available.voices).toEqual([]);
   });
   it("still retrieves historical OpenAI audio metadata", async () => {

@@ -16,7 +16,7 @@ import {
   type LingoDataClient,
   type SupabaseLingoDataClient,
 } from "../core/lingo-data-client.js";
-import type { APIVoiceAccessProfile } from "../speech/shared.js";
+import type { APIVoiceAccessProfile, RecordedSpeechVoice } from "../speech/shared.js";
 import type { BackendTarget } from "../core/backend-api.js";
 
 export type LingopClientDataContextType = {
@@ -24,6 +24,7 @@ export type LingopClientDataContextType = {
   supabaseClient: SupabaseLingoDataClient | undefined;
   useStagingBackend: boolean;
   backendTarget?: BackendTarget | undefined;
+  recordedVoices?: readonly RecordedSpeechVoice[] | undefined;
   /** Consumer-owned entitlement policy for cloud speech voices. */
   apiVoiceAccessProfile: APIVoiceAccessProfile;
 };
@@ -35,6 +36,7 @@ export type LingopClientDataProviderProps = CreateLingoDataClientOptions & {
    * defaults to device/browser-only speech and does not infer subscriptions or hosts.
    */
   apiVoiceAccessProfile?: APIVoiceAccessProfile;
+  recordedVoices?: readonly RecordedSpeechVoice[] | undefined;
   /** Central billing service; override for sandbox/local testing. */
   billingApiBaseUrl?: string;
 };
@@ -52,6 +54,7 @@ const LingopClientDataContext = createContext<
  */
 export function LingopClientDataProvider({
   apiVoiceAccessProfile = "NONE",
+  recordedVoices,
   billingApiBaseUrl = "https://camplingo.com",
   children,
   supabaseClient,
@@ -90,12 +93,13 @@ export function LingopClientDataProvider({
   const value = useMemo<LingopClientDataContextType>(() => {
     return {
       apiVoiceAccessProfile,
+      recordedVoices,
       lingopClient,
       supabaseClient,
       backendTarget,
       useStagingBackend,
     };
-  }, [apiVoiceAccessProfile, lingopClient, supabaseClient, backendTarget, useStagingBackend]);
+  }, [apiVoiceAccessProfile, recordedVoices, lingopClient, supabaseClient, backendTarget, useStagingBackend]);
 
   return (
     <LingopClientDataContext.Provider value={value}>

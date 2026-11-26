@@ -91,6 +91,7 @@
 
 .speech-voice-picker-option {
   display: flex;
+  flex-wrap: wrap;
   width: 100%;
   border-bottom: 1px solid var(--lingop-voice-picker-border);
   background: var(--lingop-voice-picker-surface);
@@ -107,6 +108,14 @@
   font: inherit;
   cursor: pointer;
 }
+
+.speech-voice-picker-credits {
+  flex-basis: 100%;
+  padding: 0 1rem 0.75rem 3rem;
+  color: var(--lingop-voice-picker-muted);
+}
+
+.speech-voice-picker-credits a { color: inherit; text-decoration: underline; }
 
 .speech-voice-picker-select {
   display: flex;

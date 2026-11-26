@@ -58,7 +58,7 @@ type ActiveVoiceState = {
 };
 
 function useActiveVoiceForLang(lang: string | null): ActiveVoiceState {
-  const { apiVoiceAccessProfile, supabaseClient, backendTarget, useStagingBackend } =
+  const { apiVoiceAccessProfile, supabaseClient, backendTarget, useStagingBackend, recordedVoices } =
     useLingopClientData();
   const [voice, setVoice] = useState<SpeechSynthTTSVoice | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -67,8 +67,9 @@ function useActiveVoiceForLang(lang: string | null): ActiveVoiceState {
       ...(supabaseClient ? { supabaseClient } : {}),
       backendTarget,
       useStagingBackend,
+      recordedVoices,
     }),
-    [supabaseClient, backendTarget, useStagingBackend],
+    [supabaseClient, backendTarget, useStagingBackend, recordedVoices],
   );
 
   useEffect(() => {
@@ -308,7 +309,7 @@ export function SettingsVoicesNAnnotationsUI({
                   voiceState.isLoading ? (
                     <LoadingSpinner />
                   ) : (
-                    speechSynthTTS.prettifyVoiceId(voiceState.voice?.voice_id ?? "")
+                    voiceState.voice ? speechSynthTTS.speechVoiceDisplayName(voiceState.voice) : ""
                   )
                 }
                 onClick={() => navigateForward({ type: "VOICE", lang })}
@@ -540,7 +541,7 @@ export function TripleVisibilityToggleRow({
 
 function SpeechSpeedControlUI({ focusLang }: { focusLang: string | null }) {
   const { OAT, OAT2 } = useOAT();
-  const { apiVoiceAccessProfile, supabaseClient, backendTarget, useStagingBackend } =
+  const { apiVoiceAccessProfile, supabaseClient, backendTarget, useStagingBackend, recordedVoices } =
     useLingopClientData();
   const [isPreviewingSpeech, setIsPreviewingSpeech] = useState(false);
   const [sliderValue, setSliderValue] = useState(
@@ -570,6 +571,7 @@ function SpeechSpeedControlUI({ focusLang }: { focusLang: string | null }) {
         ...(supabaseClient ? { supabaseClient } : {}),
         backendTarget,
         useStagingBackend,
+        recordedVoices,
       });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);

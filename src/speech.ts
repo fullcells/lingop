@@ -27,6 +27,7 @@ export type {
 export type {
   ContentContext,
   APIVoiceAccessProfile,
+  RecordedSpeechVoice,
   SpeechSynthTTSOptions,
 } from "./speech/shared.js";
 

@@ -8,11 +8,20 @@ import {
 } from "../core/supabase.js";
 
 export type SpeechSynthTTSVoice = {
-  service: "BROWSER" | "MICROSOFT" | "GOOGLE" | "OPENAI" | "HKILANG";
+  service: "BROWSER" | "MICROSOFT" | "GOOGLE" | "OPENAI" | "HKILANG" | "RECORDING";
   // voice.voiceURI <- for browsers. e.g. Chrome:"Google 粤語（香港）", Safari:"com.apple.voice.compact.en-US.Samantha". In the past, voice.voiceURI might not have necessarily been unique (e.g. "Flo"), but it seems like they've since been fixed to ensure uniqueness: e.g. "Shelley (Japanese (Japan))"
   voice_id: string;
   // ~ currently storing as the full voiceLangCode (e.g. en-US), rather than OA-LangCode (e.g. en)
   voice_lang: string;
+  displayName?: string;
+  credits?: readonly { label: string; href: string }[];
+};
+
+/** A consumer-provided dictionary recording source, resolved only for playback. */
+export type RecordedSpeechVoice = SpeechSynthTTSVoice & {
+  service: "RECORDING";
+  playlistUrl: string;
+  minimumWordIntervalSeconds: number;
 };
 
 export type SpeechSynthVoiceOptions = {
@@ -75,6 +84,7 @@ type SpeechFetch = (
 export type SpeechSynthSupabaseClient = SupabaseClientLike;
 
 export type SpeechSynthTTSOptions = {
+  recordedVoices?: readonly RecordedSpeechVoice[] | undefined;
   fetchImpl?: SpeechFetch;
   supabaseClient?: SpeechSynthSupabaseClient;
   backendTarget?: BackendTarget | undefined;
@@ -367,10 +377,13 @@ export function selectVoiceOptions(
 
   // Split Voices by if service is BROWSER / NOT-BROWSER
   const browserVoices: SpeechSynthTTSVoice[] = [];
+  const recordedVoices: SpeechSynthTTSVoice[] = [];
   const apiVoices: SpeechSynthTTSVoice[] = [];
   for (const voice of voicesForLang) {
     if (voice.service == "BROWSER") {
       browserVoices.push(voice);
+    } else if (voice.service === "RECORDING") {
+      recordedVoices.push(voice);
     } else {
       apiVoices.push(voice);
     }
@@ -426,6 +439,7 @@ export function selectVoiceOptions(
   }
 
   const availableVoices = [...browserVoices, ...availableAPIVoices];
+  if (apiVoiceAccessProfile !== "NONE") availableVoices.push(...recordedVoices);
 
   return {
     available: {

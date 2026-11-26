@@ -4,6 +4,8 @@ import {
   useEffect,
   useMemo,
   useState,
+  useRef,
+  useId,
   type ReactNode,
 } from "react";
 import {
@@ -18,7 +20,7 @@ import { useLingopClientData } from "./lingop-client-data-provider.js";
 import {
   getActiveVoiceForLang,
   getVoiceOptionsForLang,
-  prettifyVoiceId,
+  speechVoiceDisplayName,
   speak,
   updateUserPreferredVoice,
   type ContentContext,
@@ -119,18 +121,24 @@ export function SpeechSynthLangVoicePicker({
     supabaseClient,
     backendTarget,
     useStagingBackend,
+    recordedVoices,
   } = useLingopClientData();
   const speechOptions = useMemo<SpeechSynthTTSOptions>(
     () => ({
       ...(supabaseClient ? { supabaseClient } : {}),
       backendTarget,
       useStagingBackend,
+      recordedVoices,
     }),
-    [supabaseClient, backendTarget, useStagingBackend],
+    [supabaseClient, backendTarget, useStagingBackend, recordedVoices],
   );
+  const pickerId = useId();
+  const previewSession = useRef<AbortController | null>(null);
+  useEffect(() => () => previewSession.current?.abort(), [lang]);
   const [voices, setVoices] = useState<SpeechSynthTTSVoice[]>([]);
   const [activeVoice, setActiveVoice] =
     useState<SpeechSynthTTSVoice | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [previewingVoiceKey, setPreviewingVoiceKey] =
     useState<string | null>(null);
@@ -183,7 +191,7 @@ export function SpeechSynthLangVoicePicker({
 
   const canPreviewVoice = (voice: SpeechSynthTTSVoice): boolean => {
     if (!previewText) return false;
-    if (voice.service === "BROWSER") return true;
+    if (voice.service === "BROWSER" || voice.service === "RECORDING") return true;
     if (!previewContentContext) return false;
     if (previewContentContext === "PUBLIC_CONTENT") {
       return previewContentRef !== undefined;
@@ -203,6 +211,10 @@ export function SpeechSynthLangVoicePicker({
   const previewVoice = async (voice: SpeechSynthTTSVoice): Promise<void> => {
     if (!previewText || !canPreviewVoice(voice)) return;
     const voiceKey = getSpeechVoiceKey(voice);
+    previewSession.current?.abort();
+    const session = new AbortController();
+    previewSession.current = session;
+    setPreviewError(null);
     setPreviewingVoiceKey(voiceKey);
     try {
       await speak({
@@ -210,6 +222,7 @@ export function SpeechSynthLangVoicePicker({
         lang,
         apiVoiceAccessProfile,
         voiceOverride: voice,
+        signal: session.signal,
         ...(previewContentContext
           ? { contentContext: previewContentContext }
           : {}),
@@ -221,8 +234,9 @@ export function SpeechSynthLangVoicePicker({
       // to framework development consoles, which can promote a handled browser
       // speech timeout into a full-page error overlay.
       const message = error instanceof Error ? error.message : String(error);
-      console.warn(`Could not preview speech voice: ${message}`);
+      if (!session.signal.aborted) setPreviewError(message);
     } finally {
+      if (previewSession.current === session) previewSession.current = null;
       setPreviewingVoiceKey((current) =>
         current === voiceKey ? null : current,
       );
@@ -261,6 +275,8 @@ export function SpeechSynthLangVoicePicker({
                 <div className="speech-voice-picker-locale-options">
                   {localeVoices.map((voice) => {
                     const voiceKey = getSpeechVoiceKey(voice);
+                    const creditsId = voice.credits?.length
+                      ? `${pickerId}-credits-${encodeURIComponent(voiceKey)}` : undefined;
                     const selected = voicesMatch(activeVoice, voice);
                     const previewing = previewingVoiceKey === voiceKey;
                     const previewable = canPreviewVoice(voice);
@@ -271,6 +287,7 @@ export function SpeechSynthLangVoicePicker({
                           className="speech-voice-picker-select"
                           role="radio"
                           aria-checked={selected}
+                          aria-describedby={creditsId}
                           data-selected={selected || undefined}
                           onClick={() => selectVoice(voice)}
                         >
@@ -282,7 +299,7 @@ export function SpeechSynthLangVoicePicker({
                             )}
                           </span>
                           <span className="speech-voice-picker-name">
-                            {prettifyVoiceId(voice.voice_id)}
+                            {speechVoiceDisplayName(voice)}
                           </span>
                           {selected && (
                             <span className="speech-voice-picker-check">
@@ -294,13 +311,23 @@ export function SpeechSynthLangVoicePicker({
                           <button
                             type="button"
                             className="speech-voice-picker-preview"
-                            aria-label={`${OAT("Preview")} ${prettifyVoiceId(voice.voice_id)}`}
+                            aria-label={`${OAT("Preview")} ${speechVoiceDisplayName(voice)}`}
                             aria-busy={previewing}
                             disabled={previewingVoiceKey !== null}
                             onClick={() => void previewVoice(voice)}
                           >
                             {previewing ? <LoadingSpinner /> : <PlayIcon />}
                           </button>
+                        )}
+                        {creditsId && (
+                          <small id={creditsId} className="speech-voice-picker-credits">
+                            {voice.credits?.map((credit, i) => (
+                              <span key={credit.href}>
+                                {i > 0 && " · "}
+                                <a href={credit.href} target="_blank" rel="noreferrer">{credit.label}</a>
+                              </span>
+                            ))}
+                          </small>
                         )}
                       </div>
                     );
@@ -309,6 +336,7 @@ export function SpeechSynthLangVoicePicker({
               </details>
             ))}
         </div>
+        {previewError && <p role="status">{previewError}</p>}
       </div>
 
       <footer className="speech-voice-picker-footer">

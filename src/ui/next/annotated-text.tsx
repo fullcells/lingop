@@ -1281,7 +1281,7 @@ function LoadedAnnotatedTextViewComponent({
         ? { supabaseClient: speechSupabaseClient }
         : {}),
       ...(providedClientData
-        ? { backendTarget: providedClientData.backendTarget, useStagingBackend: providedClientData.useStagingBackend }
+        ? { backendTarget: providedClientData.backendTarget, useStagingBackend: providedClientData.useStagingBackend, recordedVoices: providedClientData.recordedVoices }
         : {}),
     }),
     [providedClientData, speechSupabaseClient],

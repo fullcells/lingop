@@ -219,14 +219,17 @@ export async function getVoiceOptionsForLang(
   apiVoiceAccessProfile: APIVoiceAccessProfile,
   options: SpeechSynthTTSOptions = {},
 ): Promise<SpeechSynthVoiceOptions> {
-  return selectVoiceOptions(lang, apiVoiceAccessProfile, apiVoiceAccessProfile === "NONE"
-    ? await getBrowserVoices() : await getVOICES(options));
+  if (apiVoiceAccessProfile === "NONE") return selectVoiceOptions(lang, "NONE", await getBrowserVoices());
+  const voices = await getVOICES(options);
+  return selectVoiceOptions(lang, apiVoiceAccessProfile,
+    options.recordedVoices?.length ? [...voices, ...options.recordedVoices] : voices);
 }
 
 // USER PREFERRED VOICES
 // - ~ SideNote: In the past: USER_PREFERRED_VOICES was stored as localStorage.getItem("_KEY_FAV_WEB_VOICES").
 export function updateUserPreferredVoice(lang: string, voice: SpeechSynthTTSVoice): void {
-  userPreferredVoices[lang] = voice;
+  const { service, voice_id, voice_lang } = voice;
+  userPreferredVoices[lang] = { service, voice_id, voice_lang };
   inFlightBrowserVoices = null; // Reapply the novelty filter with the current explicit choices.
   if (typeof window === "undefined") return;
   try {
@@ -252,13 +255,9 @@ export async function getActiveVoiceForLang(
   // 1. Return User-Preferred Voice if it's still available.
   const userPreferredVoice = userPreferredVoices[lang] ?? null;
   if (userPreferredVoice) {
-    if (
-      voiceOptions.available.voices.some((v) =>
-        v.voice_id === userPreferredVoice.voice_id && v.service === userPreferredVoice.service,
-      )
-    ) {
-      return userPreferredVoice;
-    }
+    const current = voiceOptions.available.voices.find(v =>
+      v.service === userPreferredVoice.service && v.voice_id === userPreferredVoice.voice_id && v.voice_lang === userPreferredVoice.voice_lang);
+    if (current) return current;
   }
   // 2. Return first available voice.
   return voiceOptions.available.voices[0] ?? null;
@@ -267,6 +266,8 @@ export async function getActiveVoiceForLang(
 export type SpeechSynthSpeakRequest = {
   text: string;
   lang: string;
+  /** Word boundaries from an annotation, when available. */
+  wordSpans?: string[] | undefined;
   /** Language for embedded CJK words in an English explanation. */
   embeddedLang?: string | undefined;
   /** Optional embedded-word voice, without changing saved preferences. */
@@ -282,17 +283,23 @@ export type SpeechSynthSpeakRequest = {
   voiceOverride?: SpeechSynthTTSVoice | undefined;
 } & SpeechSynthTTSOptions;
 
+let activeRecording: AbortController | null = null;
+
 export async function speak({
   embeddedLang,
   embeddedVoiceOverride,
   onLoadingChange,
   ...request
 }: SpeechSynthSpeakRequest): Promise<void> {
+  // A newer speech request also replaces a dictionary lookup still in flight.
+  activeRecording?.abort();
+  const recordingSession = new AbortController();
+  activeRecording = recordingSession;
   const loading = (isLoading: boolean) => {
     if (isLoading && request.signal?.aborted) return;
     onLoadingChange?.(isLoading);
   };
-  const onAbort = () => loading(false);
+  const onAbort = () => { recordingSession.abort(); loading(false); };
   request.signal?.addEventListener("abort", onAbort, { once: true });
   try {
     for (const segment of segmentSpeechText({ ...request, embeddedLang })) {
@@ -301,6 +308,7 @@ export async function speak({
       const completed = await speakSingle({
         ...request,
         ...segment,
+        recordingSignal: recordingSession.signal,
         onLoadingChange: loading,
         voiceOverride: segment.lang === request.lang
           ? request.voiceOverride : embeddedVoiceOverride,
@@ -308,6 +316,8 @@ export async function speak({
       if (!completed) return;
     }
   } finally {
+    recordingSession.abort();
+    if (activeRecording === recordingSession) activeRecording = null;
     request.signal?.removeEventListener("abort", onAbort);
     loading(false);
   }
@@ -320,10 +330,12 @@ async function speakSingle({
   contentContext,
   ref,
   voiceOverride,
+  recordingSignal,
+  wordSpans,
   signal,
   onLoadingChange,
   ...options
-}: SpeechSynthSpeakRequest): Promise<boolean> {
+}: SpeechSynthSpeakRequest & { recordingSignal: AbortSignal }): Promise<boolean> {
   if (signal?.aborted) return false;
   let voice: SpeechSynthTTSVoice | null = null;
   if (voiceOverride) {
@@ -354,11 +366,19 @@ async function speakSingle({
 
   if (signal?.aborted) return false;
 
+  if (voice.service === "RECORDING") {
+    const source = options.recordedVoices?.find(v => v.voice_id === voice.voice_id && v.voice_lang === voice.voice_lang);
+    if (!source) return false;
+    const { playRecordingSequence } = await import("./recording-sequence.js");
+    const spans = wordSpans?.join("") === text ? wordSpans : [text];
+    return playRecordingSequence(source, spans, getUserPreferredVoiceSpeed(), recordingSignal, onLoadingChange);
+  }
+
   // YUE OVERRIDE TO USE API VOICE IF AVAILABLE FOR PROBLEMATIC TEXTS // Potential Future: Browser Voices Improvement: 1. Brute forces-replace characters that should almost always be pronounced a certain way but are currently pronounced incorrectly [彈,近,抹]. 2. We feed in an optional AText - and use the 'spelling' there.
   if (!voiceOverride && ilike(lang, "yue")) {
     if (["覺", "彈", "近", "坐", "抹", "畫", "偈", "頂", "訂", "定", "正"].some((word) => text.includes(word))) {
       const voiceOptions = await getVoiceOptionsForLang(lang, apiVoiceAccessProfile, options);
-      const cloudVoice = voiceOptions.available.voices.find((v) => v.service !== "BROWSER");
+      const cloudVoice = voiceOptions.available.defaultAPIVoice;
       if (cloudVoice) {
         return speakAPIVoice({ text, lang, contentContext, ref, voice: cloudVoice, signal, onLoadingChange, ...options });
       }
@@ -379,7 +399,7 @@ async function speakSingle({
         !voiceOverride
       ) {
         const voiceOptions = await getVoiceOptionsForLang(lang, apiVoiceAccessProfile, options);
-        const fallbackVoice = voiceOptions.available.voices.find((v) => v.service !== "BROWSER");
+        const fallbackVoice = voiceOptions.available.defaultAPIVoice;
         if (fallbackVoice) {
           return speakAPIVoice({
             text,
@@ -422,7 +442,7 @@ export async function preloadSpeech({
     console.error(`Lang '${lang}' does not have an available voice.`);
     return;
   }
-  if (voice.service == "BROWSER") return;
+  if (voice.service === "BROWSER" || voice.service === "RECORDING") return;
   // Get SpeechFileURL
   const fileURL = await getSpeechFileURL({ text, lang, contentContext, ref, voice, ...options });
   if (!fileURL) return;
@@ -711,6 +731,12 @@ async function speakBrowserVoice(
     }
     return await speakBrowserUtterance(text, speechSynthVoice, speed, signal, onLoadingChange);
   }
+}
+
+export function speechVoiceDisplayName(voice: SpeechSynthTTSVoice): string {
+  if (voice.displayName) return voice.displayName;
+  if (voice.service === "HKILANG" && voice.voice_id === "hkilang-hak-hk-male-v1") return "HKILANG (Hong Kong Hakka)";
+  return prettifyVoiceId(voice.voice_id);
 }
 
 export function prettifyVoiceId(voice_id: string): string {

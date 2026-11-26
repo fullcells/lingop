@@ -9,6 +9,7 @@ import {
   MIN_USER_PREFERRED_VOICE_SPEED,
   preloadSpeech,
   prettifyVoiceId,
+  speechVoiceDisplayName,
   setUserPreferredVoiceSpeed,
   speakableTextFromDisplayText,
   type AudioMetaRow,
@@ -128,6 +129,7 @@ describe("speech synth TTS", () => {
   });
 
   it("prettifies provider voice ids", () => {
+    expect(speechVoiceDisplayName({ service: "HKILANG", voice_id: "hkilang-hak-hk-male-v1", voice_lang: "hak-HK" })).toBe("HKILANG (Hong Kong Hakka)");
     expect(prettifyVoiceId("en-US-AndrewMultilingualNeural:DragonNeural")).toBe(
       "Andrew Multilingual Neural",
     );

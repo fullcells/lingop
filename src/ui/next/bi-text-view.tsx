@@ -147,6 +147,7 @@ export function BiTextView({
     supabaseClient,
     backendTarget,
     useStagingBackend,
+    recordedVoices,
   } = useLingopClientData();
   const {
     prefShowSpelling,
@@ -159,6 +160,8 @@ export function BiTextView({
   });
   const atvRef = useRef<AnnotatedTextViewHandle | null>(null);
   const menuRef = useRef<HTMLDetailsElement | null>(null);
+  const speechSession = useRef<AbortController | null>(null);
+  useEffect(() => () => speechSession.current?.abort(), []);
   const activeAnnotationRequestRef = useRef(0);
   const onAnnotatedRef = useRef(onAnnotated);
   onAnnotatedRef.current = onAnnotated;
@@ -196,8 +199,9 @@ export function BiTextView({
       ...(supabaseClient ? { supabaseClient } : {}),
       backendTarget,
       useStagingBackend,
+      recordedVoices,
     }),
-    [supabaseClient, backendTarget, useStagingBackend],
+    [supabaseClient, backendTarget, useStagingBackend, recordedVoices],
   );
 
   // Set focusA8n to preparedFocusA8n when the parent finishes loading it.
@@ -350,20 +354,25 @@ export function BiTextView({
     ref: ContentReference | undefined,
     setSpeaking: (speaking: boolean) => void,
   ) {
+    speechSession.current?.abort();
+    const session = new AbortController();
+    speechSession.current = session;
     setSpeaking(true);
     try {
       await speechSynthTTS.speak({
         text,
         lang,
+        signal: session.signal,
+        wordSpans: lang === focusLang ? focusA8n?.tokens?.map(token => token.text) : undefined,
         apiVoiceAccessProfile,
         contentContext,
         ...(ref ? { ref } : {}),
         ...speechOptions,
       });
     } catch (error) {
-      console.error("Could not speak text:", error);
-      setStatus({ kind: "error", text: OAT("Error") });
+      if (!session.signal.aborted) setStatus({ kind: "error", text: error instanceof Error ? error.message : OAT("Error") });
     } finally {
+      if (speechSession.current === session) speechSession.current = null;
       setSpeaking(false);
     }
   }
