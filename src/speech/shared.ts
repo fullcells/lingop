@@ -8,7 +8,7 @@ import {
 } from "../core/supabase.js";
 
 export type SpeechSynthTTSVoice = {
-  service: "BROWSER" | "MICROSOFT" | "GOOGLE" | "OPENAI";
+  service: "BROWSER" | "MICROSOFT" | "GOOGLE" | "OPENAI" | "HKILANG";
   // voice.voiceURI <- for browsers. e.g. Chrome:"Google 粤語（香港）", Safari:"com.apple.voice.compact.en-US.Samantha". In the past, voice.voiceURI might not have necessarily been unique (e.g. "Flo"), but it seems like they've since been fixed to ensure uniqueness: e.g. "Shelley (Japanese (Japan))"
   voice_id: string;
   // ~ currently storing as the full voiceLangCode (e.g. en-US), rather than OA-LangCode (e.g. en)
@@ -495,7 +495,12 @@ async function getAudioMetaRow({
   const request = { text, lang, voice, contentContext, ref };
   const requestKey = getAudioMetaRequestKey(request, options);
   const cached = audioMetaCache.get(requestKey);
-  if (cached) return cached;
+  if (cached) {
+    if (contentContext !== "LIMITED_TEMP_ANON" || Date.parse(cached.created_at) > Date.now() - 48 * 60 * 60 * 1000) {
+      return cached;
+    }
+    audioMetaCache.delete(requestKey);
+  }
   const inFlight = audioMetaInFlight.get(requestKey);
   if (inFlight) return inFlight;
 
@@ -835,6 +840,7 @@ function isSpeechSynthTTSVoice(value: unknown): value is SpeechSynthTTSVoice {
     (candidate.service === "BROWSER" ||
       candidate.service === "MICROSOFT" ||
       candidate.service === "GOOGLE" ||
+      candidate.service === "HKILANG" ||
       candidate.service === "OPENAI") &&
     typeof candidate.voice_id === "string" &&
     typeof candidate.voice_lang === "string"

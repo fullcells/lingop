@@ -92,7 +92,7 @@ it("keeps voice lists and generated audio caches separate by backend", async () 
     const host = new URL(url).hostname;
     if (url.endsWith("get-api-voices")) return Response.json([{ ...voice, voice_id: host }]);
     return Response.json({ id: 1, lang: "en", text: "routing speech", filename: `${host}.mp3`,
-      owner_id: "test-owner", character_label: null, service: "MICROSOFT", voice_id: voice.voice_id, ref: null, created_at: "2026-10-07T00:00:00Z" });
+      owner_id: "test-owner", character_label: null, service: "MICROSOFT", voice_id: voice.voice_id, ref: { isTempAnon: true }, created_at: new Date().toISOString() });
   });
   const voices = await Promise.all([getAPIVoices({ fetchImpl, ...staging }), getAPIVoices({ fetchImpl, ...cloud })]);
   expect(voices.map(rows => rows[0]?.voice_id)).toEqual([new URL(BE_API_STAGING_URL).hostname, new URL(BE_API_GCLOUD_RUN_URL).hostname]);

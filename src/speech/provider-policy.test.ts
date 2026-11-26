@@ -25,6 +25,13 @@ describe("retired OpenAI generation and Sinhala fallback", () => {
     expect(await getAPIVoices({ fetchImpl })).toEqual([microsoft, google]);
     expect(selectVoiceOptions("yue", "ALL", [google]).available.voices).toEqual([google]);
   });
+  it("offers the locally configured HKILANG voice only for Hakka", async () => {
+    const voice = { service: "HKILANG", voice_id: "hkilang-hak-hk-male-v1", voice_lang: "hak-HK" } as const;
+    const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, text: async () => "", json: async () => [voice] }));
+    const catalog = await getAPIVoices({ fetchImpl });
+    expect(selectVoiceOptions("hak", "ONE_PER_LANG", catalog).available.defaultAPIVoice).toEqual(voice);
+    expect(selectVoiceOptions("yue", "ALL", catalog).available.voices).toEqual([]);
+  });
   it("still retrieves historical OpenAI audio metadata", async () => {
     const row = { id: 1, lang: "si", text: "saved speech", filename: "historical.mp3", owner_id: "owner", character_label: null, service: "OPENAI", voice_id: "cedar", ref: null, created_at: "2026-01-01T00:00:00Z" };
     const query: any = { eq() { return this; }, ilike() { return this; }, then(resolve: any) { return Promise.resolve({ data: [row], error: null }).then(resolve); } };
