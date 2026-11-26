@@ -4,7 +4,10 @@ import React, {
   startTransition,
   useCallback,
   useEffect,
+  useId,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type Dispatch,
@@ -14,9 +17,10 @@ import React, {
 import {
   doesLangMainScriptHaveReadingGuide,
   getLang,
+  getLangName,
   SpellingSystemsByLang,
 } from "../../core/language/index.js";
-import { replaceCurliesWithPrettyLang } from "../../core/misc.js";
+import { removeBracketedContent, replaceCurliesWithPrettyLang } from "../../core/misc.js";
 import { useOAT } from "../../oat/react/index.js";
 import { ilike } from "../../utils/string.js";
 import type { TripleDisplayState } from "../types.js";
@@ -37,15 +41,27 @@ type SettingsScreen =
   | { type: "MAIN" }
   | { type: "VOICE"; lang: string }
   | { type: "SPELLING" }
+  | { type: "CUSTOM"; id: string }
   | { type: "BACKGROUND_WORDS" };
 
 type NavigationDirection = "FORWARD" | "BACK";
+
+function screenKey(screen: SettingsScreen) {
+  if (screen.type === "VOICE") return `VOICE-${screen.lang}`;
+  if (screen.type === "CUSTOM") return `CUSTOM-${screen.id}`;
+  return screen.type;
+}
+
+type PageLinkProps = { id: string; onClick: () => void };
 
 export type SettingsVoicesNAnnotationsUIProps = {
   guiLang: string;
   focusLang?: string | null;
   showGuiLangVoiceSetting?: boolean;
   showNonCoreWordOptions?: boolean;
+  /** Appears before Audio on the overview. Spread pageLink(id) onto a custom page's trigger. */
+  overviewContent?: React.ReactNode | ((pageLink: (id: string) => PageLinkProps) => React.ReactNode);
+  customPages?: Record<string, { title: string; render: (goBack: () => void) => React.ReactNode }>;
   /** CSS color used by switches, segmented controls, and nested pickers. */
   accentColor?: string;
   className?: string;
@@ -116,6 +132,8 @@ export function SettingsVoicesNAnnotationsUI({
   focusLang = null,
   showGuiLangVoiceSetting = false,
   showNonCoreWordOptions = true,
+  overviewContent,
+  customPages,
   accentColor = "#2563eb",
   className,
 }: SettingsVoicesNAnnotationsUIProps) {
@@ -143,6 +161,9 @@ export function SettingsVoicesNAnnotationsUI({
     spellingSystemsInfo,
   } = useUserLingoPrefsData();
   const [screen, setScreen] = useState<SettingsScreen>({ type: "MAIN" });
+  const instanceId = useId();
+  const pageRef = useRef<HTMLDivElement>(null);
+  const returnTo = useRef<{ triggerId: string; scroller: Element; scrollTop: number } | null>(null);
   const [navigationDirection, setNavigationDirection] =
     useState<NavigationDirection>("FORWARD");
   const wordDetailPopover = useL10nWordDetailPopover({
@@ -190,11 +211,18 @@ export function SettingsVoicesNAnnotationsUI({
 
   const navigateForward = useCallback(
     (nextScreen: SettingsScreen) => {
+      const triggerId = `${instanceId}-${screenKey(nextScreen)}`;
+      let scroller = pageRef.current?.parentElement;
+      while (scroller && !/^(auto|scroll)$/.test(getComputedStyle(scroller).overflowY)) {
+        scroller = scroller.parentElement;
+      }
+      const scrollElement = scroller ?? document.scrollingElement;
+      if (scrollElement) returnTo.current = { triggerId, scroller: scrollElement, scrollTop: scrollElement.scrollTop };
       wordDetailPopover.closeL10nWordDetail();
       setNavigationDirection("FORWARD");
       setScreen(nextScreen);
     },
-    [wordDetailPopover.closeL10nWordDetail],
+    [instanceId, wordDetailPopover.closeL10nWordDetail],
   );
   const navigateBack = useCallback(() => {
     wordDetailPopover.closeL10nWordDetail();
@@ -202,29 +230,59 @@ export function SettingsVoicesNAnnotationsUI({
     setScreen({ type: "MAIN" });
   }, [wordDetailPopover.closeL10nWordDetail]);
 
+  const customPage = screen.type === "CUSTOM" ? customPages?.[screen.id] : undefined;
   useEffect(() => {
     const screenIsUnavailable =
+      (screen.type === "CUSTOM" && !customPage) ||
       (screen.type === "SPELLING" && !focusLang) ||
       (screen.type === "BACKGROUND_WORDS" && !showNonCoreWordOptions) ||
       (screen.type === "VOICE" && !voiceLangs.includes(screen.lang));
     if (screenIsUnavailable) navigateBack();
-  }, [focusLang, navigateBack, screen, showNonCoreWordOptions, voiceLangs]);
+  }, [customPage, focusLang, navigateBack, screen, showNonCoreWordOptions, voiceLangs]);
 
-  const screenKey =
-    screen.type === "VOICE" ? `VOICE-${screen.lang}` : screen.type;
+  useLayoutEffect(() => {
+    const origin = returnTo.current;
+    if (!origin) return;
+    if (screen.type === "MAIN") {
+      origin.scroller.scrollTop = origin.scrollTop;
+      const trigger = document.getElementById(origin.triggerId) ?? pageRef.current;
+      trigger?.focus({ preventScroll: true });
+      returnTo.current = null;
+    } else {
+      const back = pageRef.current?.querySelector<HTMLButtonElement>(".lingop-settings-back-button");
+      back?.focus({ preventScroll: true });
+      back?.scrollIntoView({ block: "nearest", behavior: "instant" });
+    }
+  }, [screen]);
+
+  function pageLink(target: SettingsScreen): PageLinkProps {
+    return { id: `${instanceId}-${screenKey(target)}`, onClick: () => navigateForward(target) };
+  }
+
+  function pickerTitle(section: string, lang: string) {
+    const name = getLangName(lang, guiLang) ?? lang.toUpperCase();
+    return `${section} · ${removeBracketedContent(name)}`;
+  }
   const rootStyle = {
     "--lingop-settings-accent": accentColor,
   } as CSSProperties;
 
   let page: React.ReactNode;
-  if (screen.type === "VOICE") {
+  if (customPage) {
+    page = (
+      <SettingsSubpage title={customPage.title} onBack={navigateBack}>
+        {customPage.render(navigateBack)}
+      </SettingsSubpage>
+    );
+  } else if (screen.type === "VOICE") {
     const voiceState = getVoiceState(screen.lang);
     page = (
       <SettingsSubpage
-        title={getLang(screen.lang)?.name_natural ?? OAT("Audio")}
+        title={pickerTitle(OAT("Audio"), screen.lang)}
         onBack={navigateBack}
       >
         <SpeechSynthLangVoicePicker
+          showHeader={false}
           lang={screen.lang}
           guiLang={guiLang}
           {...(screen.lang === focusLang
@@ -249,8 +307,9 @@ export function SettingsVoicesNAnnotationsUI({
     );
   } else if (screen.type === "SPELLING" && focusLang) {
     page = (
-      <SettingsSubpage title={OAT("Spelling")} onBack={navigateBack}>
+      <SettingsSubpage title={pickerTitle(OAT("Spelling"), focusLang)} onBack={navigateBack}>
         <SpellingSystemPicker
+          showHeader={false}
           lang={focusLang}
           guiLang={guiLang}
           onDone={navigateBack}
@@ -297,12 +356,15 @@ export function SettingsVoicesNAnnotationsUI({
   } else {
     page = (
       <div className="lingop-settings-main">
+        {typeof overviewContent === "function"
+          ? overviewContent((id) => pageLink({ type: "CUSTOM", id }))
+          : overviewContent}
         {/* AUDIO VOICE */}
         <SettingsSection icon="🔊" title={OAT("Audio")}>
           {voiceLangs.map((lang) => {
             const voiceState = getVoiceState(lang);
             return (
-              <NavigationRow
+              <SettingsNavigationRow
                 key={lang}
                 label={getLang(lang)?.name_natural ?? lang.toUpperCase()}
                 value={
@@ -312,7 +374,7 @@ export function SettingsVoicesNAnnotationsUI({
                     voiceState.voice ? speechSynthTTS.speechVoiceDisplayName(voiceState.voice) : ""
                   )
                 }
-                onClick={() => navigateForward({ type: "VOICE", lang })}
+                {...pageLink({ type: "VOICE", lang })}
               />
             );
           })}
@@ -332,14 +394,14 @@ export function SettingsVoicesNAnnotationsUI({
                   focusLang={focusLang}
                 />
                 {prefShowSpelling !== "NEVER" && (
-                  <NavigationRow
+                  <SettingsNavigationRow
                     label={OAT("Spelling")}
                     value={
                       currentSpellingSystemInfo?.shortLabel ??
                       currentSpellingSystemInfo?.label ??
                       ""
                     }
-                    onClick={() => navigateForward({ type: "SPELLING" })}
+                    {...pageLink({ type: "SPELLING" })}
                   />
                 )}
               </>
@@ -364,11 +426,11 @@ export function SettingsVoicesNAnnotationsUI({
             onChange={setPrefShowMainText}
           />
           {prefShowMainText && showNonCoreWordOptions && (
-            <NavigationRow
+            <SettingsNavigationRow
               label={OAT("Background Words")}
               value={fadeNonCoreWords ? OAT("Faded") : OAT("Not Faded")}
               valueFaded={fadeNonCoreWords}
-              onClick={() => navigateForward({ type: "BACKGROUND_WORDS" })}
+              {...pageLink({ type: "BACKGROUND_WORDS" })}
             />
           )}
         </SettingsSection>
@@ -427,7 +489,9 @@ export function SettingsVoicesNAnnotationsUI({
       style={rootStyle}
     >
       <div
-        key={screenKey}
+        key={screenKey(screen)}
+        ref={pageRef}
+        tabIndex={-1}
         className="lingop-settings-page"
         data-direction={navigationDirection}
         data-screen={screen.type}
@@ -619,7 +683,7 @@ function SpeechSpeedControlUI({ focusLang }: { focusLang: string | null }) {
   );
 }
 
-function SettingsSection({
+export function SettingsSection({
   icon,
   title,
   children,
@@ -681,12 +745,14 @@ function SettingsSubpage({
   );
 }
 
-function NavigationRow({
+export function SettingsNavigationRow({
+  id,
   label,
   value,
   valueFaded = false,
   onClick,
 }: {
+  id: string;
   label: string;
   value?: React.ReactNode;
   valueFaded?: boolean;
@@ -694,6 +760,7 @@ function NavigationRow({
 }) {
   return (
     <button
+      id={id}
       type="button"
       className="lingop-settings-row lingop-settings-navigation-row"
       onClick={onClick}

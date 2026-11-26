@@ -38,6 +38,7 @@ export type SpeechSynthLangVoicePickerProps = {
   /** Used only to localize region names; internal/invalid Intl codes fail open. */
   guiLang?: string;
   onDone: () => void;
+  showHeader?: boolean;
   /** Consumer-owned localized sentence used by the optional preview buttons. */
   previewText?: string;
   /** Required for cloud previews; browser previews need neither context nor ref. */
@@ -110,6 +111,7 @@ export function SpeechSynthLangVoicePicker({
   lang,
   guiLang = "en",
   onDone,
+  showHeader = true,
   previewText,
   previewContentContext,
   previewContentRef,
@@ -246,10 +248,12 @@ export function SpeechSynthLangVoicePicker({
   return (
     <div className="speech-voice-picker">
       <div className="speech-voice-picker-content">
-        <header className="speech-voice-picker-header">
-          <h1>{OAT("Language Speaker")}</h1>
-          <h2>{languageName}</h2>
-        </header>
+        {showHeader && (
+          <header className="speech-voice-picker-header">
+            <h1>{OAT("Language Speaker")}</h1>
+            <h2>{languageName}</h2>
+          </header>
+        )}
 
         <div
           className="speech-voice-picker-options"

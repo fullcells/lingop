@@ -334,6 +334,12 @@
   margin-bottom: 0.85rem;
 }
 
+.lingop-settings-subpage > .lingop-language-picker {
+  --lingop-language-picker-accent: var(--lingop-settings-accent);
+  height: auto;
+  max-height: min(34rem, 55dvh);
+}
+
 .lingop-settings-subpage > .speech-voice-picker,
 .lingop-settings-subpage > .spelling-system-picker {
   height: auto;

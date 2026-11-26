@@ -19,6 +19,7 @@ export type SpellingSystemPickerProps = {
   guiLang: string;
   onDone: () => void;
   slimUI?: boolean;
+  showHeader?: boolean;
   limitToBeginnerOptions?: boolean;
   showPreviewAudio?: boolean;
 };
@@ -156,6 +157,7 @@ export function SpellingSystemPicker({
   guiLang,
   onDone,
   slimUI = false,
+  showHeader = true,
   limitToBeginnerOptions = false,
   showPreviewAudio = true,
 }: SpellingSystemPickerProps): ReactNode {
@@ -182,7 +184,7 @@ export function SpellingSystemPicker({
   return (
     <div className="spelling-system-picker">
       <div className="spelling-system-picker-content">
-        {!slimUI && (
+        {!slimUI && showHeader && (
           <header className="spelling-system-picker-header">
             <h1>{OAT("Spelling")}</h1>
             <h2>{languageName}</h2>
