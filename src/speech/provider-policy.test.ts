@@ -25,6 +25,16 @@ describe("retired OpenAI generation and Sinhala fallback", () => {
     expect(await getAPIVoices({ fetchImpl })).toEqual([microsoft, google]);
     expect(selectVoiceOptions("yue", "ALL", [google]).available.voices).toEqual([google]);
   });
+  it("selects SuíSiann with its credits and also offers MOE recording playback for Hokkien", async () => {
+    const voice = { service: "SUISIANN", voice_id: "suisiann-nan-tw-vits-v1", voice_lang: "nan-TW", displayName: "SuíSiann (Taiwanese Hokkien)" } as const;
+    const recorded = { service: "RECORDING", voice_id: "taiwan-moe-hokkien", voice_lang: "nan-TW" } as const;
+    const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, text: async () => "", json: async () => [voice] }));
+    const catalog = await getAPIVoices({ fetchImpl });
+    const choices = selectVoiceOptions("nan", "ONE_PER_LANG", [...catalog, recorded]);
+    expect(choices.available.defaultAPIVoice).toEqual(voice);
+    expect(choices.available.voices).toContainEqual(recorded);
+    expect(selectVoiceOptions("hak", "ALL", catalog).available.voices).toHaveLength(0);
+  });
   it("offers the locally configured HKILANG voice only for Hakka", async () => {
     const voice = { service: "HKILANG", voice_id: "hkilang-hak-hk-male-v1", voice_lang: "hak-HK" } as const;
     const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, text: async () => "", json: async () => [voice] }));

@@ -8,7 +8,7 @@ import {
 } from "../core/supabase.js";
 
 export type SpeechSynthTTSVoice = {
-  service: "BROWSER" | "MICROSOFT" | "GOOGLE" | "OPENAI" | "HKILANG" | "RECORDING";
+  service: "BROWSER" | "MICROSOFT" | "GOOGLE" | "OPENAI" | "HKILANG" | "SUISIANN" | "RECORDING";
   // voice.voiceURI <- for browsers. e.g. Chrome:"Google 粤語（香港）", Safari:"com.apple.voice.compact.en-US.Samantha". In the past, voice.voiceURI might not have necessarily been unique (e.g. "Flo"), but it seems like they've since been fixed to ensure uniqueness: e.g. "Shelley (Japanese (Japan))"
   voice_id: string;
   // ~ currently storing as the full voiceLangCode (e.g. en-US), rather than OA-LangCode (e.g. en)
@@ -201,6 +201,9 @@ export const API_VOICE_ACCESS_PROFILE__CAMPLINGOV1: Record<
   string,
   SpeechSynthTTSVoice[]
 > = {
+  nan: [
+    { service: "SUISIANN", voice_id: "suisiann-nan-tw-vits-v1", voice_lang: "nan-TW" },
+  ],
   hak: [
     { service: "HKILANG", voice_id: "hkilang-hak-hk-male-v1", voice_lang: "hak-HK" },
   ],
@@ -858,6 +861,7 @@ function isSpeechSynthTTSVoice(value: unknown): value is SpeechSynthTTSVoice {
       candidate.service === "MICROSOFT" ||
       candidate.service === "GOOGLE" ||
       candidate.service === "HKILANG" ||
+      candidate.service === "SUISIANN" ||
       candidate.service === "OPENAI") &&
     typeof candidate.voice_id === "string" &&
     typeof candidate.voice_lang === "string"
