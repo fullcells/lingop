@@ -191,6 +191,9 @@ export const API_VOICE_ACCESS_PROFILE__CAMPLINGOV1: Record<
   string,
   SpeechSynthTTSVoice[]
 > = {
+  hak: [
+    { service: "HKILANG", voice_id: "hkilang-hak-hk-male-v1", voice_lang: "hak-HK" },
+  ],
   ja: [
     {
       service: "MICROSOFT",
