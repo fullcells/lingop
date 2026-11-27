@@ -244,7 +244,7 @@ async function writeSource(source, entries) {
   return sorted.map(([bucket]) => bucket);
 }
 
-function loaderSource(generatedSources) {
+function loaderSource(generatedSources, browserAssets = false) {
   const lines = [
     "import type {",
     "  StrokeBucketLoader,",
@@ -264,9 +264,13 @@ function loaderSource(generatedSources) {
       const directoryName = `${sourceDirectoryName(source.id)}${suffix}`;
       lines.push(`  ${source.id}: {`);
       for (const bucket of buckets) {
-        lines.push(
-          `    ${JSON.stringify(bucket)}: () => import("./generated/${directoryName}/${bucket}.js"),`,
-        );
+        const file = JSON.stringify(`./generated/${directoryName}/${bucket}.js`);
+        // A literal URL lets the bundler emit the existing ESM file as an asset.
+        // The browser then imports it directly when a character needs this bucket.
+        const load = browserAssets
+          ? `import(/* webpackIgnore: true */ /* @vite-ignore */ new URL(${file}, import.meta.url).href)`
+          : `import(${file})`;
+        lines.push(`    ${JSON.stringify(bucket)}: () => ${load},`);
       }
       lines.push("  },");
     }
@@ -318,4 +322,8 @@ for (const source of sources) {
 await writeFile(
   path.join(repositoryRoot, "src/stroke-order/generated-loaders.ts"),
   loaderSource(generatedSources),
+);
+await writeFile(
+  path.join(repositoryRoot, "src/stroke-order/generated-browser-loaders.ts"),
+  loaderSource(generatedSources, true),
 );

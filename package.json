@@ -156,6 +156,14 @@
     "./speech/browser-voices": {
       "types": "./dist/speech/browser-voices.d.ts",
       "default": "./dist/speech/browser-voices.js"
+    },
+    "./ui/next/stroke-provider": {
+      "types": "./dist/ui/next/stroke-provider.d.ts",
+      "default": "./dist/ui/next/stroke-provider.js"
+    },
+    "./ui/next/stroke-provider/assets": {
+      "types": "./dist/stroke-order/browser-provider.d.ts",
+      "default": "./dist/stroke-order/browser-provider.js"
     }
   },
   "files": [

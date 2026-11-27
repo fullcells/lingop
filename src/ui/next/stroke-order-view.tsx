@@ -3,17 +3,15 @@
 import React, { useEffect, useState } from "react";
 
 import { useOAT } from "../../oat/react/index.js";
+import { getPenStrokes, STROKE_SOURCE_LABELS } from "../../stroke-order/provider-core.js";
 import {
   DEFAULT_STROKE_VIEW,
-  getPenStrokes,
-  localStrokeDataProvider,
-  STROKE_SOURCE_LABELS,
   STROKE_VIEWS,
   strokeViewNeedsCentrelines,
-  type StrokeCharacterData,
-  type StrokeDataProvider,
   type StrokeView,
-} from "../../stroke-order/index.js";
+} from "../../stroke-order/figure.js";
+import type { StrokeCharacterData, StrokeDataProvider } from "../../stroke-order/types.js";
+import { localStrokeDataProvider } from "lingop/ui/next/stroke-provider";
 import {
   readWordDetailStrokeView,
   writeWordDetailStrokeView,

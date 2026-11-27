@@ -19,7 +19,7 @@ import { WORD_STREAKS_MASTERY_THRESHOLD } from "../../core/word-lists.js";
 import {
   getStrokeCharacters,
   supportsStrokeOrder,
-} from "../../stroke-order/index.js";
+} from "../../stroke-order/provider-core.js";
 import { ilike } from "../../utils/string.js";
 import { useOAT } from "../../oat/react/index.js";
 import { AnnotatedTextView } from "./annotated-text.js";

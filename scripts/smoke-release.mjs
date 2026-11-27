@@ -28,6 +28,20 @@ try {
   assertPaths(pkg.bin);
   console.log(npm(["run", "update:lingop", "--", "--help"]));
   execFileSync(process.execPath, ["--input-type=module", "-e", 'await import("lingop/utils/string"); await import("lingop/stroke-order"); await import("lingop/content/lingodex"); const images = await import("lingop/images"); if (typeof images.createImageClient !== "function") throw new Error("Missing image client export");'], { cwd: consumer, stdio: "inherit" });
+  execFileSync(process.execPath, ["--input-type=module", "-e", `
+    import assert from "node:assert/strict";
+    import * as portable from "lingop/ui/next/stroke-provider";
+    import * as assets from "lingop/ui/next/stroke-provider/assets";
+    import { localStrokeDataProvider } from "lingop/stroke-order";
+    assert.deepEqual(Object.keys(assets), Object.keys(portable));
+    assert.equal(portable.localStrokeDataProvider, localStrokeDataProvider);
+    for (const [character, language] of [["字", "ja"], ["あ", "ja"], ["我", "zh-TW"], ["喫", "cmn-hant"], ["嚟", "yue"]]) {
+      const options = { centrelines: true };
+      const expected = await localStrokeDataProvider.get(character, language, options);
+      assert.ok(expected?.strokes.length);
+      assert.deepEqual(await assets.localStrokeDataProvider.get(character, language, options), expected);
+    }
+  `], { cwd: consumer, stdio: "inherit" });
   console.log("Prebuilt package installation, exports, and updater smoke checks passed.");
 } finally {
   rmSync(consumer, { recursive: true, force: true });

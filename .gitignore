@@ -5,3 +5,4 @@ releases/
 *.tsbuildinfo
 src/stroke-order/generated/
 src/stroke-order/generated-loaders.ts
+src/stroke-order/generated-browser-loaders.ts

@@ -5,11 +5,11 @@ import React, { useId, useState, type CSSProperties } from "react";
 import { useOAT } from "../../oat/react/index.js";
 import {
   getStrokeFigure,
-  type StrokeCharacterData,
   type StrokeFigure,
   type StrokeFigurePenStroke,
   type StrokeView,
-} from "../../stroke-order/index.js";
+} from "../../stroke-order/figure.js";
+import type { StrokeCharacterData } from "../../stroke-order/types.js";
 
 export type StrokeFigureView = Exclude<StrokeView, "STEPS">;
 

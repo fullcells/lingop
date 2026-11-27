@@ -2,7 +2,7 @@
 // direction arrows, order colours, and the animation timeline. Web and React
 // Native renderers draw the same model, so this file has no DOM or React code.
 
-import { getPenStrokes } from "./provider.js";
+import { getPenStrokes } from "./provider-core.js";
 import type {
   StrokeCentreline,
   StrokeCharacterData,
