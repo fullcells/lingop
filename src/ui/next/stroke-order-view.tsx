@@ -11,7 +11,7 @@ import {
   type StrokeView,
 } from "../../stroke-order/figure.js";
 import type { StrokeCharacterData, StrokeDataProvider } from "../../stroke-order/types.js";
-import { localStrokeDataProvider } from "lingop/ui/next/stroke-provider";
+import { localStrokeDataProvider } from "../../stroke-order/browser-provider.js";
 import {
   readWordDetailStrokeView,
   writeWordDetailStrokeView,

@@ -137,23 +137,10 @@ and Traditional Chinese characters. WordDetails uses the same provider for its
 **Strokes** tab. Lingop ships all data in lazy code-point buckets. Native and
 Node consumers can load the data offline.
 
-Next.js apps using Turbopack can serve the web stroke view's data from
-content-hashed static assets. Merge this alias into the app's existing
-`next.config.ts` configuration.
-
-```ts
-turbopack: {
-  resolveAlias: {
-    "lingop/ui/next/stroke-provider": "lingop/ui/next/stroke-provider/assets",
-  },
-},
-```
-
-The web view imports each asset from the app's static files on demand. Deploy
-the complete Next.js static directory as usual. The package ships one set of
-stroke buckets shared by both loading modes. The portable provider is the
-default for existing installations, including direct `lingop/stroke-order`
-lookups and React Native.
+The Next.js stroke view loads the buckets it needs from the app's own static
+assets. Next.js generates their URLs during compilation, including any
+configured base path. Deploy the complete Next.js static directory as usual.
+Node and React Native use local module imports for the same packaged data.
 
 The build-time source priority is:
 
